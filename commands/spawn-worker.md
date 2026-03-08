@@ -8,7 +8,7 @@ Example: `/spawn-worker auth-module` or `/spawn-worker auth-module JWT auth in s
 
 ---
 
-## Flow: Scope → Prompt → Spawn
+## Flow: Scope → Verify → Prompt → Spawn
 
 This command ALWAYS follows this sequence. No shortcuts.
 
@@ -31,27 +31,52 @@ Have a conversation with the user to clarify:
 
 Keep it focused — 2-3 exchanges max to nail down the scope.
 
-### Step 3: Build the Prompt
+### Step 3: Pre-Flight Check (MANDATORY for worktree mode)
 
-Write a clear, complete prompt based on the scoping conversation. Present it to the user:
+**BEFORE creating the worktree**, verify that ALL target files are tracked by git:
 
-"Das wird der Prompt für den Worker:"
-
-```
-<the prompt>
+```bash
+git check-ignore <file-or-dir-1> <file-or-dir-2> ...
 ```
 
-"Passt das, oder soll ich etwas ändern?"
+- If ANY target file/directory is gitignored → **STOP and warn the user**
+- Gitignored files do NOT exist in worktrees — the worker will find nothing and fall back to editing main
+- Options: (a) un-ignore the files first, (b) skip worktree and work in project directory directly
+
+**Why this is critical:** Worktrees are created from the git index. Anything in `.gitignore` is invisible to the worker. Without this check, the worker silently edits main instead of the worktree — destroying isolation.
+
+### Step 4: Build the Prompt
+
+Write the prompt as a Markdown file at `/tmp/spawn-worker-<worker-name>.md`. This avoids shell escaping issues and makes the prompt reviewable.
+
+Present it to the user:
+
+"Prompt geschrieben nach `/tmp/spawn-worker-<worker-name>.md`:"
+
+```
+<the prompt content>
+```
+
+"Passt das, oder soll ich etwas aendern?"
 
 The prompt MUST include:
 - The specific task with concrete deliverables
 - Which files/directories to work in
 - Reference to plan file if one exists: "Read .claude/plans/*.md for full context"
-- Worktree instruction (if applicable): "You are working in a git worktree. Commit your changes to this branch when done."
+- **Worktree isolation instruction** (if applicable):
+
+```
+CRITICAL: You are working in a git worktree at <worktree-path>.
+- Your working directory is <worktree-path>, NOT the main repo.
+- ALL file reads and edits MUST use paths relative to your working directory.
+- NEVER use absolute paths to the main repo.
+- Verify with `pwd` if unsure.
+- Commit your changes to this branch when done.
+```
 
 Wait for user approval before proceeding.
 
-### Step 4: Create Worktree (if applicable)
+### Step 5: Create Worktree (if applicable)
 
 ```bash
 git worktree add -b <worker-name> .claude/worktrees/<worker-name>
@@ -59,32 +84,25 @@ git worktree add -b <worker-name> .claude/worktrees/<worker-name>
 
 If the branch already exists, STOP and inform the user.
 
-### Step 5: Write Prompt & Spawn
-
-Write the approved prompt to a temp file, then spawn:
-
-```bash
-cat > /tmp/spawn-worker-prompt.txt << 'PROMPT_EOF'
-<approved prompt here>
-PROMPT_EOF
-```
+### Step 6: Spawn
 
 Resolve PLUGIN_DIR from this command's path (go up one level from commands/).
 
 ```bash
 source $PLUGIN_DIR/src/spawn/tmux_spawn.sh
-spawn_claude_worker_from_file "workers" "<worker-name>" "<project-or-worktree-path>" "sonnet" "/tmp/spawn-worker-prompt.txt"
+spawn_claude_worker_from_file "workers" "<worker-name>" "<project-or-worktree-path>" "sonnet" "/tmp/spawn-worker-<worker-name>.md"
 ```
 
-### Step 6: Confirm
+### Step 7: Confirm
 
 Report to user:
 - Worker name and branch
 - Worktree path (if applicable)
+- Prompt file: `/tmp/spawn-worker-<worker-name>.md`
 - tmux attach command: `tmux attach -t workers`
 - List all current workers: `tmux list-windows -t workers`
 
-### Step 7: Cleanup Instructions
+### Step 8: Cleanup Instructions
 
 When the user says a worker is done and wants to merge:
 
