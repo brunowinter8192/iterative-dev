@@ -7,3 +7,4 @@
 {"actor":"Bruno Winter","comment":null,"created_at":"2026-03-08T01:32:07Z","event_type":"created","id":7,"issue_id":"blank-6lt","new_value":"","old_value":""}
 {"actor":"Bruno Winter","comment":null,"created_at":"2026-03-08T15:36:01Z","event_type":"closed","id":8,"issue_id":"blank-dfb","new_value":"Session-Bead vom 22.02. ohne Follow-up. Master-Suche Richtungswechsel zu Wing-Mastern dokumentiert. Bei Wiederaufnahme neues Bead mit aktuellem Stand erstellen.","old_value":""}
 {"actor":"Bruno Winter","comment":null,"created_at":"2026-03-08T15:36:02Z","event_type":"closed","id":9,"issue_id":"blank-e1f","new_value":"Überholt durch Plugin-Architektur (Skills, Agents, Hooks). Slash Commands und Projekt-CLAUDE.md Stellschrauben sind durch das Plugin-System abgedeckt.","old_value":""}
+{"actor":"Bruno Winter","comment":null,"created_at":"2026-03-08T17:56:27Z","event_type":"created","id":10,"issue_id":"blank-nl2","new_value":"","old_value":""}
