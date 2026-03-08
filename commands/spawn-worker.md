@@ -1,75 +1,90 @@
 # Spawn Worker — Claude Session in Worktree via tmux
 
 Spawn an interactive Claude session in a git worktree, accessible via tmux.
-Uses the Maniple-inspired 2-phase spawn pattern: start Claude first, wait for ready, then send prompt.
 
 Input: $ARGUMENTS
-Format: `<worker-name> <task-description>`
-Example: `/spawn-worker auth-module Implement JWT authentication in src/auth/`
+Format: `<worker-name>` or `<worker-name> <brief-description>`
+Example: `/spawn-worker auth-module` or `/spawn-worker auth-module JWT auth in src/auth/`
 
 ---
 
-## Step 1: Parse Arguments
+## Flow: Scope → Prompt → Spawn
 
-Extract worker name (first word) and task description (rest) from $ARGUMENTS.
-If no arguments provided, ask the user for worker name and task.
+This command ALWAYS follows this sequence. No shortcuts.
 
-## Step 1.5: Gitignore Scope Check
+### Step 1: Parse Arguments
 
-**BEFORE creating the worktree**, check if the task requires gitignored files (`.env`, `.mcp.json`, `.venv/`, `node_modules/`, etc.).
+Extract worker name (first word) from $ARGUMENTS. The rest (if any) is an initial hint, NOT the final prompt.
 
-Worktrees do NOT contain gitignored files — they are isolated copies of tracked files only.
+If no arguments provided, ask for a worker name.
 
-Ask the user: "Braucht dieser Task Zugriff auf gitignored Files (.env, .mcp.json, .venv, etc.)?"
+### Step 2: Scope the Task
 
-- **If YES:** STOP. Inform the user that worktree isolation is not suitable for this task. Suggest running the worker directly in the project directory instead (skip Step 2, use project path in Step 4).
-- **If NO or unclear:** Proceed with worktree creation.
+Have a conversation with the user to clarify:
 
-## Step 2: Create Worktree
+1. **What** should the worker do? (concrete deliverable)
+2. **Where** in the codebase? (files, directories)
+3. **Constraints?** (don't touch X, follow pattern Y, use library Z)
+4. **Gitignored files needed?** (.env, .mcp.json, .venv, etc.)
+   - If YES: skip worktree, use project directory directly
+   - If NO: proceed with worktree isolation
+
+Keep it focused — 2-3 exchanges max to nail down the scope.
+
+### Step 3: Build the Prompt
+
+Write a clear, complete prompt based on the scoping conversation. Present it to the user:
+
+"Das wird der Prompt für den Worker:"
+
+```
+<the prompt>
+```
+
+"Passt das, oder soll ich etwas ändern?"
+
+The prompt MUST include:
+- The specific task with concrete deliverables
+- Which files/directories to work in
+- Reference to plan file if one exists: "Read .claude/plans/*.md for full context"
+- Worktree instruction (if applicable): "You are working in a git worktree. Commit your changes to this branch when done."
+
+Wait for user approval before proceeding.
+
+### Step 4: Create Worktree (if applicable)
 
 ```bash
 git worktree add -b <worker-name> .claude/worktrees/<worker-name>
 ```
 
-Verify the worktree was created. If the branch already exists, STOP and inform the user.
+If the branch already exists, STOP and inform the user.
 
-## Step 3: Write Task Prompt
+### Step 5: Write Prompt & Spawn
 
-Write the task description to a temp file to avoid shell escaping issues:
+Write the approved prompt to a temp file, then spawn:
 
 ```bash
 cat > /tmp/spawn-worker-prompt.txt << 'PROMPT_EOF'
-<task-description goes here>
-
-You are working in a git worktree. Commit your changes to this branch when done.
+<approved prompt here>
 PROMPT_EOF
 ```
-
-The task prompt MUST include:
-- The specific task from the user's arguments
-- Reference to the plan file if one exists: "Read .claude/plans/*.md for full context"
-- Instruction: "You are working in a git worktree. Commit your changes to this branch when done."
-
-## Step 4: Spawn via tmux_spawn.sh
 
 Resolve PLUGIN_DIR from this command's path (go up one level from commands/).
 
 ```bash
 source $PLUGIN_DIR/src/spawn/tmux_spawn.sh
-spawn_claude_worker_from_file "workers" "<worker-name>" "$(pwd)/.claude/worktrees/<worker-name>" "sonnet" "/tmp/spawn-worker-prompt.txt"
+spawn_claude_worker_from_file "workers" "<worker-name>" "<project-or-worktree-path>" "sonnet" "/tmp/spawn-worker-prompt.txt"
 ```
 
-**Note:** Do NOT use `--append-system-prompt`. The spawn script sends the prompt as user input after Claude is ready.
-
-## Step 5: Confirm
+### Step 6: Confirm
 
 Report to user:
 - Worker name and branch
-- Worktree path
+- Worktree path (if applicable)
 - tmux attach command: `tmux attach -t workers`
 - List all current workers: `tmux list-windows -t workers`
 
-## Step 6: Cleanup Instructions
+### Step 7: Cleanup Instructions
 
 When the user says a worker is done and wants to merge:
 

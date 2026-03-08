@@ -281,10 +281,7 @@ After completing plan edits, BEFORE transition to RECAP:
 
 ### Phase Entry
 
-1. If subagents were used this cycle: User may run `/eval-spawn <project>` to spawn async Sonnet eval
-   - Works in Plan Mode (read-only + tmux spawn, no project changes)
-   - Sonnet evaluates all agents async, writes reports to `<project>/Evaluation_Proposals/`
-   - Session stays open for review after CLOSING
+1. If subagents were used this cycle: User may activate eval-related slash commands from other plugins (e.g., `/eval-spawn` from the RAG plugin). If activated, these become part of the RECAP workflow and may produce reports in `<project>/Evaluation_Proposals/`.
 2. Ask user: "Activate Plan Mode for RECAP (`/plan`)"
 3. Wait for Plan Mode system message
 4. Proceed with evaluation report (read-only enforced by Plan Mode)
@@ -402,7 +399,7 @@ Evaluate subagent usage during the cycle (if agents were used).
 
 ##### 4.1 Eval Reports
 
-If `Evaluation_Proposals/*.md` reports exist (from `/eval-spawn` or a previous session):
+If `Evaluation_Proposals/*.md` reports exist (from an eval command or a previous session):
 
 1. `ls Evaluation_Proposals/*.md` — check for reports
 2. Read each report
@@ -410,7 +407,7 @@ If `Evaluation_Proposals/*.md` reports exist (from `/eval-spawn` or a previous s
 4. Integrate actionable proposals into Section 6.2 Process Improvements
 5. Track which report files were read (needed for CLOSING cleanup)
 
-**Do NOT search Evaluation_Proposals/ autonomously if no eval-spawn was used.** Only check when eval-spawn was triggered or user explicitly points to reports.
+**Do NOT search Evaluation_Proposals/ autonomously.** Only check when the user triggered an eval command or explicitly points to reports.
 
 ##### 4.2 Self-Assessment (Opus only)
 
@@ -737,7 +734,7 @@ Only enter when user confirms (e.g., "proceed", "close", "done").
 
 3. Ask: "New cycle or done for now?"
 
-**If eval-spawn was used:** Session stays open. When Sonnet finishes and user returns:
+**If an eval worker was spawned:** Session stays open. When the worker finishes and user returns:
 1. `ls Evaluation_Proposals/*.md` — read new reports
 2. Present key findings + proposals to user
 3. User approves/rejects each proposal

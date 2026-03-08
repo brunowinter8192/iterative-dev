@@ -108,3 +108,25 @@ spawn_claude_worker() {
     # Return pane_id
     echo "$pane_id"
 }
+
+# spawn_claude_worker_from_file SESSION NAME PROJECT_PATH MODEL PROMPT_FILE [EXTRA_FLAGS]
+#   Like spawn_claude_worker, but reads the task prompt from a file instead of
+#   an argument. Avoids shell escaping issues with complex multi-line prompts.
+spawn_claude_worker_from_file() {
+    local session="${1:-$SPAWN_DEFAULT_SESSION}"
+    local name="$2"
+    local project_path="$3"
+    local model="${4:-sonnet}"
+    local prompt_file="$5"
+    local extra_flags="${6:-}"
+
+    if [ ! -f "$prompt_file" ]; then
+        echo "ERROR: Prompt file not found: $prompt_file" >&2
+        return 1
+    fi
+
+    local task_prompt
+    task_prompt=$(cat "$prompt_file")
+
+    spawn_claude_worker "$session" "$name" "$project_path" "$model" "$task_prompt" "$extra_flags"
+}

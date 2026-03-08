@@ -262,6 +262,23 @@ tools: mcp__reddit__search_posts, mcp__reddit__get_post_comments
 
 ---
 
+## Plugin Migration
+
+When moving code from Plugin A to Plugin B:
+
+**Dependency Direction (CRITICAL):**
+- After migration, Plugin B must have ZERO dependencies back to Plugin A
+- Shared utilities (e.g., shell scripts, helper functions) must be COPIED, not referenced via path
+- If you're extracting a feature OUT of a plugin, it must be fully self-contained in its new home
+- Test: Could a user install ONLY Plugin B and have the migrated feature work?
+
+**Function Reference Check:**
+- When a command references a function from a sourced script (e.g., `spawn_claude_worker_from_file`): verify the function EXISTS in that script BEFORE planning
+- Missing functions = silent failure at runtime (bash sources the file, then fails on the call)
+- Read both the command AND the script it sources — cross-check all function calls against definitions
+
+---
+
 ## Common Errors
 
 | Error | Cause | Fix |
