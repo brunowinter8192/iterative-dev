@@ -710,13 +710,6 @@ Only enter when user confirms (e.g., "proceed", "close", "done").
 - If ANY Open Item has no Bead → CREATE IT NOW before proceeding
 - This check is NON-NEGOTIABLE
 
-**PLUGIN-SYNC CHECK (MANDATORY):**
-- Were ANY plugin-distributed files edited this session? (Skills, Agents, Commands, server.py, src/ modules)
-- Check: Does the current project have a `plugin-sync.sh` entry? (see `~/.claude/CLAUDE.md` Plugin Cache Management)
-- If YES → include sync command in git-committer prompt (agent runs sync before commits)
-- If NO → omit Plugin-Sync section from prompt
-- **Without sync: edited Skills/Agents/Tools stay in source repo but never reach the plugin cache. The MCP server runs from cache — unsyncronized changes are invisible to Claude Code.**
-
 **EVAL CLEANUP (MANDATORY):**
 - Delete ONLY the reports that were read and processed in THIS session's RECAP
 - Track which agent IDs were processed during RECAP — delete only those
@@ -724,35 +717,24 @@ Only enter when user confirms (e.g., "proceed", "close", "done").
 - NEVER `rm -f Evaluation_Proposals/*.md` — other sessions may have unprocessed reports
 
 1. `bd export` (JSONL export — replaces old `bd sync`)
-2. **Commit ALL repos with changes via git-committer agent — NO EXCEPTIONS:**
+2. **Commit ALL repos with changes via git-committer agent:**
 
-   **MANDATORY AGENT USAGE (NON-NEGOTIABLE):**
-   - ALWAYS use the git-committer agent for ALL commits. No manual `git add`, `git commit`, `git push`.
-   - NEVER run `git diff`, `git status`, or any git inspection commands yourself before dispatching — the git-committer does this internally.
-   - Your ONLY job: collect repo paths + file lists + context, then dispatch. Nothing else.
-   - The git-committer handles: status, diff, staging, commit message, commit, push. You handle: NOTHING git-related.
-
-   **PRE-DISPATCH CHECK:** Verify ALL file edits are complete BEFORE dispatching. The git-committer CANNOT edit files — it can only stage and commit what's already changed on disk. If you expected to edit a file but can't find the Edit/Write call: the edit was missed. Fix it yourself, THEN dispatch.
-   - **FILE LIST = TOOL CALLS (MANDATORY):** The file list in the git-committer prompt MUST only contain files you actually modified via Edit/Write tool calls this session. Do NOT list files from memory, intent, or plan — only files where you can point to the specific Edit/Write call that changed them. Phantom entries (files you planned to change but didn't) cause incomplete commits and post-dispatch confusion.
-   - **GITIGNORE CHECK:** Before listing files in the dispatch prompt, verify each path is NOT in `.gitignore`. Run `git check-ignore <path>` or check `.gitignore` manually. Gitignored files in the prompt cause staging failures.
-   - **DELETIONS:** For deleted files, write `<path> (DELETED)` — not just the filename. If unsure whether deletions are tracked: `git ls-files <path>` to confirm. Untracked deletions cannot be staged.
-   - **NON-GIT REPOS:** If a changed file lives outside a git repo (e.g., `~/.claude/CLAUDE.md`), note it in the dispatch prompt so the agent can skip it gracefully. Don't silently omit it.
-   - Collect ALL repo paths with changes during this session
-   - Collect plugin-sync commands if applicable (see check above)
-   - Single agent call with full context:
+   **Dispatch is simple — just repo paths:**
    ```
    Task(subagent_type="git-committer", prompt="""
    Repos:
    - /path/to/project
    - /path/to/plugin-source
-
-   Plugin-Sync (run BEFORE commits):
-   - plugin-sync.sh <name> <repo-path>
    """)
    ```
-   - Omit Plugin-Sync section if no sync needed
-   - **POST-DISPATCH VERIFY:** For EACH repo, run `git -C <repo> log -1 --oneline`. If the latest commit matches the session's work → done. If NOT → re-dispatch ONCE for that repo only. Never re-dispatch twice — if the second attempt also appears to fail, report to user.
-   - **A repo with uncommitted changes = lost work in the next session**
+   - The git-committer handles EVERYTHING: status, diff, staging, commit message, commit, push
+   - The git-committer auto-detects plugin repos and runs plugin-sync if needed
+   - Your ONLY job: collect repo paths that had changes this session, then dispatch
+   - No file lists, no gitignore checks, no plugin-sync instructions needed
+   - NEVER run git commands yourself — the agent does it all
+
+   **POST-DISPATCH VERIFY:** For EACH repo, run `git -C <repo> log -1 --oneline`. If the latest commit matches the session's work → done. If NOT → re-dispatch ONCE for that repo only.
+
 3. Ask: "New cycle or done for now?"
 
 **If eval-spawn was used:** Session stays open. When Sonnet finishes and user returns:
@@ -872,6 +854,7 @@ Agent provides:
 - Miss files
 - Misinterpret code
 - Hallucinate paths
+- **Get CLI syntax wrong** — flag formats (`-e "quoted"` vs `-e arg1 arg2`), argument semantics, and platform-specific behavior vary between tools. ALWAYS verify CLI syntax from agent output via `--help` or official docs before using it.
 
 **Verification Checklist:**
 - [ ] Read at least 1 critical file mentioned by agent
