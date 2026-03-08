@@ -30,9 +30,15 @@ For EACH repo in the Repos list, sequentially:
 3. If NO changes: report `SKIP: <repo> — nothing to commit` and move to next repo
 4. `git diff` and `git diff --cached` — understand what changed
 5. **Stage all changed files by name** from `git status` output
+   - Run `git status` (never use `-uall` flag)
    - NEVER use `git add -A` or `git add .`
    - SKIP: `.beads/`, `.DS_Store`, `.env`, `credentials`
-   - Stage everything else (modified, deleted, untracked)
+   - Stage ALL three categories from git status:
+     - **Modified files:** `git add path/to/file`
+     - **Deleted files:** `git add path/to/file`
+     - **Untracked files/directories:** `git add path/to/new-file` or `git add path/to/new-dir/`
+   - CRITICAL: Untracked entries are EQUALLY important as modified entries. Missing them = incomplete commit.
+   - git status shows untracked directories as just the name (e.g., `Prompts/`). Stage them with `git add Prompts/` — this adds all files inside.
 6. **Plugin-Sync check:**
    - Look for `plugin-sync.sh` in the repo: `find <repo-path> -name "plugin-sync.sh" -maxdepth 3`
    - If found AND the repo looks like a plugin source (has `plugin.json`, skills/, agents/):
