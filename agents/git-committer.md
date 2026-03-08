@@ -29,7 +29,7 @@ For EACH repo in the Repos list, sequentially:
 2. `git status` — check for changes
 3. If NO changes: report `SKIP: <repo> — nothing to commit` and move to next repo
 4. `git diff` and `git diff --cached` — understand what changed
-5. **Stage all changed files by name** from `git status` output
+5. **Stage ALL changed files by name** from `git status` output
    - Run `git status` (never use `-uall` flag)
    - NEVER use `git add -A` or `git add .`
    - SKIP: `.beads/`, `.DS_Store`, `.env`, `credentials`
@@ -37,8 +37,31 @@ For EACH repo in the Repos list, sequentially:
      - **Modified files:** `git add path/to/file`
      - **Deleted files:** `git add path/to/file`
      - **Untracked files/directories:** `git add path/to/new-file` or `git add path/to/new-dir/`
-   - CRITICAL: Untracked entries are EQUALLY important as modified entries. Missing them = incomplete commit.
    - git status shows untracked directories as just the name (e.g., `Prompts/`). Stage them with `git add Prompts/` — this adds all files inside.
+
+   **CRITICAL: Untracked files are NOT optional. They are NEW work product and MUST be committed.**
+   Skipping untracked files = incomplete commit = caller must clean up after you = failure.
+
+   **RIGHT example** (git status shows modified + untracked):
+   ```
+   Changes not staged for commit:
+     modified:   CLAUDE.md
+     modified:   .claude/agents/job-filter.md
+   Untracked files:
+     blacklist.txt
+     build_final.py
+     export_bewerben.py
+   ```
+   → Stage ALL of them:
+   ```bash
+   git add CLAUDE.md .claude/agents/job-filter.md blacklist.txt build_final.py export_bewerben.py
+   ```
+
+   **WRONG example** (same git status, only staging modified):
+   ```bash
+   git add CLAUDE.md .claude/agents/job-filter.md
+   # WRONG — blacklist.txt, build_final.py, export_bewerben.py are LEFT BEHIND
+   ```
 6. **Plugin-Sync check:**
    - Look for `plugin-sync.sh` in the repo: `find <repo-path> -name "plugin-sync.sh" -maxdepth 3`
    - If found AND the repo looks like a plugin source (has `plugin.json`, skills/, agents/):
