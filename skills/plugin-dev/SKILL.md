@@ -291,6 +291,17 @@ When moving code from Plugin A to Plugin B:
 | Pre-commit hook not syncing | Hook overwritten by other tools (beads) | Manual sync or separate hook |
 | `/plugin install` doesn't update | Same version cached | Use `plugin-sync.sh` instead |
 | Plugin works in one project only | `scope: "local"` | Reinstall as `scope: "user"` or use `enabledPlugins` |
+| CLI/workflow.py fails with auth/connection error | Cache has no `.env` (gitignored) | Fix defaults in code to match actual config, or verify infra setup first |
+
+### Plugin Infrastructure Verification (BEFORE Proposing Solutions)
+
+When debugging plugin runtime errors (connection failures, missing credentials, path issues):
+
+1. **FIRST ask:** How does the plugin's infrastructure work? (MCP server process? Plugin-only? Docker?)
+2. **THEN ask:** Where does the failing code run? (Cache path? Source repo? Project context?)
+3. **ONLY THEN** propose solutions
+
+**Common trap:** Assuming a plugin runs a separate MCP server process when it actually runs everything through the plugin system. The cache directory is a stripped-down copy — gitignored files (`.env`, `venv/`, data files) are missing. Code that depends on these files fails silently or with misleading errors.
 
 ---
 
