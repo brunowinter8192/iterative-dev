@@ -28,9 +28,9 @@ open_tmux_viewer() {
 
     if [ "$major" -ge 2 ] || { [ "$major" -ge 1 ] && [ "$minor" -ge 3 ]; }; then
         # Ghostty 1.3+: native AppleScript
-        local attach_cmd="tmux attach -t $session"
+        local attach_cmd="tmux new-session -t $session"
         if [ -n "$window_name" ]; then
-            attach_cmd="tmux select-window -t $session:$window_name && tmux attach -t $session"
+            attach_cmd="tmux select-window -t $session:$window_name && tmux new-session -t $session"
         fi
         osascript -e "
 tell application \"Ghostty\"
@@ -47,12 +47,12 @@ end tell
             open -na Ghostty.app --args \
                 --quit-after-last-window-closed=true \
                 --window-save-state=never \
-                -e sh -c "tmux select-window -t $session:$window_name && tmux attach -t $session"
+                -e sh -c "tmux select-window -t $session:$window_name && tmux new-session -t $session"
         else
             open -na Ghostty.app --args \
                 --quit-after-last-window-closed=true \
                 --window-save-state=never \
-                -e tmux attach -t "$session"
+                -e tmux new-session -t "$session"
         fi
     fi
 }

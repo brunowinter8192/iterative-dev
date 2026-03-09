@@ -63,15 +63,14 @@ The prompt MUST include:
 - The specific task with concrete deliverables
 - Which files/directories to work in
 - Reference to plan file if one exists: "Read .claude/plans/*.md for full context"
-- **Worktree isolation instruction** (if applicable):
+- **Worker rules invocation** (ALWAYS, for worktree mode):
 
 ```
-CRITICAL: You are working in a git worktree at <worktree-path>.
-- Your working directory is <worktree-path>, NOT the main repo.
-- ALL file reads and edits MUST use paths relative to your working directory.
-- NEVER use absolute paths to the main repo.
-- Verify with `pwd` if unsure.
-- Commit your changes to this branch when done.
+FIRST ACTION (before any file reads or edits):
+Run: /worker-rules
+
+This loads mandatory worktree isolation rules and report requirements.
+Do NOT skip this step.
 ```
 
 Wait for user approval before proceeding.
@@ -107,13 +106,19 @@ Report to user:
 When the user says a worker is done and wants to merge:
 
 ```bash
-# Review what the worker committed
-git log master..<worker-name> --oneline
+# 1. Read worker report (handoff artifact)
+cat .claude/worktrees/<worker-name>/WORKER_REPORT.md
 
-# Merge into current branch
+# 2. Review commits
+git log main..<worker-name> --oneline
+
+# 3. Merge into current branch
 git merge <worker-name>
 
-# Cleanup
+# 4. Remove worker report (process artifact, not repo content)
+git rm -f WORKER_REPORT.md && git commit -m "cleanup: remove worker report"
+
+# 5. Cleanup worktree and branch
 tmux kill-window -t workers:<worker-name> 2>/dev/null
 git worktree remove .claude/worktrees/<worker-name>
 git branch -d <worker-name>
