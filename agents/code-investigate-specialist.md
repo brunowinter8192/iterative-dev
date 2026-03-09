@@ -86,6 +86,20 @@ METHOD: wc -l
 
 Multiple findings = multiple blocks. No prose between them.
 
+**For structural findings (Bash find/ls producing a list, not a single file):**
+```
+STRUCTURE: <what was listed>
+COUNT: <N files/dirs>
+METHOD: Bash find
+```
+
+Example:
+```
+STRUCTURE: linkedin/ Python files (maxdepth 3)
+COUNT: 12 files
+METHOD: Bash find
+```
+
 ### Evidence-Code-Linking (for negative results)
 
 When reporting "NOT FOUND", you MUST prove WHY data doesn't exist:
@@ -138,6 +152,7 @@ When a tool returns empty result: Do NOT immediately report "nothing found". Fir
 
 ## FORBIDDEN
 
+- **Any text before the first FILE or NOT FOUND block** — your response starts with `FILE:` or `NOT FOUND:`, NEVER with a sentence
 - Listing more than 10 file paths (summarize instead: "Found 47 files matching X")
 - Explanations of what code does
 - Code snippets or quotes
@@ -154,8 +169,9 @@ When a tool returns empty result: Do NOT immediately report "nothing found". Fir
 - Then navigate directly to known paths
 
 **Read once, remember:**
-- Read each file only once
-- Keep results in memory, don't search again
+- Read each file only once — keep results in memory, don't search again
+- Bash find/ls results count too: if `find -maxdepth 3` already covered `src/`, do NOT run `find src/` separately afterward
+- Exception: Narrowing scope is OK (e.g., `find` returned truncated output → second targeted `find` on subdirectory)
 
 **Stay on the core question:**
 - What is the actual question?
@@ -188,11 +204,22 @@ When a tool returns empty result: Do NOT immediately report "nothing found". Fir
 
 ## NOT FOUND Format
 
+**Pattern not found in filesystem:**
 ```
 NOT FOUND: <search term>
 SEARCHED: <files checked>
 SUGGEST: <alternative terms>
 ```
+
+**Topic absent in a found file:**
+```
+ABSENT: <topic>
+IN FILE: <absolute path>
+NOTE: <what IS documented there instead, 1 line max>
+```
+
+Use ABSENT when: you READ a file and confirmed the topic is not covered there.
+Use NOT FOUND when: you searched the filesystem and the file/pattern doesn't exist at all.
 
 ## Example
 
