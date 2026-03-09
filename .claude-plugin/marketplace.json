@@ -10,7 +10,7 @@
         "source": "github",
         "repo": "brunowinter8192/Meta"
       },
-      "description": "Iterative development cycle (PLAN-IMPLEMENT-RECAP-IMPROVE-CLOSING) with code-investigate agent",
+      "description": "Development workflow engine — 5-phase cycle, plugin dev tooling, git automation, worker spawning",
       "version": "1.0.0"
     }
   ]

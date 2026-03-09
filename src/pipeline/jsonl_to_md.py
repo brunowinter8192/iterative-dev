@@ -2,6 +2,7 @@
 import argparse
 import json
 import re
+from datetime import datetime
 from pathlib import Path
 
 
@@ -306,41 +307,46 @@ def format_details_markdown(tool_calls: list[dict]) -> str:
     return '\n\n---\n\n'.join(sections)
 
 
-# Format compact summary table of all tool calls
+# Format compact summary of all tool calls (one line per call)
 def format_summary_table(tool_calls: list[dict]) -> str:
-    rows = ["# Tool Call Summary", "",
-            "| # | Tool | Input | Output Size |",
-            "|---|------|-------|-------------|"]
+    lines = ["# Tool Call Summary", ""]
 
     for i, call in enumerate(tool_calls, 1):
         tool = call['tool_name']
-        brief = format_input_brief(call['input'])
+        ts = format_timestamp(call.get('timestamp', ''))
+        params = format_input_params(call['input'])
         output = call.get('output') or ''
         size = len(output)
-        rows.append(f"| {i} | {tool} | {brief} | {size} chars |")
+        lines.append(f"[{ts}] #{i} {tool}: {params}  [{size} chars]")
 
-    return '\n'.join(rows)
+    return '\n'.join(lines)
 
 
-# Format input as brief one-liner for summary table
-def format_input_brief(input_data: dict, max_len: int = 80) -> str:
+# Parse ISO timestamp to [HH:MM:SS] local time
+def format_timestamp(ts: str) -> str:
+    if not ts:
+        return '??:??:??'
+    try:
+        dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+        local_dt = dt.astimezone()
+        return local_dt.strftime('%H:%M:%S')
+    except (ValueError, TypeError):
+        return '??:??:??'
+
+
+# Format all input params as key=value pairs
+def format_input_params(input_data: dict) -> str:
     if not input_data or not isinstance(input_data, dict):
         return '(no input)'
 
-    if 'command' in input_data:
-        val = str(input_data['command'])
-    elif 'file_path' in input_data:
-        val = str(input_data['file_path'])
-    elif 'pattern' in input_data:
-        val = str(input_data['pattern'])
-    elif 'query' in input_data:
-        val = str(input_data['query'])
-    else:
-        val = str(list(input_data.values())[0])
+    parts = []
+    for key, value in input_data.items():
+        value_str = str(value)
+        if len(value_str) > 120:
+            value_str = value_str[:117] + '...'
+        parts.append(f"{key}={value_str}")
 
-    if len(val) > max_len:
-        val = val[:max_len - 3] + '...'
-    return val
+    return ', '.join(parts)
 
 
 # Format single tool call detail section

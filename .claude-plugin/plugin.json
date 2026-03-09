@@ -1,7 +1,7 @@
 {
   "name": "iterative-dev",
   "version": "1.0.0",
-  "description": "Iterative development cycle (PLAN-IMPLEMENT-RECAP-IMPROVE-CLOSING) with code-investigate agent for codebase exploration",
+  "description": "Development workflow engine — 5-phase cycle (PLAN-IMPLEMENT-RECAP-IMPROVE-CLOSING), plugin dev tooling, git automation, worker spawning",
   "author": {
     "name": "Bruno Winter"
   },

@@ -29,6 +29,10 @@ For EACH repo in the Repos list, sequentially:
 2. `git status` — check for changes
 3. If NO changes: report `SKIP: <repo> — nothing to commit` and move to next repo
 4. `git diff` and `git diff --cached` — understand what changed
+4b. **Cross-check new imports in diffs:**
+   - If any diff shows `+import ...` or `+from ... import ...` for a NEW module → that module is likely an untracked file
+   - Run `git status` to verify the imported file appears (either as modified or untracked)
+   - If the file is untracked: it MUST be staged in step 5
 5. **Stage ALL changed files by name** from `git status` output
    - Run `git status` (never use `-uall` flag)
    - NEVER use `git add -A` or `git add .`
@@ -42,26 +46,48 @@ For EACH repo in the Repos list, sequentially:
    **CRITICAL: Untracked files are NOT optional. They are NEW work product and MUST be committed.**
    Skipping untracked files = incomplete commit = caller must clean up after you = failure.
 
-   **RIGHT example** (git status shows modified + untracked):
+   **STEP-BY-STEP staging example:**
+
+   git status shows:
    ```
    Changes not staged for commit:
      modified:   CLAUDE.md
-     modified:   .claude/agents/job-filter.md
+     modified:   server.py
+
    Untracked files:
-     blacklist.txt
-     build_final.py
-     export_bewerben.py
-   ```
-   → Stage ALL of them:
-   ```bash
-   git add CLAUDE.md .claude/agents/job-filter.md blacklist.txt build_final.py export_bewerben.py
+     src/module/new_file.py
+     config.yml
    ```
 
-   **WRONG example** (same git status, only staging modified):
+   You MUST stage ALL of them — modified AND untracked:
    ```bash
-   git add CLAUDE.md .claude/agents/job-filter.md
-   # WRONG — blacklist.txt, build_final.py, export_bewerben.py are LEFT BEHIND
+   # Stage modified files
+   git add CLAUDE.md server.py
+   # Stage untracked files — these are NEW work product, NOT optional
+   git add src/module/new_file.py config.yml
    ```
+
+   **WRONG — only staging modified, ignoring untracked:**
+   ```bash
+   git add CLAUDE.md server.py
+   # WRONG — src/module/new_file.py and config.yml are LEFT BEHIND
+   ```
+5b. **VERIFY staging is complete** — run `git status` AGAIN after staging:
+   ```bash
+   git status
+   ```
+   Expected output — ONLY green "Changes to be committed:", NO red sections:
+   ```
+   Changes to be committed:
+     modified:   CLAUDE.md
+     modified:   server.py
+     new file:   src/module/new_file.py
+     new file:   config.yml
+   ```
+   - If "Untracked files:" section still exists → you MISSED files. Stage them NOW.
+   - If "Changes not staged for commit:" still exists → you MISSED files. Stage them NOW.
+   - Only proceed to step 6 when git status shows ONLY "Changes to be committed:" and nothing else.
+   - This step is NON-NEGOTIABLE. A commit without this verification = failure.
 6. **Plugin-Sync check:**
    - Look for `plugin-sync.sh` in the repo: `find <repo-path> -name "plugin-sync.sh" -maxdepth 3`
    - If found AND the repo looks like a plugin source (has `plugin.json`, skills/, agents/):
