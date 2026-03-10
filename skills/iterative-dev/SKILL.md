@@ -746,7 +746,16 @@ Only enter when user confirms (e.g., "proceed", "close", "done").
    - No file lists, no gitignore checks, no plugin-sync instructions needed
    - NEVER run git commands yourself — the agent does it all
 
-   **POST-DISPATCH VERIFY:** For EACH repo, run `git -C <repo> status -u` (ONE command). Clean worktree = all committed = done. If uncommitted changes remain → re-dispatch ONCE for that repo only. Do NOT run additional `git log` or `git diff` — clean status is sufficient proof.
+   **POST-DISPATCH VERIFY (NON-NEGOTIABLE — ONE COMMAND ONLY):**
+   ```bash
+   git -C /path/to/repo1 status --short && git -C /path/to/repo2 status --short
+   ```
+   Empty output = all committed + synced = done. That is the ONLY verification allowed.
+   - Do NOT run `git log`, `git diff`, `git diff --stat`, or any other git command
+   - Do NOT check commits individually per repo
+   - Do NOT "spot-check" what was committed
+   - The git-committer agent + plugin-sync already handled everything — trust the process
+   - If output is NOT empty → re-dispatch ONCE for that repo only
 
 3. Ask: "New cycle or done for now?"
 
