@@ -19,11 +19,9 @@ def convert_workflow(jsonl_path: str, output_path: str, include_dispatch: bool =
         dispatch_context = extract_dispatch_context(main_messages, agent_id)
 
     summary_content = format_summary_markdown(tool_calls, task_prompt, final_response, dispatch_context)
-    details_content = format_details_markdown(tool_calls)
 
     summary_path = str(Path(output_path).with_stem(Path(output_path).stem + '_summary'))
     write_output(summary_path, summary_content)
-    write_output(output_path, details_content)
     return len(tool_calls)
 
 
@@ -299,14 +297,6 @@ def format_summary_markdown(tool_calls: list[dict], task_prompt: str, final_resp
     return '\n\n---\n\n'.join(sections)
 
 
-# Format details MD (only tool call sections, for RAG indexing)
-def format_details_markdown(tool_calls: list[dict]) -> str:
-    sections = []
-    for i, call in enumerate(tool_calls, 1):
-        sections.append(format_tool_call(call, i))
-    return '\n\n---\n\n'.join(sections)
-
-
 # Format compact summary of all tool calls (one line per call)
 def format_summary_table(tool_calls: list[dict]) -> str:
     lines = ["# Tool Call Summary", ""]
@@ -317,7 +307,8 @@ def format_summary_table(tool_calls: list[dict]) -> str:
         params = format_input_params(call['input'])
         output = call.get('output') or ''
         size = len(output)
-        lines.append(f"[{ts}] #{i} {tool}: {params}  [{size} chars]")
+        size_label = "[no output]" if size == 0 else f"[{size} chars]"
+        lines.append(f"[{ts}] #{i} {tool}: {params}  {size_label}")
 
     return '\n'.join(lines)
 
@@ -341,10 +332,7 @@ def format_input_params(input_data: dict) -> str:
 
     parts = []
     for key, value in input_data.items():
-        value_str = str(value)
-        if len(value_str) > 120:
-            value_str = value_str[:117] + '...'
-        parts.append(f"{key}={value_str}")
+        parts.append(f"{key}={value}")
 
     return ', '.join(parts)
 
@@ -400,4 +388,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     count = convert_workflow(args.input, args.output, include_dispatch=args.dispatch)
     summary_path = str(Path(args.output).with_stem(Path(args.output).stem + '_summary'))
-    print(f"Converted {count} tool calls to {args.output} + {summary_path}")
+    print(f"Converted {count} tool calls to {summary_path}")

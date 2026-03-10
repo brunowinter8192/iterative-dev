@@ -840,6 +840,10 @@ Only enter when user confirms (e.g., "proceed", "close", "done").
 1. `bd export` (JSONL export — replaces old `bd sync`)
 2. **Commit ALL repos with changes via git-committer agent:**
 
+   **PRE-DISPATCH: Finish all edits first.**
+   Before dispatching: ensure ALL file writes (Edit/Write tool calls) for this session are complete.
+   Do NOT dispatch while still editing files — the agent runs git status immediately and will miss in-flight changes.
+
    **Dispatch is simple — just repo paths:**
    ```
    Task(subagent_type="git-committer", prompt="""
@@ -863,7 +867,11 @@ Only enter when user confirms (e.g., "proceed", "close", "done").
    - Do NOT check commits individually per repo
    - Do NOT "spot-check" what was committed
    - The git-committer agent + plugin-sync already handled everything — trust the process
-   - If output is NOT empty → re-dispatch ONCE for that repo only
+   - If output is NOT empty → re-dispatch ONCE for that repo only with this NOTE:
+     ```
+     NOTE: Previous commit was incomplete — check git status carefully and stage ALL remaining changes.
+     ```
+     Do NOT list specific files — the agent finds them via git status.
 
 3. Ask: "New cycle or done for now?"
 

@@ -72,21 +72,19 @@ For EACH repo in the Repos list, sequentially:
    git add CLAUDE.md server.py
    # WRONG — src/module/new_file.py and config.yml are LEFT BEHIND
    ```
-5b. **VERIFY staging is complete** — run `git status` AGAIN after staging:
+5b. **VERIFY staging is complete** — run `git status --porcelain` after staging:
    ```bash
-   git status
+   git status --porcelain
    ```
-   Expected output — ONLY green "Changes to be committed:", NO red sections:
+   Expected: ALL lines start with a staged-indicator (`A`, `M`, `D` — no space prefix, no `??`):
    ```
-   Changes to be committed:
-     modified:   CLAUDE.md
-     modified:   server.py
-     new file:   src/module/new_file.py
-     new file:   config.yml
+   A  src/module/new_file.py
+   M  CLAUDE.md
+   M  server.py
    ```
-   - If "Untracked files:" section still exists → you MISSED files. Stage them NOW.
-   - If "Changes not staged for commit:" still exists → you MISSED files. Stage them NOW.
-   - Only proceed to step 6 when git status shows ONLY "Changes to be committed:" and nothing else.
+   - Lines starting with ` M` (space + M) or `??` → NOT staged → stage them NOW
+   - Only proceed to step 6 when ALL lines have a staged-indicator (no ` M`, no `??`)
+   - Use `--porcelain` because regular `git status` can hide staged tracked files in sparse checkout repos
    - This step is NON-NEGOTIABLE. A commit without this verification = failure.
 6. **Plugin-Sync check:**
    - Check if repo has `.claude-plugin/plugin.json`: `test -f <repo-path>/.claude-plugin/plugin.json`
@@ -100,10 +98,11 @@ For EACH repo in the Repos list, sequentially:
    - If no `plugin.json`: skip sync
 7. Generate commit message from the diff (see Commit Message Rules)
 8. Commit with HEREDOC format (see below)
-9. **POST-COMMIT VERIFICATION (NON-NEGOTIABLE):**
+9. **POST-COMMIT VERIFICATION — MANDATORY BEFORE PUSH:**
    ```bash
    git status
    ```
+   - Run this BEFORE `git push` — push is step 10, not before
    - If output shows ANY untracked files, unstaged changes, or staged-but-uncommitted changes:
      - **Stage the missed files immediately**
      - **Commit again** with message `chore: stage missed files`
@@ -133,38 +132,44 @@ EOF
 
 ## CRITICAL: Output Format
 
-**ONLY output this format. NOTHING ELSE. No file lists, no commit hashes, no details.**
-
-Main agent verifies via `git log -1` — your job is status only.
+**Output exactly this format — no prose, no explanations.**
 
 For each repo:
 
 ```
-REPO: <repo-name> — COMMITTED
-WORKTREE: clean
+REPO: <repo-name> (branch)
+FILES: <N> changed
+- path/to/file (modified|new|deleted)
+COMMIT: <hash> <message>
+PUSHED: OK
 ```
 
-If plugin-sync was executed:
+If plugin-sync ran:
 
 ```
-REPO: <plugin-name> — COMMITTED + SYNCED
-WORKTREE: clean
+REPO: <repo-name> (branch)
+FILES: <N> changed
+- path/to/file (modified|new|deleted)
+COMMIT: <hash> <message>
+PUSHED: OK
+SYNCED: OK
 ```
 
-If repo had nothing to commit:
+If nothing to commit:
 
 ```
 SKIP: <repo-name> — nothing to commit
 ```
 
-If push fails:
+If push failed:
 
 ```
-REPO: <repo-name> — COMMITTED
+REPO: <repo-name> (branch)
+COMMIT: <hash> <message>
 PUSH_FAILED: <error message>
 ```
 
-**FORBIDDEN:** Do NOT write file lists, commit hashes, summaries, explanations, or prose after the REPO blocks.
+**FORBIDDEN:** Prose, summaries, suggestions, extra sections.
 
 ## FORBIDDEN
 
@@ -173,7 +178,7 @@ PUSH_FAILED: <error message>
 - Skipping hooks (`--no-verify`)
 - Modifying git config
 - Creating empty commits
-- Reading or analyzing file contents beyond what `git diff` shows
+- **Using the `Read` tool** — never read full file contents. `git diff` output is the only allowed way to understand changes.
 - Creating files, editing code, or making any non-git changes
 - Retrying a failed push — report the error and move on
 - Prose, summaries, explanations, or suggestions

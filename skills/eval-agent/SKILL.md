@@ -27,14 +27,6 @@ When multiple agents are selected for evaluation:
 - For EACH agent: execute Phases 2-5 completely before starting the next
 - After finishing one agent, explicitly state: "Agent N/M done. Starting next agent."
 
-### Non-Interactive Mode
-
-When the prompt contains "Non-interactive" or "write reports to":
-- Write evaluation reports to the specified directory (usually `<project_path>/Evaluation_Proposals/`)
-- File naming: `eval-<agent_id>-<agent_type_short>.md`
-- Do NOT present findings interactively — write the full report to file
-- Do NOT ask for user input at any point
-
 ---
 
 ## Phase 1: Find Subagent
@@ -70,7 +62,7 @@ ls $SESSION_DIR/subagents/
 
    **If list_agents.py fails** (e.g., "Main session not found"): The script derives the main session JSONL from the subagent path. If the JSONL doesn't exist yet or the session directory is stale, use the manual approach from 1.1 to identify the correct session, then pass specific subagent paths directly to Phase 2.
 
-2. Present the table to user (or select automatically in non-interactive mode)
+2. Present the table to user
 3. If `session` was given: use `--session latest` flag, take all agents from most recent session
 4. If `<count>` was given: take the N most recent from today's date, no user selection needed
 5. If user says "the newest" or similar: take the single most recent from today's date
@@ -91,8 +83,7 @@ cd $PLUGIN_DIR && python3 -m src.pipeline.jsonl_to_md \
     --input "<jsonl_path>" --output "/tmp/eval-<agent_id>.md" --dispatch
 ```
 
-This produces TWO files:
-- `/tmp/eval-<agent_id>.md` — tool call details (all calls)
+This produces ONE file:
 - `/tmp/eval-<agent_id>_summary.md` — dispatch context + task prompt + tool call summary + final response
 
 ### 2.2 Read Summary
@@ -106,7 +97,7 @@ Read /tmp/eval-<agent_id>_summary.md
 This gives the complete overview:
 - Dispatch Context (pre-dispatch messages, dispatch prompt, post-dispatch)
 - Task Prompt
-- Tool Call Summary — each line shows: `[HH:MM:SS] #N tool_name: key=value, key=value  [size chars]`
+- Tool Call Summary — each line shows: `[HH:MM:SS] #N tool_name: key=value, key=value  [size chars]` or `[no output]`
 - Final Response
 
 ### 2.3 Extract Specific Tool Calls
@@ -130,13 +121,11 @@ cd $PLUGIN_DIR && python3 -m src.pipeline.extract_calls \
 - Calls where the agent changed strategy — read what triggered the change
 - The last 3 calls before the final response — understand what led to the conclusion
 
-**If you need ALL tool calls:** Read `/tmp/eval-<agent_id>.md` directly (the full details file).
-
 ---
 
 ## Phase 3: Evaluate
 
-Present findings to user interactively (or write to report in non-interactive mode).
+Present findings to user in chat.
 
 ### What Went Well
 For each positive:
@@ -239,10 +228,17 @@ CRITICAL:
 - **Cost awareness:** Dispatcher = Opus, Sub = Haiku. Prefer better sub instructions over Opus pre-checks.
 - **Simplicity rule:** For Haiku agents: maximum 2-3 fields per block format
 
-### 4.5 Apply Proposals
+### 4.5 Write to Plan File
 
-**Interactive mode:** Apply proposals directly to the automation files after user approval.
-**Non-interactive mode:** Write report to `<project_path>/Evaluation_Proposals/eval-<agent_id>-<agent_type_short>.md`. Do NOT apply changes.
+Write all proposals to the plan file (`~/.claude/plans/<active-plan>.md`).
+
+- Use the **Write tool** to write the full proposal set to the plan file
+- Format: same Proposal N structure from 4.4 (File, Location, WHY, Current, Proposed, Expected Impact)
+- Do NOT apply changes yet
+- Do NOT present proposals in chat
+- After writing: report "done" to user — they will review the plan file and approve
+
+The plan file doubles as the implementation blueprint — proposals written there are ready for direct execution after user approval.
 
 ---
 
@@ -251,7 +247,7 @@ CRITICAL:
 After proposals are written/applied:
 
 ```bash
-rm -f /tmp/eval-<agent_id>.md /tmp/eval-<agent_id>_summary.md /tmp/eval-<agent_id>_calls.md
+rm -f /tmp/eval-<agent_id>_summary.md /tmp/eval-<agent_id>_calls.md
 ```
 
 **Then proceed to next agent if more are queued.**
