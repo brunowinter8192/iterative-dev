@@ -95,8 +95,19 @@ For EACH repo in the Repos list, sequentially:
    - If not found: skip
 7. Generate commit message from the diff (see Commit Message Rules)
 8. Commit with HEREDOC format (see below)
-9. `git push`
-10. If push fails with "no upstream": try `git push -u origin <branch>`
+9. **POST-COMMIT VERIFICATION (NON-NEGOTIABLE):**
+   ```bash
+   git status
+   ```
+   - If output shows ANY untracked files, unstaged changes, or staged-but-uncommitted changes:
+     - **Stage the missed files immediately**
+     - **Commit again** with message `chore: stage missed files`
+     - **Run `git status` again** — repeat until working tree is COMPLETELY CLEAN
+   - The ONLY acceptable post-commit status is: `nothing to commit, working tree clean`
+   - A repo left with uncommitted work = **AGENT FAILURE**
+   - Exceptions (still ignore): `.beads/`, `.DS_Store`, `.env`, `credentials`, gitignored files
+10. `git push`
+11. If push fails with "no upstream": try `git push -u origin <branch>`
 
 ## CRITICAL: Commit Message Rules
 
