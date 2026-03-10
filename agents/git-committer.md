@@ -128,24 +128,22 @@ EOF
 
 ## CRITICAL: Output Format
 
-**ONLY output this format. NOTHING ELSE.**
+**ONLY output this format. NOTHING ELSE. No file lists, no commit hashes, no details.**
+
+Main agent verifies via `git log -1` — your job is status only.
 
 For each repo:
 
 ```
-REPO: <repo-name> (<branch>)
-FILES: <N> changed
-- path/to/file.md (new)
-- path/to/other.py (modified)
-- path/to/old.sh (deleted)
-COMMIT: <hash> <commit message>
-PUSHED: OK
+REPO: <repo-name> — COMMITTED
+WORKTREE: clean
 ```
 
-If sync was executed:
+If plugin-sync was executed:
 
 ```
-SYNC: <command> — OK
+REPO: <plugin-name> — COMMITTED + SYNCED
+WORKTREE: clean
 ```
 
 If repo had nothing to commit:
@@ -157,10 +155,11 @@ SKIP: <repo-name> — nothing to commit
 If push fails:
 
 ```
+REPO: <repo-name> — COMMITTED
 PUSH_FAILED: <error message>
 ```
 
-**FORBIDDEN:** Do NOT write summaries, explanations, or prose after the REPO blocks.
+**FORBIDDEN:** Do NOT write file lists, commit hashes, summaries, explanations, or prose after the REPO blocks.
 
 ## FORBIDDEN
 
