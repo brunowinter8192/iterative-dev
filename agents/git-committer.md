@@ -89,10 +89,15 @@ For EACH repo in the Repos list, sequentially:
    - Only proceed to step 6 when git status shows ONLY "Changes to be committed:" and nothing else.
    - This step is NON-NEGOTIABLE. A commit without this verification = failure.
 6. **Plugin-Sync check:**
-   - Look for `plugin-sync.sh` in the repo: `find <repo-path> -name "plugin-sync.sh" -maxdepth 3`
-   - If found AND the repo looks like a plugin source (has `plugin.json`, skills/, agents/):
-     run the sync script BEFORE committing
-   - If not found: skip
+   - Check if repo has `.claude-plugin/plugin.json`: `test -f <repo-path>/.claude-plugin/plugin.json`
+   - If YES: this is a plugin source repo. Extract plugin name and run sync:
+     ```bash
+     PLUGIN_NAME=$(python3 -c "import json; print(json.load(open('<repo-path>/.claude-plugin/plugin.json'))['name'])")
+     SYNC_SCRIPT=$(find ~/.claude/plugins/cache/ -name "plugin-sync.sh" -maxdepth 5 | head -1)
+     $SYNC_SCRIPT "$PLUGIN_NAME" "<repo-path>"
+     ```
+   - If sync runs successfully: report as `COMMITTED + SYNCED`
+   - If no `plugin.json`: skip sync
 7. Generate commit message from the diff (see Commit Message Rules)
 8. Commit with HEREDOC format (see below)
 9. **POST-COMMIT VERIFICATION (NON-NEGOTIABLE):**
