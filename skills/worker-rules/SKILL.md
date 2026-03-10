@@ -67,3 +67,36 @@ Before your **final commit**, create `WORKER_REPORT.md` in the worktree root.
 - The report is a handoff artifact — the parent session reads it to understand what you did.
 - Be concrete: file paths, endpoint URLs, error codes, not "explored various approaches".
 - Include the report in your final commit.
+
+## 3. Implementation Rules
+
+### Execution
+
+1. **Read project CLAUDE.md first** — it contains module patterns, naming conventions, and coding rules specific to this project.
+2. **Read reference files** mentioned in the prompt — existing modules show the exact pattern to follow.
+3. **Execute the task** as specified in the prompt. No scope creep, no "improvements" beyond what was asked.
+4. **Follow existing patterns exactly** — match import style, section structure, comment style, function naming from reference files.
+
+### Code Quality
+
+- Do NOT add features, refactor code, or make "improvements" beyond the prompt scope
+- Do NOT add docstrings, comments, or type annotations beyond what the reference pattern uses
+- Header comments on functions: one line describing WHAT, matching reference file style
+- NO comments inside function bodies unless the reference pattern has them
+- Match the exact section structure of reference files (e.g., INFRASTRUCTURE / ORCHESTRATOR / FUNCTIONS)
+
+### Verification Before Commit
+
+Before your final commit, verify your work:
+
+1. **File exists and is syntactically valid:** `python -c "import ast; ast.parse(open('path').read())"`
+2. **Imports resolve:** check that all imported modules/functions exist in the codebase
+3. **Pattern compliance:** compare your file structure against the reference file — same sections, same style
+4. **Edge cases:** if the prompt mentions specific data formats (URNs, URLs, timestamps), verify your parsing handles them
+
+### What NOT to Do
+
+- Do NOT edit files outside your task scope (especially `server.py` — the parent session handles tool registration)
+- Do NOT install dependencies or modify package files
+- Do NOT create test files unless explicitly asked
+- Do NOT run the MCP server or make MCP tool calls (you don't have the Chrome session)

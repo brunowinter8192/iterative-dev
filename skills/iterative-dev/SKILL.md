@@ -190,6 +190,22 @@ When fixing bugs or making code changes involving system behavior (terminal esca
 - Plan grows organically through conversation
 - Only call ExitPlanMode when plan reflects current understanding
 
+### Worker Scoping (in Plan)
+
+**The plan must be structured for worker dispatch:**
+- Each deliverable = potential worker task
+- Identify which tasks are parallelizable (disjoint files) vs sequential (dependencies)
+- For each worker task: specify input data, reference files, target files, constraints
+- Glue work (server.py registration, config edits) stays with Opus — don't plan workers for trivial tasks
+
+**Plan file MUST include a Workers section:**
+```
+## Workers
+- Worker A: <name> — <deliverable> — <target files>
+- Worker B: <name> — <deliverable> — <target files>
+- Glue: <what Opus does after merge>
+```
+
 ### Verification Planning (MANDATORY)
 
 **BEFORE finalizing plan, ask yourself:**
@@ -201,7 +217,7 @@ When fixing bugs or making code changes involving system behavior (terminal esca
 - Expected output/behavior
 - What to check (file exists, content matches, test passes, etc.)
 
-**Verification is PART of IMPLEMENT, not optional.**
+**Verification happens AFTER workers are merged, not during worker execution.**
 
 ### Verify Before Plan (MANDATORY)
 
@@ -252,28 +268,28 @@ If the planning session requires module execution to refine the plan:
 
 ## Implementation Phase (IMPLEMENT)
 
-- execute whats stated in the PLAN file
+Implementation happens through **workers** — the user spawns them via `/spawn-worker`.
 
-### After IMPLEMENTATION
+### Plan → Workers Transition
 
-**Principle:** One phase per response. Never combine IMPLEMENT and RECAP in same response.
+After ExitPlanMode, prompt the user to spawn workers:
 
-1. Verify all plan items were executed
-2. **If open points remain:** Inform user: "Open items: [list]"
-3. Ask: "Continue implementing or proceed to RECAP?"
+"Plan steht. Spawn die Worker wenn du bereit bist (`/spawn-worker <name>`)."
+
+Opus does NOT spawn workers itself, write feature code, or orchestrate. The user controls worker lifecycle. Opus only does:
+- **Glue work** after workers are merged (trivial wiring: imports, tool registration, small config edits)
+- **Verification** after merge (run tests, MCP tool calls)
+
+### After Workers Are Merged
+
+When user confirms workers are done and merged:
+
+1. **Verify** — run tests, MCP tool calls, check integration
+2. **Glue work** — register tools, update imports, trivial wiring (1-3 lines)
+3. **If issues found** — fix directly (small) or user spawns another worker (large)
+4. Ask: "Proceed to RECAP?"
 
 User confirms → next response starts with 🔍 RECAP
-
-### Ad-hoc Window
-
-After completing plan edits, BEFORE transition to RECAP:
-
-1. Claude: "Plan edits completed. Proceed to RECAP?"
-2. User can request ad-hoc edits
-3. Claude executes ad-hoc edits
-4. Back to step 1 until user says "eval"
-
-**CRITICAL:** This window is the ONLY place for ad-hoc edits.
 
 ---
 

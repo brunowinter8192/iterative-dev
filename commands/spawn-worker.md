@@ -98,12 +98,14 @@ Report to user:
 - Worker name and branch
 - Worktree path (if applicable)
 - Prompt file: `/tmp/spawn-worker-<worker-name>.md`
-- tmux attach command: `tmux attach -t workers`
-- List all current workers: `tmux list-windows -t workers`
+- tmux attach command: `tmux attach -t worker-<worker-name>`
+- List all current workers: `tmux list-sessions | grep worker-`
 
-### Step 8: Cleanup Instructions
+### Step 8: Merging Worker Results
 
-When the user says a worker is done and wants to merge:
+**CRITICAL: Always MERGE, never copy files from worktrees.**
+
+When a worker is done (user confirms or you verify the worktree has commits):
 
 ```bash
 # 1. Read worker report (handoff artifact)
@@ -123,3 +125,10 @@ tmux kill-window -t workers:<worker-name> 2>/dev/null
 git worktree remove .claude/worktrees/<worker-name>
 git branch -d <worker-name>
 ```
+
+**PROHIBITED:**
+- `cp` from worktree to main repo — destroys git history, defeats worktree purpose
+- Manually recreating files that the worker already committed
+- Cherry-picking individual files instead of merging the branch
+
+**Why merge:** The worker commits on its branch. `git merge` brings all changes cleanly with full history. Copy = lost authorship, lost diff, extra work.
