@@ -746,7 +746,7 @@ Only enter when user confirms (e.g., "proceed", "close", "done").
    - No file lists, no gitignore checks, no plugin-sync instructions needed
    - NEVER run git commands yourself — the agent does it all
 
-   **POST-DISPATCH VERIFY:** For EACH repo, run `git -C <repo> log -1 --oneline`. If the latest commit matches the session's work → done. If NOT → re-dispatch ONCE for that repo only.
+   **POST-DISPATCH VERIFY:** For EACH repo, run `git -C <repo> status -u` (ONE command). Clean worktree = all committed = done. If uncommitted changes remain → re-dispatch ONCE for that repo only. Do NOT run additional `git log` or `git diff` — clean status is sufficient proof.
 
 3. Ask: "New cycle or done for now?"
 
