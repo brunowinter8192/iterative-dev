@@ -390,6 +390,15 @@ git branch -d <worker-name>
 - Manually recreating files that the worker already committed
 - Cherry-picking individual files instead of merging the branch
 
+### RECAP Notes (MANDATORY during IMPLEMENT)
+
+Create `recap_notes.md` in the project root at the START of IMPLEMENT phase. Add notes throughout implementation whenever you observe:
+- Worker issues (wrong API calls, rule violations, missed patterns)
+- Process inefficiencies (things that took longer than they should)
+- Improvement ideas for automation files
+
+**Why:** Context compression can drop earlier observations. The file persists and is read during RECAP phase. Delete the file during CLOSING (it's a process artifact, not repo content).
+
 ### After Workers Are Merged
 
 1. **Verify** — run tests, MCP tool calls, check integration
@@ -790,6 +799,12 @@ Location: [Automation File + file path]
 3. For each other improvement (see 6.1/6.2 Handling):
    - **Code?** → `bd create --title "..." --type=...`
    - **Automation Files?** → Edit workflow:
+     **SOURCE REPO RULE (CRITICAL — Plugin Files):**
+     Plugin automation files (agents, skills, commands) live in SOURCE REPOS, not in the plugin cache.
+     - Cache path (`~/.claude/plugins/cache/...`) is a COPY — edits get overwritten by plugin-sync
+     - ALWAYS resolve the source repo path first: check `~/.claude/CLAUDE.md` → Plugin Cache Management for repo paths
+     - Edit in source repo → commit → plugin-sync → new session
+     - If you edit cache directly = LOST WORK on next sync
      1. READ the target file fully
      2. SEARCH for overlapping rules/sections
      3. If overlap: EXTEND existing section with new content
@@ -816,6 +831,7 @@ Only enter when user confirms (e.g., "proceed", "close", "done").
 **PRE-CLOSE CHECK (MANDATORY):**
 - Verify ALL Open Items from RECAP have Beads
 - If ANY Open Item has no Bead → CREATE IT NOW before proceeding
+- Delete `recap_notes.md` from project root (process artifact, not repo content)
 - This check is NON-NEGOTIABLE
 
 1. `bd export` (JSONL export — replaces old `bd sync`)
