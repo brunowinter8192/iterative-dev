@@ -405,10 +405,9 @@ User confirms → next response starts with 🔍 RECAP
 
 ### Phase Entry
 
-1. If subagents were used this cycle: User may activate eval-related slash commands from other plugins (e.g., `/eval-spawn` from the RAG plugin). If activated, these become part of the RECAP workflow and may produce reports in `<project>/Evaluation_Proposals/`.
-2. Ask user: "Activate Plan Mode for RECAP (`/plan`)"
-3. Wait for Plan Mode system message
-4. Proceed with evaluation report (read-only enforced by Plan Mode)
+1. Ask user: "Activate Plan Mode for RECAP (`/plan`)"
+2. Wait for Plan Mode system message
+3. Proceed with evaluation report (read-only enforced by Plan Mode)
 
 ### Plan File Handling
 
@@ -521,19 +520,7 @@ For each finding: estimate token waste (small/medium/large) and propose a hook r
 
 Evaluate subagent usage during the cycle (if agents were used).
 
-##### 4.1 Eval Reports
-
-If `Evaluation_Proposals/*.md` reports exist (from an eval command or a previous session):
-
-1. `ls Evaluation_Proposals/*.md` — check for reports
-2. Read each report
-3. Present key findings + proposals to user
-4. Integrate actionable proposals into Section 6.2 Process Improvements
-5. Track which report files were read (needed for CLOSING cleanup)
-
-**Do NOT search Evaluation_Proposals/ autonomously.** Only check when the user triggered an eval command or explicitly points to reports.
-
-##### 4.2 Self-Assessment (Opus only)
+##### 4.1 Self-Assessment (Opus only)
 
 These require full session context that Sonnet does not have — Opus evaluates them directly.
 
@@ -831,12 +818,6 @@ Only enter when user confirms (e.g., "proceed", "close", "done").
 - If ANY Open Item has no Bead → CREATE IT NOW before proceeding
 - This check is NON-NEGOTIABLE
 
-**EVAL CLEANUP (MANDATORY):**
-- Delete ONLY the reports that were read and processed in THIS session's RECAP
-- Track which agent IDs were processed during RECAP — delete only those
-- `rm -f Evaluation_Proposals/<agent_id_1>.md Evaluation_Proposals/<agent_id_2>.md`
-- NEVER `rm -f Evaluation_Proposals/*.md` — other sessions may have unprocessed reports
-
 1. `bd export` (JSONL export — replaces old `bd sync`)
 2. **Commit ALL repos with changes via git-committer agent:**
 
@@ -874,14 +855,6 @@ Only enter when user confirms (e.g., "proceed", "close", "done").
      Do NOT list specific files — the agent finds them via git status.
 
 3. Ask: "New cycle or done for now?"
-
-**If an eval worker was spawned:** Session stays open. When the worker finishes and user returns:
-1. `ls Evaluation_Proposals/*.md` — read new reports
-2. Present key findings + proposals to user
-3. User approves/rejects each proposal
-4. Apply approved proposals to automation files
-5. Cleanup: `rm -f` processed report files
-6. Final commit (automation file changes only) via git-committer
 
 ---
 
