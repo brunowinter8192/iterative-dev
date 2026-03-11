@@ -64,9 +64,9 @@ Before your **final commit**, create `WORKER_REPORT.md` in the worktree root.
 
 ### Rules
 
-- The report is a handoff artifact — the parent session reads it to understand what you did.
+- The report is a handoff artifact — the parent session reads it from the worktree filesystem.
 - Be concrete: file paths, endpoint URLs, error codes, not "explored various approaches".
-- Include the report in your final commit.
+- Do NOT `git add` or `git commit` WORKER_REPORT.md — it is a process artifact, not repo content. The parent session reads it directly from the worktree before cleanup.
 
 ## 3. Implementation Rules
 
@@ -100,3 +100,5 @@ Before your final commit, verify your work:
 - Do NOT install dependencies or modify package files
 - Do NOT create test files unless explicitly asked
 - Do NOT run the MCP server or make MCP tool calls (you don't have the Chrome session)
+- Do NOT run `bd` commands (bead CLI) — worktrees copy `.beads/` state, and bd operations corrupt the main repo's bead data
+- Do NOT create README.md or DOCS.md files — documentation is the parent session's responsibility (Opus glue work)
