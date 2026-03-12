@@ -66,7 +66,7 @@ Before your **final commit**, create `WORKER_REPORT.md` in the worktree root.
 
 - The report is a handoff artifact — the parent session reads it from the worktree filesystem.
 - Be concrete: file paths, endpoint URLs, error codes, not "explored various approaches".
-- Do NOT `git add` or `git commit` WORKER_REPORT.md — it is a process artifact, not repo content. The parent session reads it directly from the worktree before cleanup.
+- **CRITICAL: Do NOT `git add` or `git commit` WORKER_REPORT.md.** It is a process artifact, not repo content. The parent session reads it directly from the worktree filesystem before cleanup. If you commit it, the parent must `git rm` it after merge — wasted effort.
 
 ## 3. Implementation Rules
 
@@ -91,8 +91,9 @@ Before your final commit, verify your work:
 
 1. **File exists and is syntactically valid:** `python -c "import ast; ast.parse(open('path').read())"`
 2. **Imports resolve:** check that all imported modules/functions exist in the codebase
-3. **Pattern compliance:** compare your file structure against the reference file — same sections, same style
-4. **Edge cases:** if the prompt mentions specific data formats (URNs, URLs, timestamps), verify your parsing handles them
+3. **Library method calls exist:** For external library classes, verify methods you call actually exist: `python -c "from lib import Class; print([m for m in dir(Class()) if not m.startswith('_')])"`. Do NOT trust training data for method names — libraries change APIs between versions.
+4. **Pattern compliance:** compare your file structure against the reference file — same sections, same style
+5. **Edge cases:** if the prompt mentions specific data formats (URNs, URLs, timestamps), verify your parsing handles them
 
 ### What NOT to Do
 
