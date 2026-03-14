@@ -7,13 +7,13 @@ description: (project)
 
 ## Task Management Hierarchy
 
-- **Beads** (`.beads/`) - Cross-session (days/weeks/months). Rules and formats in `~/.claude/CLAUDE.md`
+- **Beads** (`.beads/`) - Cross-session (days/weeks/months). Rules and formats in `~/.claude/rules/beads.md`
 - **Plan-File** (`.claude/plans/`) - Within a session (hours)
 - **TodoWrite** - Within an iteration (minutes)
 
 ### Beads (MANDATORY)
 
-Rules, types, and content requirements: `~/.claude/CLAUDE.md`
+Rules, types, and content requirements: `~/.claude/rules/beads.md`
 
 Beads are **always active** — not tied to specific phases. After every significant action (file changed, decision made, bug found, scope change), comment the relevant bead immediately. Don't batch comments for phase transitions.
 
@@ -322,15 +322,20 @@ The prompt MUST include:
 - The specific task with concrete deliverables
 - Which files/directories to work in
 - Reference to plan file if one exists: "Read .claude/plans/*.md for full context"
-- **Worker rules invocation** (ALWAYS, for worktree mode):
+- **Domain skill activation** (ALWAYS, when project has domain skills):
 
 ```
 FIRST ACTION (before any file reads or edits):
-Run: /worker-rules
+1. Activate ALL project-relevant skills listed in the system prompt
+   (e.g., /linkedin for LinkedIn MCP projects, /rag for RAG projects)
+2. For worktree mode: Run /worker-rules
 
-This loads mandatory worktree isolation rules and report requirements.
+Skills provide critical tool references, parameter formats, and workflow rules.
+Without them, the worker will guess parameters and produce wrong code.
 Do NOT skip this step.
 ```
+
+- **Skill discovery:** Check `.claude/skills/` in the project for available domain skills. Include activation commands for each relevant skill in the worker prompt.
 
 Wait for user approval before proceeding.
 
@@ -612,20 +617,20 @@ If yes → a Continuation-Bead MUST be created in IMPROVE phase:
 
 **CRITICAL:** Every Process Improvement MUST reference an exact Automation File path + section.
 Format: `[Description] → [Automation File path] → [Section to add/extend]`
-Example: `API-Endpoints verifizieren → ~/.claude/CLAUDE.md → "Verify Before Execution"`
+Example: `API-Endpoints verifizieren → ~/.claude/rules/verify-before-execution.md → "Verify Before Execution"`
 Improvements without concrete target path are not actionable → reject.
 
 **Automation File Categories:**
-1. `~/.claude/CLAUDE.md` (global — applies to ALL projects)
+1. `~/.claude/rules/*.md` (global — applies to ALL projects)
 2. `<project>/CLAUDE.md` (project — applies to THIS project only)
-3. Plugin files — see **Global Plugins** registry in `~/.claude/CLAUDE.md`
+3. Plugin files — see **Global Plugins** registry in `~/.claude/rules/plugins.md`
 4. `.claude/commands/*.md` (project slash commands)
 5. `~/.claude/scripts/` (hooks)
 
 **Path Clarity (CRITICAL):** Always use FULL paths to distinguish global from project:
-- Global: `~/.claude/CLAUDE.md`
-- Project: `<project>/CLAUDE.md` or `CLAUDE.md (project)`
-- NEVER write just `CLAUDE.md` without qualifier — ambiguous which one is meant
+- Global: `~/.claude/rules/<name>.md` (e.g., `~/.claude/rules/verify-before-execution.md`)
+- Project: `<project>/CLAUDE.md` or `<project>/.claude/rules/<name>.md`
+- NEVER write just `CLAUDE.md` or rule file name without qualifier — ambiguous which one is meant
 
 **Discovery:** Run `find ~/.claude/plugins/cache/brunowinter-plugins/ -name "plugin.json"` to locate plugin source paths.
 
@@ -802,7 +807,7 @@ Location: [Automation File + file path]
      **SOURCE REPO RULE (CRITICAL — Plugin Files):**
      Plugin automation files (agents, skills, commands) live in SOURCE REPOS, not in the plugin cache.
      - Cache path (`~/.claude/plugins/cache/...`) is a COPY — edits get overwritten by plugin-sync
-     - ALWAYS resolve the source repo path first: check `~/.claude/CLAUDE.md` → Plugin Cache Management for repo paths
+     - ALWAYS resolve the source repo path first: check `~/.claude/rules/plugins.md` → Plugin Cache Management for repo paths
      - Edit in source repo → commit → plugin-sync → new session
      - If you edit cache directly = LOST WORK on next sync
      1. READ the target file fully
