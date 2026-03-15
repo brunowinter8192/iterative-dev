@@ -249,6 +249,21 @@ When your plan concludes "existing code handles this, just run it":
 3. Ask: Has this exact scenario been tested before, or am I the first?
 If ANY answer is uncertain → plan a verification step BEFORE declaring "no code change needed".
 
+### Source Verification (BEFORE ExitPlanMode)
+
+**MANDATORY:** Before calling ExitPlanMode, list all unverified external claims in the plan.
+
+Format in chat:
+```
+Zur Verifizierung vor IMPLEMENT:
+- [Claim 1] → Quelle: [URL/Doc/API] → VERIFIZIERT/ANNAHME
+- [Claim 2] → Quelle: [URL/Doc/API] → VERIFIZIERT/ANNAHME
+```
+
+If any claim is ANNAHME: verify now (WebFetch, RAG search, GitHub) or flag explicitly in the plan file as `ASSUMPTION:`.
+
+**Why:** Plans built on unverified external claims (API compatibility, library features, model capabilities, server parameters) fail during IMPLEMENT. 5 minutes of verification saves hours of rework. Concrete failure: `-ub 512` was assumed safe from docs but crashed llama-server on Metal — testing would have caught this in PLAN.
+
 ### Execution During Planning
 
 If the planning session requires module execution to refine the plan:
@@ -364,6 +379,32 @@ Report to user:
 - Prompt file: `/tmp/spawn-worker-<worker-name>.md`
 - tmux attach command: `tmux attach -t worker-<worker-name>`
 - List all current workers: `tmux list-sessions | grep worker-`
+
+### While Workers Run
+
+**MANDATORY after dispatching workers:** Suggest productive parallel work to the user.
+
+Options to propose (pick what's relevant):
+- **Code Review:** Review related code that workers will integrate with
+- **Docs Check:** Verify DOCS.md/README.md are current for touched directories
+- **Eval Prep:** Prepare evaluation criteria for worker output
+- **Independent Tasks:** Other open bead items that don't conflict with worker scope
+- **Automation Improvements:** Draft SKILL/CLAUDE.md improvements noticed during planning
+
+Format: "Workers dispatched. Waehrend die arbeiten, schlage ich vor: [1-3 concrete items]"
+
+**Why:** Dead time between dispatch and merge wastes session capacity. Even 10 minutes of parallel work (docs, reviews) saves a full exchange later.
+
+### Scope Extension During IMPLEMENT
+
+When the user introduces a new scope during IMPLEMENT (e.g., "let's also build X"):
+1. **Do NOT expand the current cycle** — finish what's planned first
+2. **Dispatch a worker** for the new scope (worktree if code-only, project-dir if MCP needed)
+3. **User works directly with the worker** on the new scope
+4. **Opus stays on the original scope** and closes the cycle cleanly (verify, glue, RECAP)
+5. Worker results are merged in the NEXT cycle
+
+**Why:** Scope creep within a cycle blurs RECAP boundaries. Workers isolate new scope without blocking the current cycle.
 
 ### Merging Worker Results
 
