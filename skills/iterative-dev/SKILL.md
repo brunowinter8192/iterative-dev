@@ -350,6 +350,10 @@ Without them, the worker will guess parameters and produce wrong code.
 Do NOT skip this step.
 ```
 
+**Worktree environment hints** (include in prompt when applicable):
+- `./venv/bin/python` does NOT exist in worktrees (gitignored). Use `python3` for syntax checks.
+- `.env`, `.mcp.json` are not available in worktrees. For MCP-dependent tasks: skip worktree, work in project directory.
+
 - **Skill discovery:** Check `.claude/skills/` in the project for available domain skills. Include activation commands for each relevant skill in the worker prompt.
 
 Wait for user approval before proceeding.
@@ -910,11 +914,15 @@ Only enter when user confirms (e.g., "proceed", "close", "done").
    - Do NOT check commits individually per repo
    - Do NOT "spot-check" what was committed
    - The git-committer agent + plugin-sync already handled everything — trust the process
-   - If output is NOT empty → re-dispatch ONCE for that repo only with this NOTE:
+   - If output is NOT empty → check: are the remaining files in gitignored/excluded directories (`.beads/`, `.claude/`)? If YES → nothing to do, move on immediately. Do NOT run further git commands to "investigate".
+   - If output shows genuinely untracked/modified files outside exclusions → re-dispatch ONCE for that repo only with this NOTE:
      ```
      NOTE: Previous commit was incomplete — check git status carefully and stage ALL remaining changes.
      ```
      Do NOT list specific files — the agent finds them via git status.
+
+   **CRITICAL: When nothing to commit, STOP IMMEDIATELY.**
+   If git-committer reports "nothing to commit" or only gitignored files remain → accept the result and move on. Do NOT run additional git commands to "confirm" or "investigate". One `status --short` tells you everything — 5 follow-up git commands to verify "nothing" = wasted tokens.
 
 3. Ask: "New cycle or done for now?"
 
