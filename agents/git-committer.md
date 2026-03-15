@@ -82,8 +82,11 @@ For EACH repo in the Repos list, sequentially:
    python3 $PLUGIN_DIR/src/git/post.py <repo-path>
    ```
    - If `CLEAN`: proceed to push
-   - If `DIRTY`: stage the listed files, commit with `chore: stage missed files`, re-run post.py
-   - Only push when `CLEAN`
+   - If `DIRTY`: check which files are listed
+     - Filter out `.beads/**` paths — Dolt regenerates these continuously; staging causes infinite loops or gitignore errors
+     - If ALL remaining dirty files are `.beads/` paths → treat as CLEAN, proceed to push
+     - If non-`.beads/` files are dirty → stage them, commit with `chore: stage missed files`, re-run post.py
+   - Only push when CLEAN or only `.beads/` files remain dirty
 
 9. `git push`
 10. If push fails with "no upstream": try `git push -u origin <branch>`

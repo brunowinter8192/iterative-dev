@@ -5,12 +5,71 @@
 # Each Ghostty window attaches to its own session — no sync, no zombies.
 #
 # Usage: source this file, then call spawn_claude_worker.
+#
+# Orchestration: worker_list, worker_capture, worker_send allow the main
+# agent to monitor and interact with running workers.
 
 set -euo pipefail
 
 # --- Constants ---
 SPAWN_READY_MARKER="ITERDEV_SPAWN_READY_a9f3c7"
 SPAWN_SHELL_TIMEOUT=10
+
+# --- Orchestration ---
+
+# worker_list
+#   Lists all active worker sessions (names only, without "worker-" prefix).
+worker_list() {
+    tmux list-sessions -F "#{session_name}" 2>/dev/null \
+        | grep "^worker-" \
+        | sed 's/^worker-//' \
+        || true
+}
+
+# worker_capture NAME [LINES]
+#   Captures worker pane content to /tmp/worker-<name>-pane.txt.
+#   LINES: number of scrollback lines to capture (default: all).
+#   Returns: path to the capture file.
+worker_capture() {
+    local name="$1"
+    local lines="${2:-}"
+    local session="worker-${name}"
+    local outfile="/tmp/worker-${name}-pane.txt"
+
+    if ! tmux has-session -t "$session" 2>/dev/null; then
+        echo "ERROR: No session '$session'" >&2
+        return 1
+    fi
+
+    local pane_id
+    pane_id=$(tmux list-panes -t "$session" -F "#{pane_id}" | head -1)
+
+    if [ -n "$lines" ]; then
+        tmux capture-pane -p -t "$pane_id" -S "-${lines}" > "$outfile"
+    else
+        tmux capture-pane -p -t "$pane_id" -S - > "$outfile"
+    fi
+
+    echo "$outfile"
+}
+
+# worker_send NAME MESSAGE
+#   Sends text input to a running worker's tmux pane (followed by Enter).
+worker_send() {
+    local name="$1"
+    local message="$2"
+    local session="worker-${name}"
+
+    if ! tmux has-session -t "$session" 2>/dev/null; then
+        echo "ERROR: No session '$session'" >&2
+        return 1
+    fi
+
+    local pane_id
+    pane_id=$(tmux list-panes -t "$session" -F "#{pane_id}" | head -1)
+
+    tmux send-keys -t "$pane_id" "$message" C-m
+}
 
 # --- Functions ---
 

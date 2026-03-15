@@ -353,8 +353,22 @@ Do NOT skip this step.
 **Worktree environment hints** (include in prompt when applicable):
 - `./venv/bin/python` does NOT exist in worktrees (gitignored). Use `python3` for syntax checks.
 - `.env`, `.mcp.json` are not available in worktrees. For MCP-dependent tasks: skip worktree, work in project directory.
+- `.claude/settings.local.json` is NOT copied to worktrees (gitignored). Without it, workers only see globally installed plugins — project-local plugins and skills are invisible. **Fix:** Copy settings before spawning workers (see Step 4).
 
 - **Skill discovery:** Check `.claude/skills/` in the project for available domain skills. Include activation commands for each relevant skill in the worker prompt.
+
+**Domain Skill Activation Checklist (BEFORE writing prompt):**
+1. Run: `ls .claude/skills/` in the project
+2. For EACH skill found: add `/plugin:skill-name` activation to the prompt
+3. Use FULLY QUALIFIED names: `/searxng:searxng` NOT `/searxng`
+4. If unsure about the name: check the skill's SKILL.md frontmatter `name:` field
+5. Concrete failure (2026-03-15): 3 decision workers dispatched with only /worker-rules, no /searxng:searxng.
+
+**Plugin venv vs Project venv:**
+- Plugin cache (`~/.claude/plugins/cache/...`) does NOT have a venv — it's a copy of source files only
+- Plugin scripts that need Python: use the PROJECT venv (`./venv/bin/python`) not the plugin cache venv
+- crawl_site.py, explore_site.py etc. live in plugin cache but must be run with project venv
+- Concrete failure (2026-03-15): `$PLUGIN/venv/bin/python crawl_site.py` → exit 127 (file not found). Correct: `./venv/bin/python crawl_site.py`
 
 Wait for user approval before proceeding.
 
@@ -365,6 +379,13 @@ git worktree add -b <worker-name> .claude/worktrees/<worker-name>
 ```
 
 If the branch already exists, STOP and inform the user.
+
+**Copy project plugin settings to worktree** (required for project-local plugins/skills):
+```bash
+mkdir -p .claude/worktrees/<worker-name>/.claude
+cp .claude/settings.local.json .claude/worktrees/<worker-name>/.claude/settings.local.json 2>/dev/null
+```
+Without this, workers only see globally installed plugins. Project-local skills (e.g., `/searxng:searxng`) will fail to activate.
 
 #### 5. Spawn
 
@@ -398,6 +419,60 @@ Options to propose (pick what's relevant):
 Format: "Workers dispatched. Waehrend die arbeiten, schlage ich vor: [1-3 concrete items]"
 
 **Why:** Dead time between dispatch and merge wastes session capacity. Even 10 minutes of parallel work (docs, reviews) saves a full exchange later.
+
+### Worker Orchestration (Monitor & Interact)
+
+The main agent can monitor and interact with running workers via shell functions in `src/spawn/tmux_spawn.sh`. Source the file first, then use the functions.
+
+```bash
+source $PLUGIN_DIR/src/spawn/tmux_spawn.sh
+```
+
+#### List Active Workers
+
+```bash
+worker_list
+```
+Returns worker names (without `worker-` prefix), one per line. Empty output = no workers running.
+
+#### Read Worker Output
+
+```bash
+worker_capture <name> [lines]
+```
+- Captures the worker's tmux pane content to `/tmp/worker-<name>-pane.txt`
+- `lines` (optional): number of scrollback lines to capture (default: entire scrollback)
+- Returns: path to the capture file
+
+After capture, use **Read** (with offset/limit) or **Grep** on the file to inspect specific sections:
+
+```bash
+# Capture last 200 lines of worker "feature-x"
+worker_capture feature-x 200
+
+# Then read/grep the capture file
+grep "ERROR\|WARN" /tmp/worker-feature-x-pane.txt
+```
+
+**Use cases:**
+- Check worker progress without switching windows
+- Search for errors or specific output patterns
+- Verify worker is on track before it finishes
+
+#### Send Instructions to Worker
+
+```bash
+worker_send <name> "your message here"
+```
+- Sends text as user input to the worker's Claude Code session (followed by Enter)
+- Same mechanism as the initial prompt delivery
+
+**Use cases:**
+- Course-correct a worker mid-task ("Focus on X, skip Y")
+- Provide additional context the worker needs
+- Tell worker to wrap up ("Commit your current state and write WORKER_REPORT.md")
+
+**Caution:** Only send instructions when the worker's Claude session is waiting for user input. Use `worker_capture` first to check the worker's state.
 
 ### Scope Extension During IMPLEMENT
 
