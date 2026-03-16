@@ -355,6 +355,12 @@ Do NOT skip this step.
 - `.env`, `.mcp.json` are not available in worktrees. For MCP-dependent tasks: skip worktree, work in project directory.
 - `.claude/settings.local.json` is NOT copied to worktrees (gitignored). Without it, workers only see globally installed plugins — project-local plugins and skills are invisible. **Fix:** Copy settings before spawning workers (see Step 4).
 
+**Debug/Exploration workers (MCP projects):**
+- Workers debugging MCP tool issues MUST write exploration scripts (using `src/` infrastructure directly), NOT call MCP tools
+- MCP tools run through the MCP server process — workers can't reliably share the browser session
+- Pattern: `from src.linkedin.client import get_authenticated_tab, voyager_get` → write script → `./venv/bin/python3 dev/exploration/...`
+- Concrete failure (2026-03-16): Worker tried to debug get_company_posts via MCP tool calls. Browser race condition blocked all calls. Should have written an exploration script instead.
+
 - **Skill discovery:** Check `.claude/skills/` in the project for available domain skills. Include activation commands for each relevant skill in the worker prompt.
 
 **Domain Skill Activation Checklist (BEFORE writing prompt):**
