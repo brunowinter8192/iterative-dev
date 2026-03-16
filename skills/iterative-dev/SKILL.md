@@ -393,6 +393,14 @@ cp .claude/settings.local.json .claude/worktrees/<worker-name>/.claude/settings.
 ```
 Without this, workers only see globally installed plugins. Project-local skills (e.g., `/searxng:searxng`) will fail to activate.
 
+**Symlink venv if worker needs Python tests** (venv is gitignored, does not exist in worktrees):
+```bash
+ln -sf "$(pwd)/venv" .claude/worktrees/<worker-name>/venv
+```
+Without this, `./venv/bin/python` fails in the worktree and workers cannot run tests, scripts, or dev suites. Check: does the worker prompt include any `./venv/bin/python` or `python dev/` commands? If yes, symlink is mandatory.
+
+Concrete failure (2026-03-16): 3 bug-fix workers reported "verified" but had no venv — tests never actually ran. Discovered only when Opus tried to verify post-merge.
+
 #### 5. Spawn
 
 Resolve PLUGIN_DIR from the iterative-dev plugin path.
