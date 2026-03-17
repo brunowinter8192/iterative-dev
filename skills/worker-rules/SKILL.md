@@ -111,6 +111,16 @@ Before your final commit, verify your work:
 4. **Pattern compliance:** compare your file structure against the reference file — same sections, same style
 5. **Edge cases:** if the prompt mentions specific data formats (URNs, URLs, timestamps), verify your parsing handles them
 
+### RAG Data Output Paths (CRITICAL)
+
+When writing to RAG `data/documents/` (PDF conversions, chunks, JSON):
+- **ALWAYS** write to the RAG PROJECT path: `~/Documents/ai/Meta/ClaudeCode/MCP/RAG/data/documents/<collection>/`
+- **NEVER** write to the plugin cache path: `~/.claude/plugins/cache/.../rag/1.0.0/data/documents/`
+- The plugin cache is a COPY of source code — `plugin-sync.sh` overwrites it. Files written there are LOST.
+- The RAG project repo is the persistent storage. The MCP server reads from there.
+
+**Concrete failure (2026-03-17):** Worker wrote 700 chunks (5 converted PDFs) to plugin cache path. All lost after session. 2+ hours of MinerU conversion + LLM cleanup wasted.
+
 ### What NOT to Do
 
 - Do NOT edit files outside your task scope (especially `server.py` — the parent session handles tool registration)
@@ -119,3 +129,4 @@ Before your final commit, verify your work:
 - Do NOT run the MCP server or make MCP tool calls (you don't have the Chrome session)
 - Do NOT run `bd` commands (bead CLI) — worktrees copy `.beads/` state, and bd operations corrupt the main repo's bead data
 - Do NOT create README.md or DOCS.md files — documentation is the parent session's responsibility (Opus glue work)
+- Do NOT write RAG data to plugin cache paths — always use the RAG project repo path (see above)
