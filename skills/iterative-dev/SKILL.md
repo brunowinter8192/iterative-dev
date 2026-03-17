@@ -484,14 +484,31 @@ worker_capture <name> [lines]
 - `lines` (optional): number of scrollback lines to capture (default: entire scrollback)
 - Returns: path to the capture file
 
-After capture, use **Read** (with offset/limit) or **Grep** on the file to inspect specific sections:
+**CRITICAL — Use Read/Grep Tools, NEVER Bash sed/grep Chains:**
 
-```bash
-# Capture last 200 lines of worker "feature-x"
-worker_capture feature-x 200
+The pane file is a regular text file. Treat it EXACTLY like a source file — Read tool with offset/limit, Grep tool for pattern search. NEVER use `sed -n`, `bash grep`, `tail`, or `head` on it.
 
-# Then read/grep the capture file
-grep "ERROR\|WARN" /tmp/worker-feature-x-pane.txt
+**Correct workflow:**
+```
+# Step 1: Capture (Bash — only this step uses Bash)
+worker_capture feature-x
+
+# Step 2: Find problems (Grep tool)
+Grep(pattern="ERROR|STOP|FAILED", path="/tmp/worker-feature-x-pane.txt")
+
+# Step 3: Read specific section (Read tool with offset/limit)
+Read(file_path="/tmp/worker-feature-x-pane.txt", offset=150, limit=50)
+
+# Step 4: Read full output if needed (Read tool)
+Read(file_path="/tmp/worker-feature-x-pane.txt")
+```
+
+**WRONG — This wastes 10+ tool calls:**
+```
+Bash(sed -n '130,210p' /tmp/worker-feature-x-pane.txt)
+Bash(sed -n '140,220p' /tmp/worker-feature-x-pane.txt)
+Bash(sed -n '150,230p' /tmp/worker-feature-x-pane.txt)
+... repeat 10 times with manually shifted offsets
 ```
 
 **Use cases:**
