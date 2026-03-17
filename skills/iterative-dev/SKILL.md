@@ -116,6 +116,45 @@ When user describes a concrete usecase ("verify these numbers", "run this workfl
 
 **THEN:** Explore with direction (DOCS.md → relevant scripts → structures)
 
+### Implementation Flow (Bugs AND Features)
+
+When the scope is clear and the task involves implementing or fixing something in the repo, follow this sequence:
+
+**1. Status Quo**
+- Read relevant `decisions/` files if the project has them
+- Map divergences between bead context and current decisions (things may have changed since the bead was written)
+
+**2. Dev Check**
+- Does `dev/` already have modules/scripts that address this problem area?
+- Read DOCS.md of the relevant `dev/` subdirectory FIRST, then only read module code if needed
+- Existing dev scripts > building new ad-hoc test scripts
+
+**3. Source Check**
+- Read the project's CLAUDE.md Sources table — what knowledge is already indexed?
+- Identify gaps: do we need additional sources (web search, GitHub, papers)?
+- If sources are missing → plan research BEFORE planning implementation
+- Do NOT dispatch research agents before having reproduced/understood the problem in dev
+
+**4. Reproduce / Verify in Dev (BEFORE Research)**
+- For bugs: reproduce in dev/ with test DB first, THEN research causes
+- For features: build a minimal prototype/test in dev/ first, THEN research best approaches
+- Research agents dispatched before reproduction = wasted effort on assumptions
+- Concrete failure (2026-03-17): 3 research agents dispatched for SPLADE nnz limits before reproduction. Reproduction revealed a completely different root cause (server state corruption). Research results were correct but irrelevant.
+
+**5. Research (only when needed)**
+- Wait for user input on whether research is needed
+- Only AFTER reproduce/verify step reveals the actual problem or gap
+- Use the right source: RAG collection first, then web/GH/papers
+
+**6. Dev Script Decision**
+- Are new dev scripts needed? If yes: which directory, what pattern to follow?
+- Follow existing dev/ conventions (DOCS.md format, CLI flags, test DB usage)
+
+**7. Plan**
+- Map the complete plan: short form in chat, long form in plan file
+- Include worker draft if workers are needed
+- Ask for remarks
+
 ### Research Source Accounting (MANDATORY after web/academic research)
 
 After ANY research phase (web search, paper lookup, API exploration), produce a **Source Table** before proceeding:
@@ -466,13 +505,22 @@ Report to user:
 
 ### Worker-Done Notification (Automatic)
 
-When a worker's Claude process exits (success or failure), `notify_parent.sh` automatically sends "Worker <name> ist fertig." as user input to the parent Ghostty session. This works via Ghostty AppleScript text injection — the parent's window ID is captured at spawn time.
+When a worker's Claude process exits (success or failure), a signal file `/tmp/worker-<name>.done` is created automatically. A PostToolUse hook (`worker-done-check.sh`) checks for these files on every tool call in the parent session.
+
+**How it works:**
+1. Worker exits → `touch /tmp/worker-<name>.done` fires (chained with `;`, runs even on crash)
+2. Parent session makes any tool call → PostToolUse hook detects the `.done` file
+3. Hook returns `systemMessage: "Worker <name> ist fertig."` → Claude sees it as a system hint
+4. Hook deletes the `.done` file (one-time notification)
+5. Claude decides when to read the worker's output (WORKER_REPORT.md or pane capture)
 
 **Implications:**
-- No manual "Worker fertig" needed — the parent session receives it as a message
-- Works for both clean exits and crashes (`;` chaining, not `&&`)
-- If the parent Ghostty window was closed/changed: silent fail, no crash
-- Workers that hit STOP problems should write `STOP: <reason>` in WORKER_REPORT.md before exiting — the notification still fires, and the parent reads the report to see the STOP reason
+- No manual "Worker fertig" needed — Claude gets a system hint at the next tool call
+- No workflow interruption — Claude sees the hint and reads the report when it makes sense
+- Works for both clean exits and crashes (`;` chaining)
+- Multiple workers finishing simultaneously: all collected in one systemMessage
+- Zero overhead when no workers are running (glob finds nothing → exit 0)
+- Workers that hit STOP problems should write `STOP: <reason>` in WORKER_REPORT.md before exiting — the notification still fires, and Claude reads the report to see the STOP reason
 
 ### While Workers Run
 
@@ -896,6 +944,10 @@ If an "improvement" targets a DOCS.md or README → it belongs in 6.1, not here.
 
 ##### 6.3 DOCS.md Check (MANDATORY)
 
+**Note:** Reading DOCS.md files triggers `.claude/rules/documentation.md` (glob match on `**/*.md`). The documentation standard rules are automatically loaded during this check.
+
+**For full structural reviews** (not just drift checks), use `/iterative-dev:doc-review` which provides a phased workflow for mapping, planning, and fixing documentation structure.
+
 **ALWAYS explicitly answer:**
 - Does DOCS.md need updating? YES/NO
 - If YES: What sections? (new scripts, changed parameters, new outputs)
@@ -1100,144 +1152,4 @@ Only enter when user confirms (e.g., "proceed", "close", "done").
 
 ## Explore Agent (code-investigate-specialist)
 
-**This agent is part of the iterative-dev skill.** It is the ONLY agent used during the PLAN phase for codebase exploration. Always use `subagent_type="code-investigate-specialist"` — never use system agents (Explore, general-purpose, etc.) for codebase investigation.
-
-### General Agent Rules
-
-**Rule of thumb:** Better one agent too many than one too few.
-
-Use agent when:
-- Exploration scope unclear
-- Multiple sources to check
-- >20k tokens of reading expected
-
-Do NOT use when:
-- Single file/URL (known path)
-- Quick verification
-
-### Agent Info
-
-| Agent | subagent_type | Model | Output |
-|-------|---------------|-------|--------|
-| code-investigate-specialist | `code-investigate-specialist` | Haiku | FILE/LINES/RELEVANT |
-
-**Usage:** `Task(subagent_type="code-investigate-specialist", prompt="...")`
-
-### When to Use
-
-**Simple Rule:**
-- **User provides file path** -> Read directly (no agent)
-- **User provides directory path** -> Use agent (content unknown)
-
-Use agent when:
-- User gives directory instead of file
-- "Where is X?" / "How does Y work?" questions
-- Comparing between directories
-- Searching >3 unknown files
-
-### When NOT to Use
-
-- User provides exact file path
-- Reading single known files
-- Targeted grep/glob with clear scope
-
-### How to Prompt
-
-**code-investigate-specialist scope limit:** This agent returns FILE locations only (FILE/LINES/RELEVANT blocks).
-- CORRECT dispatch: "Find where trainer.py handles early stopping"
-- WRONG dispatch: "Explain how features flow into training, return signatures and analysis"
-- If you need analysis: dispatch for LOCATIONS first, then read the returned files yourself and analyze.
-- NEVER ask for: function signatures, "how they connect", summaries, or explanations.
-
-**BAD:**
-- "Find where features are defined"
-- "How does pattern selection work?"
-- "List all subdirectories and their contents" (too broad)
-- "For each file report key functions with signatures and how they connect" (analysis, not location)
-
-**GOOD:**
-- "Find FEATURES constant definition in src/"
-- "Find function that filters by threshold in selection/"
-- "List subdirectories and source files in lib/. Exclude data files."
-
-**Pattern:**
-1. Specific target (constant, function, class)
-2. Scope (directory)
-3. Constraints: "Exclude *.csv, *.png" or "Limit depth to 2"
-4. Context if needed
-5. **Follow imports:** "If code imports from external modules, locate and READ those files"
-
-**Exploration Constraints:**
-- Always specify: "Exclude data files (*.csv, *.png, *.jpg)"
-- For unknown directories: "Limit initial depth to 2 levels"
-- For doc audits: "Focus on *.py files and DOCS.md"
-
-**Tool Recommendations (include in prompt):**
-- "Use `find` to locate files. Do NOT use `ls -R`"
-- For CSV: "Use awk for numeric comparison, not grep"
-- For JSON/JSONL: "Use jq or Python script. NEVER grep for field values."
-
-### Parallel Agent Rules
-
-Parallel agents only efficient with **disjoint datasets**.
-
-**Partition by:**
-- **Layer:** Agent A = Docs only, Agent B = Code only
-- **Scope:** Agent A = src/, Agent B = tests/
-- **Aspect:** Agent A = Input/Output flow, Agent B = Algorithm logic
-
-**NEVER:** Have multiple agents read the same files.
-
-### After Agent Returns
-
-**CRITICAL: Agent = Scout, not Authority**
-
-Agent provides:
-- WHERE: Location (file path + lines)
-- WHAT: Its interpretation
-
-**You MUST:**
-1. Present results directly to user (don't summarize the summary)
-2. Verify critical findings yourself if needed
-3. When in doubt: check yourself instead of trusting blindly
-
-**NEVER** trust agent output blindly. The agent may:
-- Miss files
-- Misinterpret code
-- Hallucinate paths
-- **Get CLI syntax wrong** — flag formats (`-e "quoted"` vs `-e arg1 arg2`), argument semantics, and platform-specific behavior vary between tools. ALWAYS verify CLI syntax from agent output via `--help` or official docs before using it.
-
-**Verification Checklist:**
-- [ ] Read at least 1 critical file mentioned by agent
-- [ ] Confirm key claims (file exists, function does X)
-- [ ] If agent provided summary: spot-check 1-2 details
-
-**If you skip verification:**
-→ State explicitly: "Agent output not verified"
-
-**Retry Logic:**
-If results are useless (generic, wrong topic, no insights):
-- Re-run with feedback: "Previous results were [problem]. This time: [fix]"
-- Max 2 retries, then report failure to user
-
-### Known Pitfalls
-
-#### 1. Path Hallucinations
-- **Symptom:** `Tool_use_error: File does not exist`
-- **Fix:** "Only read files explicitly listed in your previous `find` or `ls` output"
-
-#### 2. Serial Reads (Latency)
-- **Symptom:** Multiple sequential Read calls for related files
-- **Fix:** "Read related config files in a single step when possible"
-
-#### 3. Missing File Chase
-- **Symptom:** 5+ attempts to find a file that doesn't exist
-- **Fix:** "If a referenced file is missing after 2 search attempts, log as 'MISSING: <file>' and continue"
-
-#### 4. Redundant grep + read
-- **Symptom:** grep output followed by full file read
-- **Fix:** "Use grep with `-C 5` context. Only read full file if context is insufficient"
-
-#### 5. Pattern Blindness
-- **Symptom:** Simple text search misses array/struct definitions
-- **Fix:** "Note: Some codebases store parameters in static arrays, not individual constants"
+Full rules in `~/.claude/rules/code-investigate-agent.md` (global — applies to all projects).

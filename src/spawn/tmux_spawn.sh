@@ -193,24 +193,10 @@ spawn_claude_worker() {
     local prompt_file="/tmp/spawn-prompt-${name}-$$.txt"
     echo "$task_prompt" > "$prompt_file"
 
-    # Capture parent Ghostty window ID for worker-done notification.
-    # Must happen BEFORE open_tmux_viewer (which opens a new window and changes front window).
-    local parent_window_id
-    parent_window_id=$(osascript -e 'tell application "Ghostty" to get id of front window' 2>/dev/null || echo "")
-
-    # Resolve notify script path (sibling of this script)
-    local script_dir
-    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    local notify_script="${script_dir}/notify_parent.sh"
-
     # Launch Claude with prompt as CLI argument, reading from file.
-    # Chain notify_parent.sh after claude exit (semicolon = runs even on error).
-    local claude_cmd
-    if [ -n "$parent_window_id" ] && [ -x "$notify_script" ]; then
-        claude_cmd="cd $project_path && claude --model $model $extra_flags \"\$(cat $prompt_file)\" ; '$notify_script' '$parent_window_id' '$name'"
-    else
-        claude_cmd="cd $project_path && claude --model $model $extra_flags \"\$(cat $prompt_file)\""
-    fi
+    # Chain touch signal file after claude exit (semicolon = runs even on error).
+    # The PostToolUse hook (worker-done-check.sh) picks up the .done file.
+    local claude_cmd="cd $project_path && claude --model $model $extra_flags \"\$(cat $prompt_file)\" ; touch '/tmp/worker-${name}.done'"
     tmux send-keys -t "$pane_id" "$claude_cmd" C-m
 
     # Open Ghostty window attached to this worker's session
