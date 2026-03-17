@@ -52,6 +52,8 @@ Beads provide cross-session context. Agent exploration without bead context = wa
 
 **Note:** Always use `-s open` by default. Show closed beads only when user explicitly asks.
 
+**Priority:** Read the most recently updated bead FIRST (`bd show` shows Created/Updated dates). The newest bead has the freshest context and is most likely the current session target.
+
 **After reading bead comments, VERIFY:** Does the bead already answer the scope question you're about to ask? If the bead comments contain explicit next steps, decisions, or approaches — state them as fact ("Laut Bead: FFS mit Korrelations-Ranking"), don't re-ask as an open question. Re-asking what's already documented = not reading carefully enough.
 
 ### Scoping (BEFORE Exploration)
@@ -113,6 +115,33 @@ When user describes a concrete usecase ("verify these numbers", "run this workfl
   - Navigate freely, no need to ask for paths upfront
 
 **THEN:** Explore with direction (DOCS.md → relevant scripts → structures)
+
+### Research Source Accounting (MANDATORY after web/academic research)
+
+After ANY research phase (web search, paper lookup, API exploration), produce a **Source Table** before proceeding:
+
+| Source | Status | Content Value | Plugin Needed | Index? |
+|--------|--------|--------------|---------------|--------|
+| Paper/URL title | Read ✅ / Failed ❌ / Paywall 🔒 | High/Medium/Low | ArXiv/GitHub/— | Yes/No |
+
+**Categories:**
+- **Read ✅**: Content successfully scraped/accessed, key findings extracted
+- **Failed ❌**: Scrape returned empty, PDF conversion failed — note WHY (empty response, timeout, bot detection)
+- **Paywall 🔒**: Content exists but requires subscription/login
+
+**For each "Index? Yes" source:**
+- If PDF available → download + pdf-convert pipeline
+- If web page → crawl-site or scrape_url pipeline
+- Spawn a worker to handle batch conversion/indexing
+
+**For each "Plugin Needed" source:**
+- ArXiv PDFs → ArXiv Plugin (download) + RAG Plugin (pdf-convert)
+- GitHub repos/issues → GitHub Research Plugin
+- Reddit threads → Reddit Plugin
+
+**Why:** Research without source accounting = lost context. Next session won't know what was read, what was missed, and what's available for deeper analysis. The table is the bridge between "I searched" and "I can now plan based on evidence."
+
+**Concrete failure (2026-03-17):** 5 papers identified during weight-calibration research. 2 readable, 3 failed (PDF scrape empty, Semantic Scholar abstract only). No systematic listing until user asked. Worker for PDF conversion spawned late instead of immediately after identifying sources.
 
 ### Exploration
 
@@ -321,11 +350,11 @@ git check-ignore <file-or-dir-1> <file-or-dir-2> ...
 
 #### 3. Build the Prompt
 
-Write the prompt as a Markdown file at `/tmp/spawn-worker-<worker-name>.md`. This avoids shell escaping issues and makes the prompt reviewable.
+Write the prompt as a Markdown file at `/tmp/spawn-worker-<project>-<worker-name>.md`. This avoids shell escaping issues and makes the prompt reviewable.
 
 Present it to the user:
 
-"Prompt geschrieben nach `/tmp/spawn-worker-<worker-name>.md`:"
+"Prompt geschrieben nach `/tmp/spawn-worker-<project>-<worker-name>.md`:"
 
 ```
 <the prompt content>
@@ -423,7 +452,7 @@ Resolve PLUGIN_DIR from the iterative-dev plugin path.
 
 ```bash
 source $PLUGIN_DIR/src/spawn/tmux_spawn.sh
-spawn_claude_worker_from_file "workers" "<worker-name>" "<project-or-worktree-path>" "sonnet" "/tmp/spawn-worker-<worker-name>.md"
+spawn_claude_worker_from_file "workers" "<worker-name>" "<project-or-worktree-path>" "sonnet" "/tmp/spawn-worker-<project>-<worker-name>.md"
 ```
 
 #### 6. Confirm
@@ -431,7 +460,7 @@ spawn_claude_worker_from_file "workers" "<worker-name>" "<project-or-worktree-pa
 Report to user:
 - Worker name and branch
 - Worktree path (if applicable)
-- Prompt file: `/tmp/spawn-worker-<worker-name>.md`
+- Prompt file: `/tmp/spawn-worker-<project>-<worker-name>.md`
 - tmux attach command: `tmux attach -t worker-<project>-<worker-name>`
 - List current project workers: `worker_list` (auto-filters by project)
 
