@@ -133,3 +133,18 @@ done
 ```
 
 Report results to user.
+
+---
+
+## Autonomous Mode
+
+When invoked from a worker prompt (e.g., docs-review command), ignore all STOP markers. Execute Phases 1→2→3→4→5 without interruption:
+
+1. Read rules (Phase 1)
+2. Map current state (Phase 2)
+3. Write findings to WORKER_REPORT.md (Phase 2 output format)
+4. If NEEDS FIXES: implement all fixes immediately (Phase 4)
+5. Update WORKER_REPORT.md with final results
+6. Commit all changes (not WORKER_REPORT.md)
+
+**Key:** In autonomous mode, the worker does review AND fix in one pass. No separate fix worker needed.

@@ -1,4 +1,4 @@
-Spawn a Sonnet worker that reviews the project's documentation structure, then Opus reviews the assessment and dispatches fixes if needed.
+Spawn a Sonnet worker that reviews AND fixes the project's documentation structure. Opus verifies after completion.
 
 Input: $ARGUMENTS
 Format: `<project_path>` (optional, defaults to current project)
@@ -10,99 +10,33 @@ PLUGIN_DIR: the iterative-dev plugin root (resolve from this command's path: go 
 
 ---
 
-## Phase 1: Spawn Review Worker
+## Phase 1: Spawn Worker
 
 Write the worker prompt to `/tmp/spawn-worker-docs-review.md`:
 
 ```markdown
-# Task: Documentation Structure Review
+# Task: Documentation Structure Review & Fix
 
 ## FIRST ACTION
 1. Run /iterative-dev:worker-rules
-2. Read the documentation rules file at: DOCS_RULES_PATH
-   (This path is injected by the spawning agent — it points to .claude/rules/documentation.md in the main repo)
+2. Run /iterative-dev:doc-review
 
-If the file does NOT exist at that path, write WORKER_REPORT.md with:
-STOP: Documentation rules not found at DOCS_RULES_PATH. Cannot review without standard.
-Then exit.
+**CRITICAL:** This is an autonomous run. Ignore all STOP markers in the doc-review skill. Execute all phases without interruption. You ARE allowed to create and edit DOCS.md files — the docs-review command overrides the default worker-rules prohibition.
 
-## Review Steps
+## Instructions
 
-### 1. Map Documentation Standard
-Read the documentation rules file fully. Extract:
-- DOCS.md placement rules (multi-file vs single-file directories)
-- Module documentation format
-- Documentation Tree requirements
-- Directories exempt from DOCS
+1. Follow the doc-review skill phases 1-5 autonomously
+2. Map the full documentation state
+3. If NEEDS FIXES: implement ALL fixes (create, rename, move, delete, update DOCS.md files)
+4. Read source files (*.py, *.sh) to extract Purpose/Input/Output for new DOCS.md entries
+5. Use existing DOCS.md files in the project as pattern reference
+6. Write WORKER_REPORT.md with findings table AND list of changes made
+7. Commit all doc changes (NOT WORKER_REPORT.md)
 
-### 2. Map Current State
-Run these commands to build the full picture:
-
-Find all doc files:
-find . -name "DOCS.md" -o -name "README.md" | grep -v venv | grep -v .git/ | grep -v .beads | grep -v .claude | grep -v node_modules | sort
-
-Find all directories with modules and their doc status:
-for dir in $(find . \( -name "*.py" -o -name "*.sh" \) -not -path '*/venv/*' -not -path '*/__pycache__/*' -not -path '*/.git/*' -not -path '*/.beads/*' -not -path '*/.claude/*' -exec dirname {} \; | sort -u); do
-  count=$(find "$dir" -maxdepth 1 \( -name "*.py" -o -name "*.sh" \) | wc -l | tr -d ' ')
-  has_docs=""
-  [ -f "$dir/DOCS.md" ] && has_docs="DOCS.md "
-  [ -f "$dir/README.md" ] && has_docs="${has_docs}README.md"
-  [ -z "$has_docs" ] && has_docs="NO DOC"
-  echo "$dir ($count files) → $has_docs"
-done
-
-### 3. Evaluate Against Standard
-For each directory with modules, check:
-- [ ] Correct doc type (DOCS.md not README.md for module docs)
-- [ ] Correct location (single-file dirs documented in parent, multi-file dirs have own DOCS)
-- [ ] Module format correct (Purpose/Input/Output)
-- [ ] Documentation Tree section present
-- [ ] All modules documented (no missing entries)
-- [ ] No stale entries (documented modules that no longer exist on disk)
-
-For CLAUDE.md, check:
-- [ ] References data/ and decisions/ with purpose (if they exist)
-- [ ] Project Structure tree is complete and current
-
-### 4. Write Assessment
-Write WORKER_REPORT.md with:
-
-# Worker Report: docs-review
-
-## Task
-Documentation structure review against .claude/rules/documentation.md
-
-## Assessment
-
-### Status: CLEAN / NEEDS FIXES
-
-### Findings Table
-| Directory | Module Count | Current Doc | Expected | Status | Issue |
-|---|---|---|---|---|---|
-
-### Files to CREATE
-(list with expected content description)
-
-### Files to RENAME
-(README.md → DOCS.md conversions)
-
-### Files to MOVE
-(single-file-dir docs → parent docs)
-
-### Files to DELETE
-(old READMEs after migration)
-
-### Files to UPDATE
-(missing modules, missing trees, stale entries)
-
-### CLAUDE.md Issues
-(missing references, stale tree)
-
-## Open Issues
-None / list of ambiguities that need user decision
+Documentation rules path: DOCS_RULES_PATH
 ```
 
-**Before writing the prompt file:** Replace `DOCS_RULES_PATH` in the template with the actual absolute path: `<project_path>/.claude/rules/documentation.md`
+**Before writing the prompt file:** Replace `DOCS_RULES_PATH` with: `<project_path>/.claude/rules/documentation.md`
 
 Spawn the worker:
 
@@ -111,70 +45,30 @@ source $PLUGIN_DIR/src/spawn/tmux_spawn.sh
 spawn_claude_worker_from_file "workers" "docs-review" "<project_path>" "sonnet" "/tmp/spawn-worker-docs-review.md"
 ```
 
-Report: "Worker docs-review gestartet. Warte auf Assessment."
+Report: "Worker docs-review gestartet. Arbeitet autonom durch Review + Fixes."
 
 **STOP.** Wait for worker completion notification.
 
 ---
 
-## Phase 2: Review Assessment
+## Phase 2: Verify & Merge
 
 When worker completes:
 
-1. Read `WORKER_REPORT.md` from the worktree (or project dir if no worktree)
+1. Read `WORKER_REPORT.md` from the worktree (or project dir)
 2. Verify key claims:
-   - Spot-check 2-3 directories the worker flagged as MISSING or WRONG
+   - Spot-check 2-3 directories the worker flagged
    - Spot-check 1-2 directories the worker marked as OK
-3. Present summary to user:
-   - Status: CLEAN or NEEDS FIXES
-   - Number of issues by category (CREATE/RENAME/MOVE/DELETE/UPDATE)
-   - Any items you disagree with from the worker's assessment
-
-If **CLEAN**: Report to user, cleanup worktree, done.
-
-If **NEEDS FIXES**: Proceed to Phase 3.
-
----
-
-## Phase 3: Dispatch Fix Worker
-
-Build a fix prompt based on the verified assessment. Write to `/tmp/spawn-worker-docs-fix.md`:
-
-The fix prompt MUST include:
-- Exact list of files to create/rename/delete/update (from Phase 2 verified assessment)
-- For each new DOCS.md: which .py/.sh files to read for Purpose/Input/Output content
-- The module documentation format (from .claude/rules/documentation.md)
-- Reference to an existing correct DOCS.md in the project as pattern example
-- Documentation Tree format and rules
-
-Spawn the fix worker:
-
-```bash
-source $PLUGIN_DIR/src/spawn/tmux_spawn.sh
-spawn_claude_worker_from_file "workers" "docs-fix" "<project_path_or_worktree>" "sonnet" "/tmp/spawn-worker-docs-fix.md"
-```
-
-Report: "Worker docs-fix gestartet mit N Aenderungen."
-
-**STOP.** Wait for worker completion.
-
----
-
-## Phase 4: Verify & Merge
-
-When fix worker completes:
-
-1. Read WORKER_REPORT.md
-2. Run verification:
+3. Run verification:
    ```bash
    # Every multi-file dir has DOCS.md
-   for dir in $(find . \( -name "*.py" -o -name "*.sh" \) -not -path '*/venv/*' -not -path '*/__pycache__/*' -not -path '*/.git/*' -exec dirname {} \; | sort -u); do
+   for dir in $(find . \( -name "*.py" -o -name "*.sh" \) -not -path '*/venv/*' -not -path '*/__pycache__/*' -not -path '*/.git/*' -not -path '*/.beads/*' -not -path '*/.claude/*' -exec dirname {} \; | sort -u); do
      count=$(find "$dir" -maxdepth 1 \( -name "*.py" -o -name "*.sh" \) | wc -l | tr -d ' ')
      [ "$count" -gt 1 ] && [ ! -f "$dir/DOCS.md" ] && echo "STILL MISSING: $dir"
    done
 
    # DOCS.md with sub-DOCS has Documentation Tree
-   find . -name "DOCS.md" -not -path '*/venv/*' -not -path '*/.git/*' | while read f; do
+   find . -name "DOCS.md" -not -path '*/venv/*' -not -path '*/.git/*' -not -path '*/.beads/*' -not -path '*/.claude/*' | while read f; do
      dir=$(dirname "$f")
      has_sub_docs=$(find "$dir" -mindepth 2 -name "DOCS.md" -not -path '*/venv/*' | head -1)
      if [ -n "$has_sub_docs" ]; then
@@ -182,8 +76,8 @@ When fix worker completes:
      fi
    done
    ```
-3. If clean: merge worktree branch, cleanup
-4. If issues remain: inform user, decide next steps
+4. If clean: merge worktree branch, cleanup
+5. If issues remain: fix directly (Opus glue) or send worker additional instructions via `worker_send`
 
 Glue work (Opus does directly, not via worker):
 - Update .claude/rules/documentation.md if review revealed rule gaps
