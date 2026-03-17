@@ -62,6 +62,22 @@ Before your **final commit**, create `WORKER_REPORT.md` in the worktree root.
 <Anything that didn't work, needs follow-up, or was out of scope. "None" if clean.>
 ```
 
+### STOP Problems (Unexpected Errors)
+
+When you hit an unexpected problem that blocks your task (DB errors, API limits, unknown exceptions, infrastructure failures):
+
+1. **STOP immediately** — do not attempt autonomous workarounds
+2. **Write WORKER_REPORT.md** with `STOP:` prefix in the Results section:
+   ```markdown
+   ## Results
+   STOP: <Problem description>
+
+   <What you tried, what failed, error messages, file paths involved>
+   ```
+3. **Exit cleanly** — the parent session is automatically notified when you exit
+
+The parent reads WORKER_REPORT.md, sees the STOP reason, and decides next steps. Your job is to document the problem clearly, not to fix it.
+
 ### Rules
 
 - The report is a handoff artifact — the parent session reads it from the worktree filesystem.

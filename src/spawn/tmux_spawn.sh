@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # tmux_spawn.sh — Spawn Claude Code sessions in tmux with Ghostty viewer.
 #
-# Architecture: One tmux session per worker (session name = "worker-<name>").
+# Architecture: One tmux session per worker (session name = "worker-<project>-<name>").
+# Project-scoped: workers from different projects never collide.
 # Each Ghostty window attaches to its own session — no sync, no zombies.
 #
 # Usage: source this file, then call spawn_claude_worker.
@@ -15,25 +16,58 @@ set -euo pipefail
 SPAWN_READY_MARKER="ITERDEV_SPAWN_READY_a9f3c7"
 SPAWN_SHELL_TIMEOUT=10
 
+# --- Helpers ---
+
+# _worker_project_name PROJECT_PATH
+#   Derives project name from project path.
+#   Strips .claude/worktrees/<name> suffix if path is a worktree.
+#   Example: /path/to/RAG/.claude/worktrees/foo → RAG
+#   Example: /path/to/RAG → RAG
+_worker_project_name() {
+    local project_path="$1"
+    if [[ "$project_path" == */.claude/worktrees/* ]]; then
+        basename "$(echo "$project_path" | sed 's|/.claude/worktrees/.*||')"
+    else
+        basename "$project_path"
+    fi
+}
+
+# _worker_session_name PROJECT_PATH NAME
+#   Returns the full tmux session name: "worker-<project>-<name>"
+_worker_session_name() {
+    local project_path="$1"
+    local name="$2"
+    local project
+    project=$(_worker_project_name "$project_path")
+    echo "worker-${project}-${name}"
+}
+
 # --- Orchestration ---
 
-# worker_list
-#   Lists all active worker sessions (names only, without "worker-" prefix).
+# worker_list [PROJECT_PATH]
+#   Lists active worker sessions for the given project (default: pwd).
+#   Returns names without the "worker-<project>-" prefix.
 worker_list() {
+    local project_path="${1:-$(pwd)}"
+    local project
+    project=$(_worker_project_name "$project_path")
+    local prefix="worker-${project}-"
     tmux list-sessions -F "#{session_name}" 2>/dev/null \
-        | grep "^worker-" \
-        | sed 's/^worker-//' \
+        | grep "^${prefix}" \
+        | sed "s/^${prefix}//" \
         || true
 }
 
 # worker_capture NAME [LINES]
 #   Captures worker pane content to /tmp/worker-<name>-pane.txt.
+#   Uses pwd to derive project scope.
 #   LINES: number of scrollback lines to capture (default: all).
 #   Returns: path to the capture file.
 worker_capture() {
     local name="$1"
     local lines="${2:-}"
-    local session="worker-${name}"
+    local session
+    session=$(_worker_session_name "$(pwd)" "$name")
     local outfile="/tmp/worker-${name}-pane.txt"
 
     if ! tmux has-session -t "$session" 2>/dev/null; then
@@ -55,10 +89,12 @@ worker_capture() {
 
 # worker_send NAME MESSAGE
 #   Sends text input to a running worker's tmux pane (followed by Enter).
+#   Uses pwd to derive project scope.
 worker_send() {
     local name="$1"
     local message="$2"
-    local session="worker-${name}"
+    local session
+    session=$(_worker_session_name "$(pwd)" "$name")
 
     if ! tmux has-session -t "$session" 2>/dev/null; then
         echo "ERROR: No session '$session'" >&2
@@ -107,11 +143,12 @@ end tell
 }
 
 # spawn_claude_worker SESSION_IGNORED NAME PROJECT_PATH MODEL TASK_PROMPT [EXTRA_FLAGS]
-#   Spawns Claude Code in its own tmux session ("worker-<name>").
+#   Spawns Claude Code in its own tmux session ("worker-<project>-<name>").
 #   Opens a Ghostty window to view the session.
 #
 #   Note: SESSION parameter is kept for API compatibility but ignored.
-#   Each worker gets its own session named "worker-<name>".
+#   Each worker gets its own session named "worker-<project>-<name>".
+#   Project prefix is derived from basename of PROJECT_PATH (worktree-aware).
 #
 #   Prints PANE_ID on success. Returns 1 on failure with error message on stderr.
 spawn_claude_worker() {
@@ -122,9 +159,10 @@ spawn_claude_worker() {
     local task_prompt="$5"
     local extra_flags="${6:-}"
 
-    local session="worker-${name}"
+    local session
+    session=$(_worker_session_name "$project_path" "$name")
 
-    # Kill existing session with same name (clean restart)
+    # Kill existing session with same name (clean restart for THIS project + worker name)
     tmux kill-session -t "$session" 2>/dev/null || true
 
     # Create dedicated session for this worker
@@ -155,8 +193,24 @@ spawn_claude_worker() {
     local prompt_file="/tmp/spawn-prompt-${name}-$$.txt"
     echo "$task_prompt" > "$prompt_file"
 
-    # Launch Claude with prompt as CLI argument, reading from file
-    local claude_cmd="cd $project_path && claude --model $model $extra_flags \"\$(cat $prompt_file)\""
+    # Capture parent Ghostty window ID for worker-done notification.
+    # Must happen BEFORE open_tmux_viewer (which opens a new window and changes front window).
+    local parent_window_id
+    parent_window_id=$(osascript -e 'tell application "Ghostty" to get id of front window' 2>/dev/null || echo "")
+
+    # Resolve notify script path (sibling of this script)
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local notify_script="${script_dir}/notify_parent.sh"
+
+    # Launch Claude with prompt as CLI argument, reading from file.
+    # Chain notify_parent.sh after claude exit (semicolon = runs even on error).
+    local claude_cmd
+    if [ -n "$parent_window_id" ] && [ -x "$notify_script" ]; then
+        claude_cmd="cd $project_path && claude --model $model $extra_flags \"\$(cat $prompt_file)\" ; '$notify_script' '$parent_window_id' '$name'"
+    else
+        claude_cmd="cd $project_path && claude --model $model $extra_flags \"\$(cat $prompt_file)\""
+    fi
     tmux send-keys -t "$pane_id" "$claude_cmd" C-m
 
     # Open Ghostty window attached to this worker's session
