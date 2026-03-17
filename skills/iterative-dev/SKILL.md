@@ -188,7 +188,10 @@ After ANY research phase (web search, paper lookup, API exploration), produce a 
 
 BEFORE any action in a directory (running scripts, editing files, exploring code):
 1. STOP
-2. READ the DOCS.md in that directory
+2. Find the RESPONSIBLE DOCS.md for that directory:
+   - If the directory has its own DOCS.md → read it
+   - If not → read the PARENT directory's DOCS.md (single-file dirs are documented there)
+   - Follow the Documentation Tree links to navigate deeper
 3. ONLY THEN proceed
 
 This is NON-NEGOTIABLE. Skipping DOCS.md leads to: wrong paths, wrong arguments, wrong understanding.

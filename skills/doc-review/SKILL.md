@@ -13,7 +13,13 @@ Phased review of project documentation against the documentation rules in `.clau
 
 ## Phase 1: Read Rules
 
-1. Read `.claude/rules/documentation.md` — this defines the standard
+**Note for workers in worktrees:** `.claude/rules/` is gitignored and NOT available in worktrees. The main agent (Opus) MUST provide the absolute path to the rules file in the worker prompt:
+```
+Documentation rules: <absolute-project-path>/.claude/rules/documentation.md
+```
+Read the file at that path. If no path was provided and the file doesn't exist locally, write WORKER_REPORT.md with STOP: "No documentation rules path provided and .claude/rules/documentation.md not found."
+
+1. Read the documentation rules file — this defines the standard
 2. Confirm the rules are loaded. Summarize key rules to the user:
    - DOCS.md placement (multi-file dir → own DOCS, single-file dir → parent DOCS)
    - Documentation Tree requirement (only when sub-DOCS exist)

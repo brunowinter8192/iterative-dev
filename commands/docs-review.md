@@ -19,16 +19,17 @@ Write the worker prompt to `/tmp/spawn-worker-docs-review.md`:
 
 ## FIRST ACTION
 1. Run /iterative-dev:worker-rules
-2. Read .claude/rules/documentation.md — this defines the project's documentation standard
+2. Read the documentation rules file at: DOCS_RULES_PATH
+   (This path is injected by the spawning agent — it points to .claude/rules/documentation.md in the main repo)
 
-If .claude/rules/documentation.md does NOT exist, write WORKER_REPORT.md with:
-STOP: No documentation rules found at .claude/rules/documentation.md. Cannot review without standard.
+If the file does NOT exist at that path, write WORKER_REPORT.md with:
+STOP: Documentation rules not found at DOCS_RULES_PATH. Cannot review without standard.
 Then exit.
 
 ## Review Steps
 
 ### 1. Map Documentation Standard
-Read .claude/rules/documentation.md fully. Extract:
+Read the documentation rules file fully. Extract:
 - DOCS.md placement rules (multi-file vs single-file directories)
 - Module documentation format
 - Documentation Tree requirements
@@ -100,6 +101,8 @@ Documentation structure review against .claude/rules/documentation.md
 ## Open Issues
 None / list of ambiguities that need user decision
 ```
+
+**Before writing the prompt file:** Replace `DOCS_RULES_PATH` in the template with the actual absolute path: `<project_path>/.claude/rules/documentation.md`
 
 Spawn the worker:
 
