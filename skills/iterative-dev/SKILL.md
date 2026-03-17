@@ -355,6 +355,12 @@ Do NOT skip this step.
 - `.env`, `.mcp.json` are not available in worktrees. For MCP-dependent tasks: skip worktree, work in project directory.
 - `.claude/settings.local.json` is NOT copied to worktrees (gitignored). Without it, workers only see globally installed plugins — project-local plugins and skills are invisible. **Fix:** Copy settings before spawning workers (see Step 4).
 
+**Shared-file conflict prevention (CRITICAL):**
+- Worktrees branch from the last COMMIT, not from the working tree. Uncommitted local changes are NOT visible to the worker.
+- BEFORE dispatching a worker that touches files you've modified locally: either (a) commit your changes first, or (b) tell the worker NOT to modify those files — "File X is locally modified, do NOT change it. Write recommendations to WORKER_REPORT.md instead."
+- When both Opus and worker modify the same file: merge produces duplicates or conflicts. The worker has the old version.
+- Concrete failure (2026-03-17): Worker added Mojeek config to old settings.yml while Opus had completely rewritten settings.yml locally. Merge produced duplicate Mojeek entry.
+
 **Debug/Exploration workers (MCP projects):**
 - Workers debugging MCP tool issues MUST write exploration scripts (using `src/` infrastructure directly), NOT call MCP tools
 - MCP tools run through the MCP server process — workers can't reliably share the browser session
