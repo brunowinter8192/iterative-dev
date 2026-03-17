@@ -392,6 +392,16 @@ git worktree add -b <worker-name> .claude/worktrees/<worker-name>
 
 If the branch already exists, STOP and inform the user.
 
+**Worktree Repo Verification (CRITICAL — MANDATORY):**
+After creating the worktree, IMMEDIATELY verify it points to the correct project:
+```bash
+ls .claude/worktrees/<worker-name>/dev/  # or another known project directory
+```
+- The worktree MUST be inside the CURRENT project repo (`pwd`)
+- NEVER spawn a worker in a worktree that belongs to a different repo
+- If verification fails: `git worktree remove`, investigate, retry
+- Concrete failure (2026-03-17): `git worktree add` created worktree in SearXNG repo instead of RAG repo. Worker found wrong dev/ structure, wasted a full spawn cycle.
+
 **Copy project plugin settings to worktree** (required for project-local plugins/skills):
 ```bash
 mkdir -p .claude/worktrees/<worker-name>/.claude
@@ -422,8 +432,18 @@ Report to user:
 - Worker name and branch
 - Worktree path (if applicable)
 - Prompt file: `/tmp/spawn-worker-<worker-name>.md`
-- tmux attach command: `tmux attach -t worker-<worker-name>`
-- List all current workers: `tmux list-sessions | grep worker-`
+- tmux attach command: `tmux attach -t worker-<project>-<worker-name>`
+- List current project workers: `worker_list` (auto-filters by project)
+
+### Worker-Done Notification (Automatic)
+
+When a worker's Claude process exits (success or failure), `notify_parent.sh` automatically sends "Worker <name> ist fertig." as user input to the parent Ghostty session. This works via Ghostty AppleScript text injection — the parent's window ID is captured at spawn time.
+
+**Implications:**
+- No manual "Worker fertig" needed — the parent session receives it as a message
+- Works for both clean exits and crashes (`;` chaining, not `&&`)
+- If the parent Ghostty window was closed/changed: silent fail, no crash
+- Workers that hit STOP problems should write `STOP: <reason>` in WORKER_REPORT.md before exiting — the notification still fires, and the parent reads the report to see the STOP reason
 
 ### While Workers Run
 
@@ -524,11 +544,20 @@ git merge <worker-name>
 # 4. Remove worker report (process artifact, not repo content)
 git rm -f WORKER_REPORT.md && git commit -m "cleanup: remove worker report"
 
-# 5. Cleanup worktree and branch
-tmux kill-window -t workers:<worker-name> 2>/dev/null
+# 5. Cleanup worktree, branch, AND tmux session
+tmux kill-session -t worker-<project>-<worker-name> 2>/dev/null
 git worktree remove .claude/worktrees/<worker-name>
 git branch -d <worker-name>
 ```
+
+**Tmux Session Cleanup (MANDATORY — after merge OR abort):**
+- ALWAYS kill the tmux session after merge, abort, or worker failure
+- Use `tmux kill-session -t worker-<name>` (NOT `kill-window` — sessions are 1:1 per worker)
+- NEVER leave orphaned tmux sessions running — they consume resources and confuse future spawns
+- When killing sessions, only kill sessions belonging to the CURRENT project:
+  - Check `worker_capture <name>` output for project path before killing unknown sessions
+  - Do NOT blanket-kill all `worker-*` sessions — other projects may have active workers
+- Concrete failure (2026-03-17): `tmux kill-session` on ALL worker sessions killed a worker from another project (worker-decisions from SearXNG). Only kill sessions YOU spawned in THIS session.
 
 **PROHIBITED:**
 - `cp` from worktree to main repo — destroys git history, defeats worktree purpose
