@@ -68,10 +68,24 @@ Read the file at that path. If no path was provided and the file doesn't exist l
    - Does it have a Documentation Tree section? (only required if sub-DOCS exist below this dir)
    - Does it document all modules in the directory?
    - Are any documented modules missing from disk (stale entries)?
+   - For dev/ directories: does the DOCS content match the documentation rules format?
+     - **Suite modules** (benchmarks, evals): Purpose, Usage, CLI flags, Expected output
+     - **Investigation modules** (bug/problem dirs): Problem, Investigation, Hypotheses, Scripts
+     - **CRITICAL: Do NOT invent dev/ content.** If investigation sections (Problem, Hypotheses, External Research) are missing, flag as MISSING — do NOT hallucinate a narrative. Only document what is verifiable in the code and repo. Scripts without investigation context get the suite format (Purpose + Usage only).
 
 5. Check CLAUDE.md:
    - Does it reference `data/` and `decisions/` with purpose?
    - Is the Project Structure tree complete?
+
+6. Check decisions/ (if directory exists):
+   - For each decision file: does the documented configuration match the current code?
+   - Compare claims in decisions/ against actual source files (settings.yml, *.py config constants)
+   - Flag as DRIFT when decision file states X but code shows Y
+   - Present drift findings in a table:
+
+| Decision File | Claim | Actual (source file) | Status |
+|---|---|---|---|
+| search01_engines.md | "DDG weight=1" | settings.yml: DDG disabled | DRIFT |
 
 **STOP.** Present full findings to user. Wait for confirmation before proceeding.
 
