@@ -183,6 +183,26 @@ DOCS DRIFT CHECK:
 
 For full structural reviews, use `/iterative-dev:doc-review`.
 
+##### 4.4 Decisions & Sources Check (MANDATORY)
+
+**ALWAYS actively verify — not from memory:**
+
+1. **Decisions drift:** For each file changed this cycle in `src/`, check if a `decisions/` file covers that component. If yes: does the IST section still match the code? If implementation changed → flag as DRIFT.
+
+2. **New sources:** Were external sources consulted this cycle (papers, docs, APIs, GitHub repos, Reddit threads)? If yes: is each source listed in `sources/sources.md`? If not → flag as MISSING SOURCE.
+
+3. **Pipeline Steps update:** For sources already in `sources/sources.md`: does the Pipeline Steps column reference the correct decision files? If a source informed a decision that isn't listed → flag as STALE REFERENCE.
+
+4. Report:
+```
+DECISIONS & SOURCES CHECK:
+- decisions/index02_dense_embedding.md: OK / DRIFT (IST says X, code now Y)
+- sources/sources.md: OK / MISSING SOURCE (<name> — consulted but not listed)
+- sources/sources.md: OK / STALE REFERENCE (<source> missing step <decision>)
+```
+
+5. Every finding → Content Improvement (4.1)
+
 #### 5. Open Items
 
 List any tasks from the original plan that were NOT executed.

@@ -73,9 +73,13 @@ Read the file at that path. If no path was provided and the file doesn't exist l
      - **Investigation modules** (bug/problem dirs): Problem, Investigation, Hypotheses, Scripts
      - **CRITICAL: Do NOT invent dev/ content.** If investigation sections (Problem, Hypotheses, External Research) are missing, flag as MISSING — do NOT hallucinate a narrative. Only document what is verifiable in the code and repo. Scripts without investigation context get the suite format (Purpose + Usage only).
 
-5. Check CLAUDE.md:
-   - Does it reference `data/` and `decisions/` with purpose?
-   - Is the Project Structure tree complete?
+5. Check CLAUDE.md Template Structure:
+   - Has `## Sources` section with reference to `sources/sources.md` (NOT inline table)
+   - Has `## Pipeline Components` section
+   - Has `### Key Files` section (under Pipeline Components)
+   - Has `## Project Structure` section with complete tree
+   - NO behavioral rules in CLAUDE.md (flag `## Worker Rules`, `## Startup`, or similar)
+   - Project Structure tree matches actual directories on disk
 
 6. Check decisions/ (if directory exists):
    - For each decision file: does the documented configuration match the current code?
@@ -86,6 +90,42 @@ Read the file at that path. If no path was provided and the file doesn't exist l
 | Decision File | Claim | Actual (source file) | Status |
 |---|---|---|---|
 | search01_engines.md | "DDG weight=1" | settings.yml: DDG disabled | DRIFT |
+
+7. Check sources/:
+   - `sources/sources.md` exists
+   - If project has `decisions/`: Sources table has `Pipeline Steps` column referencing decision file prefixes
+   - CLAUDE.md Sources section is just a reference link, not an inline table
+
+8. Check dev/ Convention:
+   - No `debug/` directory at project root
+   - If `decisions/` has files: dev/ sub-dirs are grouped by pipeline stage (match decisions/ prefixes)
+   - Every decision file has at least one corresponding dev/ sub-directory
+   - DOCS.md exists at pipeline-stage level dirs inside dev/
+
+   Present dev/decisions mapping as a table:
+
+   | Decision File | Expected dev/ Dir | Actual | Status |
+   |---|---|---|---|
+   | `index01_chunking.md` | `dev/indexing/chunking_eval/` | exists | OK |
+   | `retrieval03_fusion.md` | `dev/retrieval/fusion/` | missing | MISSING |
+
+9. Check shared rules symlinks:
+   ```bash
+   # Find broken symlinks
+   find .claude/rules -type l ! -exec test -e {} \; -print 2>/dev/null
+
+   # Check expected symlinks exist
+   for f in code-organization.md code-standards.md documentation.md decisions.md dev-convention.md; do
+     readlink ".claude/rules/$f" 2>/dev/null || echo "NOT SYMLINK: $f"
+   done
+
+   # MCP projects also need:
+   for f in mcp-integration.md server-pattern.md testing.md tool-design.md; do
+     readlink ".claude/rules/$f" 2>/dev/null || echo "NOT SYMLINK: $f"
+   done
+   ```
+   - Flag broken symlinks
+   - Flag shared rules files that are local copies instead of symlinks
 
 **STOP.** Present full findings to user. Wait for confirmation before proceeding.
 
@@ -102,7 +142,12 @@ Based on Phase 2 findings, create a fix plan:
 3. **MOVE** — Content from single-file-dir DOCS to parent DOCS
 4. **DELETE** — Old README.md files after content migrated to parent DOCS
 5. **UPDATE** — Existing DOCS.md missing modules, missing tree sections, stale entries
-6. **UPDATE CLAUDE.md** — Missing directory purpose descriptions, stale project structure tree
+6. **UPDATE CLAUDE.md** — Missing sections, inline sources, behavioral rules to extract, stale project structure tree
+7. **CREATE sources/** — Missing `sources/sources.md`
+8. **CREATE decisions/** — Missing `decisions/` directory
+9. **CREATE dev/** — Missing dev/ sub-dirs for decision files
+10. **FIX SYMLINKS** — Broken or missing shared rules symlinks
+11. **EXTRACT** — Behavioral rules from CLAUDE.md to `.claude/rules/` with appropriate `paths:` trigger
 
 Write the plan to `.claude/plans/` as a plan file.
 
