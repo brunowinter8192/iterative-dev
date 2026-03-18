@@ -123,6 +123,7 @@ When the scope is clear and the task involves implementing or fixing something i
 **1. Status Quo**
 - Read relevant `decisions/` files if the project has them
 - Map divergences between bead context and current decisions (things may have changed since the bead was written)
+- **decisions/ Update Rule:** If this cycle's implementation changes production code that affects a pipeline decision → the relevant `decisions/` file MUST be updated in IMPROVE. Note which file needs updating for the RECAP checklist.
 
 **2. Dev Check**
 - Does `dev/` already have modules/scripts that address this problem area?
@@ -181,6 +182,8 @@ After ANY research phase (web search, paper lookup, API exploration), produce a 
 **Why:** Research without source accounting = lost context. Next session won't know what was read, what was missed, and what's available for deeper analysis. The table is the bridge between "I searched" and "I can now plan based on evidence."
 
 **Concrete failure (2026-03-17):** 5 papers identified during weight-calibration research. 2 readable, 3 failed (PDF scrape empty, Semantic Scholar abstract only). No systematic listing until user asked. Worker for PDF conversion spawned late instead of immediately after identifying sources.
+
+**Investigation-type work:** When research is part of a dev/ investigation module (bug hunt, performance issue), document sources in the relevant `dev/` DOCS.md using the Investigation Module format from `documentation.md`. The source table in dev/ DOCS persists across sessions — the RECAP plan file does not.
 
 ### Exploration
 
@@ -669,6 +672,9 @@ Create `recap_notes.md` in the project root at the START of IMPLEMENT phase. Add
 - Improvement ideas for automation files
 
 **Why:** Context compression can drop earlier observations. The file persists and is read during RECAP phase. Delete the file during CLOSING (it's a process artifact, not repo content).
+
+**DOCS/README updates are RECAP/IMPROVE work.** Do NOT update DOCS.md, README.md, or `decisions/` during IMPLEMENT. IMPLEMENT is for code changes only. Documentation drift is detected in RECAP (6.3) and fixed in IMPROVE.
+Concrete failure (2026-03-18): DOCS updated during IMPLEMENT for SPLADE investigation — should have been RECAP/IMPROVE.
 
 ### After Workers Are Merged
 
