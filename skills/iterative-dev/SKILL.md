@@ -97,6 +97,8 @@ When the scope is clear and the task involves implementing or fixing something i
 - Only AFTER the assessment: decide whether to research (for gaps) or proceed (if covered)
 - Wait for user input on whether research is needed
 - Do NOT claim "no sources needed" without having checked the Sources table
+- **Eval tasks:** Source Assessment MUST complete BEFORE designing eval methodology. External evidence determines which variables to test and what ranges to sweep — designing an eval without reading the literature produces wasted runs.
+- Concrete failure (2026-03-18): Designed chunking sweep based on Pipeline Paper (GTE-large, Encoder) claiming "smaller is better". Post-sweep research revealed Decoder models (Stella/Qwen2) need larger chunks (512-1024 tokens). Sweep was non-discriminating (1.0 Recall on 5 docs). Reading the Rethinking Chunk Size paper first would have prevented both problems.
 
 **4. Worker Scoping**
 - Each deliverable = potential worker task
