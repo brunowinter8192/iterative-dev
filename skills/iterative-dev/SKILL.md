@@ -130,10 +130,27 @@ When the scope is clear and the task involves implementing or fixing something i
 - Read DOCS.md of the relevant `dev/` subdirectory FIRST, then only read module code if needed
 - Existing dev scripts > building new ad-hoc test scripts
 
-**3. Source Check**
-- Read the project's CLAUDE.md Sources table — what knowledge is already indexed?
-- Identify gaps: do we need additional sources (web search, GitHub, papers)?
-- If sources are missing → plan research BEFORE planning implementation
+**3. Source Assessment (ONE step, not iterative)**
+
+Produce an honest assessment of the knowledge foundation in ONE pass. Do NOT claim "no sources needed" without checking.
+
+**Workflow:**
+1. **List components:** What technologies/libraries/algorithms does this task use? (e.g., "Qwen3 MRL, Cross-Encoder Reranker, RRF Fusion, BEIR Metrics")
+2. **CLAUDE.md Sources Table:** For EACH component, check — is there an indexed source? Note the pipeline step reference.
+3. **Search indexed sources:** For components with indexed sources, search the RAG collection — does the source actually ANSWER the open questions, or just mention the topic?
+4. **Plugin sources:** Are there GitHub repos, Reddit threads, or other plugin-accessible sources relevant to these components? (e.g., Model Cards on GitHub, community benchmarks on Reddit)
+5. **Identify gaps:** For which components do we have NO source that answers our specific questions?
+6. **Declare:** Present the assessment as a table: Component | Source | Coverage | Gap
+
+**Only AFTER the assessment:** Decide whether to research (for gaps) or proceed (if covered).
+
+**Prohibited:**
+- "No external sources needed" without having checked the Sources table
+- "Reines Engineering" when the engineering builds on unverified assumptions about model behavior
+- Presenting the assessment over 3+ user corrections — do it right the first time
+
+**Concrete failure (2026-03-18):** Claimed "no sources needed" for MRL sweep + Reranker eval. User corrected 3x. Assessment revealed: MRL scaling guidance missing, Reranker threshold undocumented, BEIR metric selection unjustified. All partially answerable from existing indexed sources + GitHub Model Cards.
+
 - Do NOT dispatch research agents before having reproduced/understood the problem in dev
 
 **4. Reproduce / Verify in Dev (BEFORE Research)**
@@ -411,18 +428,25 @@ The prompt MUST include:
 - The specific task with concrete deliverables
 - Which files/directories to work in
 - Reference to plan file if one exists: "Read .claude/plans/*.md for full context"
-- **Domain skill activation** (ALWAYS, when project has domain skills):
+- **Domain skill activation** (selective, based on worker task):
 
 ```
 FIRST ACTION (before any file reads or edits):
-1. Activate ALL project-relevant skills listed in the system prompt
-   (e.g., /linkedin for LinkedIn MCP projects, /rag for RAG projects)
-2. For worktree mode: Run /worker-rules
+1. For worktree mode: Run /worker-rules
+2. Activate ONLY skills the worker will ACTUALLY USE:
+   - Worker calls MCP tools → activate the domain skill (e.g., /rag:RAG, /searxng:searxng)
+   - Worker writes code only → skip research/MCP skills, they waste context
+   - Worker does research → activate research skills (RAG, GitHub, Reddit, SearXNG)
 
-Skills provide critical tool references, parameter formats, and workflow rules.
-Without them, the worker will guess parameters and produce wrong code.
-Do NOT skip this step.
+Skills provide tool references and workflow rules.
+Do NOT activate skills the worker won't use — each skill loads 2-5k tokens of instructions.
 ```
+
+**Skill selection rule:** Match skills to the worker's DELIVERABLE, not the project's domain.
+- Code worker in RAG project → /worker-rules only (no /rag:RAG — worker doesn't search documents)
+- Research worker in RAG project → /worker-rules + /rag:RAG
+- MCP debug worker → /worker-rules + domain skill (needs MCP tool reference)
+- Concrete failure (2026-03-18): Code worker activated /rag:RAG (loaded full RAG tool reference + phases), never made a single RAG search. Wasted ~3k context tokens.
 
 **Worktree environment hints** (include in prompt when applicable):
 - `./venv/bin/python` does NOT exist in worktrees (gitignored). Use `python3` for syntax checks.
