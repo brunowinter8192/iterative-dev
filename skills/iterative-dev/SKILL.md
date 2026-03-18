@@ -29,6 +29,14 @@ EVERY RESPONSE STARTS WITH A PHASE INDICATOR:
 
 ## Planning Phase (PLAN)
 
+### ExitPlanMode Timing (CRITICAL)
+
+- ExitPlanMode = "Ich bin fertig mit dem gesamten Plan, User soll approven"
+- NICHT nach jedem Teilschritt, NICHT nach jeder Analyse, NICHT nach jeder Frage
+- When the user works iteratively (plugin by plugin, file by file): ExitPlanMode only when ALL parts are planned
+- When unsure if done: Ask "Weiter mit X, oder sind wir durch?" — do NOT call ExitPlanMode
+- Red Flag: User rejected ExitPlanMode → you called too early. Learn from it for the rest of the session.
+
 ### Beads Check (BEFORE Exploration)
 
 **MANDATORY:** Run `bd list -s open` BEFORE launching any exploration agents.

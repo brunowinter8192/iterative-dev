@@ -162,6 +162,39 @@ Based on the model used:
 - **Haiku:** Format drift, scope creep, path hallucinations, stop criteria ignored
 - **Sonnet/Opus:** Over-engineering, unnecessary verbosity
 
+### Server-Side Guardrails Check (MANDATORY for MCP agents)
+
+When evaluating agents that call MCP tools, verify that server-side guardrails (floors, caps, score filters) are working correctly.
+
+**For EACH MCP tool call in the session:**
+1. Check the parameter values the agent sent (from tool call summary)
+2. Verify floors are enforced: Did the server correct low values? (e.g., agent sent top_k=3 → server used 20)
+3. Verify caps are enforced: Did the server cap high values? (e.g., agent sent limit=500 → server used 100)
+4. Check score filter impact: How many results were returned vs how many the agent requested? If significantly fewer → score filter is working
+
+**Known Guardrails to verify:**
+
+| Plugin | Tool | Parameter | Floor | Cap |
+|--------|------|-----------|-------|-----|
+| GitHub | grep_repo | max_files | 20 | — |
+| GitHub | search_repos | query words | — | 3 (truncated) |
+| Reddit | search_*/get_* | limit | 5-25 | 100-500 |
+| Reddit | get_post_comments | depth | 20 | 50 |
+| RAG | search/search_hybrid/search_keyword | top_k | 20 | 50 |
+| RAG | read_document | num_chunks | 10 | 20 |
+
+**Red Flags:**
+- Agent sends low values AND output shows few results → floor may not be working
+- Agent sends reasonable values but output is empty → score filter too aggressive?
+- Agent doesn't use a parameter at all → check if the default is sensible
+
+**Report format:**
+```
+GUARDRAILS CHECK:
+- Tool X: agent sent param=Y, expected floor Z → OK/ISSUE
+- Score filter: N results returned from M requested → OK/AGGRESSIVE/NOT FILTERING
+```
+
 ---
 
 ## Phase 4: Read Automation Files & Propose
