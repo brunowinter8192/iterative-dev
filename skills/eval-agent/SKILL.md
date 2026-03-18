@@ -162,6 +162,27 @@ Based on the model used:
 - **Haiku:** Format drift, scope creep, path hallucinations, stop criteria ignored
 - **Sonnet/Opus:** Over-engineering, unnecessary verbosity
 
+### MCP Content Volume Check (MANDATORY for Haiku + MCP agents)
+
+For Haiku agents fetching external content (LinkedIn, Reddit, GitHub): check whether the agent maximized content volume. Haiku should go **broad and heavy** — the goal is maximum raw input before any filtering.
+
+**Check each search/fetch call:**
+1. Did the agent use the maximum sensible count for each tool?
+2. Did the agent use the tool's decision rules (e.g. count=50 for high-engagement posts)?
+3. Are there tool calls with suspiciously small outputs (<500 chars) that aren't errors? → likely wrong parameters or stale watchlist entries
+4. Did the agent skip optional fetch calls (reactions, second-page pagination) that would have added coverage?
+
+**Report format:**
+```
+CONTENT VOLUME CHECK:
+- search_posts: N calls × count=X → avg Yk chars per call [OK / BELOW MAX]
+- get_post_comments: used count=X for posts with Y comments → [OK / TOO LOW]
+- Skipped calls: [list any optional calls not made]
+- Dead entries: [watchlist profiles/companies returning <100 chars]
+```
+
+**Proposals for volume problems:** Target the SKILL.md tool reference section (count decision rules) AND server.py defaults — NOT what the agent should filter.
+
 ### Server-Side Guardrails Check (MANDATORY for MCP agents)
 
 When evaluating agents that call MCP tools, verify that server-side guardrails (floors, caps, score filters) are working correctly.
