@@ -109,6 +109,42 @@ Read the file at that path. If no path was provided and the file doesn't exist l
    | `index01_chunking.md` | `dev/indexing/chunking_eval/` | exists | OK |
    | `retrieval03_fusion.md` | `dev/retrieval/fusion/` | missing | MISSING |
 
+10. Dead Structure Check — files and directories that don't belong anywhere:
+
+   **Root-level files:** List all files at project root. Flag anything that is NOT one of the standard project files (CLAUDE.md, README.md, requirements.txt, pyproject.toml, Makefile, .gitignore, .env*, workflow.py/main.py/app.py, or files explicitly in CLAUDE.md Key Files). A file at root that doesn't appear in CLAUDE.md and isn't a standard entry point is a candidate.
+
+   **Directories with no modules and no exempt status:** Find directories that contain no .py/.sh files, no DOCS.md, and are not in the exempt list (data/, decisions/, sources/, .claude/, .beads/, venv/, __pycache__, .git). These may be stale or abandoned.
+
+   ```bash
+   # Root-level .md files that aren't standard
+   for f in *.md; do
+     [[ "$f" == "CLAUDE.md" || "$f" == "README.md" || "$f" == "CHANGELOG.md" || "$f" == "CONTRIBUTING.md" ]] && continue
+     echo "ROOT MD: $f — check if still relevant"
+   done
+
+   # Directories with no Python/shell modules and no exempt reason
+   for dir in */; do
+     dir="${dir%/}"
+     [[ "$dir" =~ ^(venv|.git|.beads|.claude|__pycache__|node_modules|data|decisions|sources|not_working|repo)$ ]] && continue
+     count=$(find "$dir" -name "*.py" -o -name "*.sh" 2>/dev/null | wc -l | tr -d ' ')
+     [ "$count" -eq 0 ] && echo "EMPTY DIR: $dir — no modules, check if still needed"
+   done
+   ```
+
+   **Flag criteria:**
+   - **ORPHANED FILE** — Root-level .md file not referenced in CLAUDE.md and not a standard doc
+   - **ORPHANED DIR** — Directory with no modules, not in exempt list, no clear ongoing purpose
+   - **STALE REFERENCE** — A directory or file mentioned in DOCS/CLAUDE.md that no longer exists on disk
+
+   Present as a table:
+
+   | Item | Type | Referenced In | Status |
+   |------|------|---------------|--------|
+   | `AGENTS.md` | Root file | nowhere | ORPHANED FILE |
+   | `scratch/` | Directory | nowhere | ORPHANED DIR |
+
+   **Do NOT delete anything** — flag for user decision only.
+
 9. Check shared rules symlinks:
    ```bash
    # Find broken symlinks
