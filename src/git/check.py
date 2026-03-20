@@ -1,12 +1,12 @@
 """
 Pre-commit check: staged/unstaged/untracked files, hook status, import warnings.
-Usage: python3 -m src.git.check <repo-path>
+Usage: python3 -m src.git.check <repo-path> [--auto-stage]
 """
 
 # INFRASTRUCTURE
 
+import argparse
 import subprocess
-import sys
 import os
 
 SKIP_PATTERNS = [".beads/", ".DS_Store", ".env", "credentials", ".claude/worktrees/"]
@@ -18,7 +18,7 @@ BROKEN_HOOK_PATTERNS = [
 
 # ORCHESTRATOR
 
-def check_workflow(repo_path: str) -> None:
+def check_workflow(repo_path: str, auto_stage: bool = False) -> None:
     status_lines = parse_status(repo_path)
     staged, unstaged, untracked, skipped = classify_files(status_lines)
     import_warnings = find_import_warnings(repo_path, unstaged)
@@ -26,6 +26,12 @@ def check_workflow(repo_path: str) -> None:
     diff_staged = run(["git", "diff", "--cached", "--stat"], repo_path)
     diff_unstaged = run(["git", "diff", "--stat"], repo_path)
     print_report(staged, unstaged, untracked, skipped, import_warnings, hook_status, diff_staged, diff_unstaged)
+
+    if auto_stage:
+        auto_staged = stage_all(repo_path, unstaged, untracked)
+        print_auto_stage_report(auto_staged)
+        diff_after = run(["git", "diff", "--cached", "--stat"], repo_path)
+        print_diff_summary(diff_after)
 
 
 # FUNCTIONS
@@ -145,8 +151,38 @@ def _section(title: str):
     print(f"\n=== {title} ===")
 
 
+# Stage all unstaged and untracked files (minus SKIP)
+def stage_all(repo_path: str, unstaged: list, untracked: list) -> list[str]:
+    paths_to_stage = [p for _, p in unstaged] + untracked
+    if not paths_to_stage:
+        return []
+    for path in paths_to_stage:
+        run(["git", "add", path], repo_path)
+    return paths_to_stage
+
+
+# Print auto-staged files report
+def print_auto_stage_report(auto_staged: list[str]):
+    _section("AUTO-STAGED")
+    if auto_staged:
+        for p in auto_staged:
+            print(f"  {p}")
+    else:
+        print("  (nothing to stage)")
+
+
+# Print diff summary after staging
+def print_diff_summary(diff: str):
+    _section("DIFF SUMMARY — use this for commit message")
+    if diff:
+        print(diff)
+    else:
+        print("  (nothing staged)")
+
+
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python3 -m src.git.check <repo-path>")
-        sys.exit(1)
-    check_workflow(sys.argv[1])
+    parser = argparse.ArgumentParser(description="Pre-commit check for git-committer agent")
+    parser.add_argument("repo_path", help="Path to git repository")
+    parser.add_argument("--auto-stage", action="store_true", help="Stage all unstaged/untracked files (minus SKIP)")
+    args = parser.parse_args()
+    check_workflow(args.repo_path, auto_stage=args.auto_stage)

@@ -30,37 +30,23 @@ PLUGIN_DIR=$(ls -d ~/.claude/plugins/cache/brunowinter-plugins/iterative-dev/*/ 
 
 For EACH repo in the Repos list, sequentially:
 
-1. **Run pre-check script:**
+1. **Run pre-check with auto-stage:**
    ```bash
-   python3 $PLUGIN_DIR/src/git/check.py <repo-path>
+   python3 $PLUGIN_DIR/src/git/check.py <repo-path> --auto-stage
    ```
    Read the output sections:
-   - `STAGED` — already staged files
-   - `UNSTAGED` — modified files not yet staged
-   - `UNTRACKED` — new files not yet tracked
-   - `SKIP` — excluded files (`.beads/`, `.env`, etc.) — **never stage these**
-   - `IMPORT WARNINGS` — new imports detected → check if the imported module is in UNTRACKED
+   - `STAGED` — already staged files (before auto-stage)
+   - `UNSTAGED` / `UNTRACKED` — files that will be auto-staged
+   - `SKIP` — excluded files (`.beads/`, `.env`, etc.) — never staged
    - `HOOK STATUS` — `OK` or `WARNING: ...`
+   - `AUTO-STAGED` — files that were just staged by the script
+   - `DIFF SUMMARY` — staged diff stat for commit message generation
 
    If STAGED/UNSTAGED/UNTRACKED are all `(none)`: report `SKIP: <repo> — nothing to commit` and move to next repo.
 
-   If `HOOK STATUS = WARNING`: note the message — act on it in step 5.
+   If `HOOK STATUS = WARNING`: note the message — act on it in step 3.
 
-2. **Stage ALL files by name** from UNSTAGED + UNTRACKED sections:
-   - NEVER use `git add -A` or `git add .`
-   - Stage each path explicitly: `git add path/to/file`
-   - Directories (shown without trailing `/`): `git add path/to/dir/`
-   - **IMPORT WARNINGS:** if a warning names a module → check UNTRACKED for the file → stage it
-
-3. **Run staging verification:**
-   ```bash
-   python3 $PLUGIN_DIR/src/git/staged.py <repo-path>
-   ```
-   - If `STAGING STATUS = INCOMPLETE`: stage the listed files NOW, re-run staged.py
-   - Only proceed when `STAGING STATUS = COMPLETE`
-   - Use the `DIFF SUMMARY` section from this output as the basis for the commit message
-
-4. **Plugin-Sync check:**
+2. **Plugin-Sync check:**
    - Check if repo has `.claude-plugin/plugin.json`: `test -f <repo-path>/.claude-plugin/plugin.json`
    - If YES: this is a plugin source repo. Extract plugin name and run sync:
      ```bash
@@ -71,13 +57,13 @@ For EACH repo in the Repos list, sequentially:
    - If sync runs successfully: report as `COMMITTED + SYNCED`
    - If no `plugin.json`: skip sync
 
-5. **If HOOK STATUS was WARNING (bd):** run `bd export` in the repo before committing.
+3. **If HOOK STATUS was WARNING (bd):** run `bd export` in the repo before committing.
 
-6. **Generate commit message** from the `DIFF SUMMARY` output of staged.py (see Commit Message Rules)
+4. **Generate commit message** from the `DIFF SUMMARY` output of check.py (see Commit Message Rules)
 
-7. **Commit** with HEREDOC format (see below)
+5. **Commit** with HEREDOC format (see below)
 
-8. **Run post-commit verification:**
+6. **Run post-commit verification:**
    ```bash
    python3 $PLUGIN_DIR/src/git/post.py <repo-path>
    ```
@@ -88,8 +74,8 @@ For EACH repo in the Repos list, sequentially:
      - If non-`.beads/` files are dirty → stage them, commit with `chore: stage missed files`, re-run post.py
    - Only push when CLEAN or only `.beads/` files remain dirty
 
-9. `git push`
-10. If push fails with "no upstream": try `git push -u origin <branch>`
+7. `git push`
+8. If push fails with "no upstream": try `git push -u origin <branch>`
 
 ## CRITICAL: Commit Message Rules
 

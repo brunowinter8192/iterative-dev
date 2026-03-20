@@ -5,9 +5,10 @@
 Architecture: one tmux session per worker, named `worker-<project>-<name>`. Project-scoped — workers from different projects never collide.
 
 **Spawning:**
-- `spawn_claude_worker()` — creates tmux session, waits for shell ready (marker-based, 10s timeout), writes prompt to temp file, launches `claude --model <model>` with prompt from file
+- `spawn_claude_worker()` — creates tmux session with direct command arg (no shell-ready polling), writes prompt to temp file, launches `claude --model <model>` with prompt from file
 - `spawn_claude_worker_from_file()` — same but reads prompt from existing file
-- Shell ready detection: sends echo marker, polls capture-pane for marker string (0.3s intervals)
+- Direct command execution: command passed as arg to `tmux new-session` — env vars inherited automatically
+- `remain-on-exit on` set atomically via `;` chain — pane stays open after process exit for status detection
 - After Claude exits: `touch /tmp/worker-<name>.done` (semicolon-chained, fires even on crash)
 
 **Viewer:**
@@ -16,7 +17,8 @@ Architecture: one tmux session per worker, named `worker-<project>-<name>`. Proj
 - Ghostty 1.2.x: fallback via `open -na` with `--quit-after-last-window-closed` and `--window-save-state=never`
 
 **Orchestration:**
-- `worker_list()` — lists active workers for current project (filters by project prefix)
+- `worker_list()` — lists active workers with status (running/exited) for current project
+- `worker_status()` — returns status of a single worker via `#{pane_dead}` query
 - `worker_capture()` — captures pane content to `/tmp/worker-<name>-pane.txt` (configurable scrollback lines)
 - `worker_send()` — sends text input to worker's Claude session (tmux send-keys + Enter)
 
@@ -38,21 +40,19 @@ Architecture: one tmux session per worker, named `worker-<project>-<name>`. Proj
 - Programmatic Input Submission (#15553) bestätigt: Claude Code ignoriert programmatischen stdin als Submit
 - Community-Konsens (Reddit, GitHub): Niemand hat einen funktionierenden Workaround. Alle warten auf `claude inject`.
 
-**File:** `src/spawn/tmux_spawn.sh` (229 lines)
+**File:** `src/spawn/tmux_spawn.sh` (245 lines)
 
 ## Recommendation (SOLL)
 
-**Shell-Ready Detection:** Change — Polling eliminieren. Command direkt als Argument an `tmux new-session` übergeben statt `send-keys` nach Shell-Ready-Polling. Pattern von agent-of-empires (1.2k ⭐). Muss getestet werden ob Env-Vars (GH_TOKEN, PATH) ohne Login-Shell verfügbar sind.
+**Shell-Ready Detection:** Keep (implemented) — Direct command arg to `tmux new-session`. Env vars inherited automatically (verified in dev/spawn/test_direct_command.sh). Polling loop eliminated.
 
-**Worker Status Detection:** Change — `worker_status()` Funktion mit tmux-nativer Detection: `#{pane_dead}` (Prozess beendet) + `#{pane_current_command}` (Shell = Agent fertig). Pattern von agent-of-empires. `worker_list()` erweitern um Status pro Worker.
+**Worker Status Detection:** Keep (implemented) — `worker_status()` via `#{pane_dead}` query. `worker_list()` shows status per worker. `remain-on-exit on` keeps pane open after exit (verified in dev/spawn/test_status_detection.sh).
 
 **Worker → Main Notification:** Pending — blockiert durch fehlendes `claude inject`. Kein Workaround möglich. `.done` File bleibt als manuelles Signal. Automatische Notification erst wenn #24947 implementiert ist.
 
 ## Offene Fragen
 
-- Env-Passthrough bei `tmux new-session` mit direktem Command: Ist GH_TOKEN verfügbar ohne Login-Shell? → dev/spawn/ Test nötig.
 - `claude inject` Timeline: Issue ist high-priority aber ohne ETA. Regelmäßig prüfen.
-- `remain-on-exit on` (tmux Option): Soll die Pane nach Worker-Exit offen bleiben für Output-Lesen? agent-of-empires nutzt das.
 
 ## Evidenz
 

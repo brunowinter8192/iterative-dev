@@ -4,17 +4,17 @@
 # Architecture: One tmux session per worker (session name = "worker-<project>-<name>").
 # Project-scoped: workers from different projects never collide.
 # Each Ghostty window attaches to its own session — no sync, no zombies.
+# Direct command arg to tmux new-session (no shell-ready polling).
+# remain-on-exit on for status detection via #{pane_dead}.
 #
 # Usage: source this file, then call spawn_claude_worker.
 #
-# Orchestration: worker_list, worker_capture, worker_send allow the main
-# agent to monitor and interact with running workers.
+# Orchestration: worker_list, worker_status, worker_capture, worker_send allow
+# the main agent to monitor and interact with running workers.
 
 set -euo pipefail
 
 # --- Constants ---
-SPAWN_READY_MARKER="ITERDEV_SPAWN_READY_a9f3c7"
-SPAWN_SHELL_TIMEOUT=10
 
 # --- Helpers ---
 
@@ -46,16 +46,53 @@ _worker_session_name() {
 
 # worker_list [PROJECT_PATH]
 #   Lists active worker sessions for the given project (default: pwd).
-#   Returns names without the "worker-<project>-" prefix.
+#   Output: NAME STATUS (running/exited) per line.
 worker_list() {
     local project_path="${1:-$(pwd)}"
     local project
     project=$(_worker_project_name "$project_path")
     local prefix="worker-${project}-"
-    tmux list-sessions -F "#{session_name}" 2>/dev/null \
-        | grep "^${prefix}" \
-        | sed "s/^${prefix}//" \
-        || true
+    local sessions
+    sessions=$(tmux list-sessions -F "#{session_name}" 2>/dev/null \
+        | grep "^${prefix}" || true)
+
+    if [ -z "$sessions" ]; then
+        return 0
+    fi
+
+    while IFS= read -r session_name; do
+        local name="${session_name#$prefix}"
+        local dead
+        dead=$(tmux display-message -t "${session_name}:^" -p "#{pane_dead}" 2>/dev/null || echo "?")
+        local status="running"
+        [ "$dead" = "1" ] && status="exited"
+        [ "$dead" = "?" ] && status="unknown"
+        echo "$name  $status"
+    done <<< "$sessions"
+}
+
+# worker_status NAME [PROJECT_PATH]
+#   Returns status of a single worker: running, exited, or unknown.
+worker_status() {
+    local name="$1"
+    local project_path="${2:-$(pwd)}"
+    local session
+    session=$(_worker_session_name "$project_path" "$name")
+
+    if ! tmux has-session -t "$session" 2>/dev/null; then
+        echo "unknown"
+        return 1
+    fi
+
+    local dead
+    dead=$(tmux display-message -t "${session}:^" -p "#{pane_dead}" 2>/dev/null || echo "?")
+    if [ "$dead" = "1" ]; then
+        echo "exited"
+    elif [ "$dead" = "0" ]; then
+        echo "running"
+    else
+        echo "unknown"
+    fi
 }
 
 # worker_capture NAME [LINES]
@@ -150,7 +187,8 @@ end tell
 #   Each worker gets its own session named "worker-<project>-<name>".
 #   Project prefix is derived from basename of PROJECT_PATH (worktree-aware).
 #
-#   Prints PANE_ID on success. Returns 1 on failure with error message on stderr.
+#   Uses direct command arg to tmux new-session (no shell-ready polling).
+#   Sets remain-on-exit on for status detection via #{pane_dead}.
 spawn_claude_worker() {
     local _session_ignored="${1:-}"
     local name="$2"
@@ -165,45 +203,23 @@ spawn_claude_worker() {
     # Kill existing session with same name (clean restart for THIS project + worker name)
     tmux kill-session -t "$session" 2>/dev/null || true
 
-    # Create dedicated session for this worker
-    tmux new-session -d -s "$session"
-
-    # Capture pane_id of the default window
-    local pane_id
-    pane_id=$(tmux list-panes -t "$session" -F "#{pane_id}" | head -1)
-    if [ -z "$pane_id" ]; then
-        echo "ERROR: Failed to get pane_id for session $session" >&2
-        return 1
-    fi
-
-    # Wait for shell ready
-    tmux send-keys -t "$pane_id" "echo $SPAWN_READY_MARKER" C-m
-    local elapsed=0
-    while (( $(echo "$elapsed < $SPAWN_SHELL_TIMEOUT" | bc -l) )); do
-        local content
-        content=$(tmux capture-pane -p -t "$pane_id" 2>/dev/null || true)
-        if echo "$content" | grep -qF "$SPAWN_READY_MARKER"; then
-            break
-        fi
-        sleep 0.3
-        elapsed=$(echo "$elapsed + 0.3" | bc -l)
-    done
-
     # Write prompt to temp file to avoid shell escaping issues
     local prompt_file="/tmp/spawn-prompt-${name}-$$.txt"
     echo "$task_prompt" > "$prompt_file"
 
-    # Launch Claude with prompt as CLI argument, reading from file.
-    # Chain touch signal file after claude exit (semicolon = runs even on error).
-    # The .done file can be checked manually (ls /tmp/worker-*.done) or by external tooling.
+    # Build claude command with .done signal chained after exit
     local claude_cmd="cd $project_path && claude --model $model $extra_flags \"\$(cat $prompt_file)\" ; touch '/tmp/worker-${name}.done'"
-    tmux send-keys -t "$pane_id" "$claude_cmd" C-m
+
+    # Create session with command as direct arg (no polling needed).
+    # Atomic remain-on-exit via ; chain — set before process can exit.
+    tmux new-session -d -s "$session" "$claude_cmd" \; \
+        set-option -p -t "$session" remain-on-exit on
 
     # Open Ghostty window attached to this worker's session
     open_tmux_viewer "$session"
 
-    # Return pane_id
-    echo "$pane_id"
+    # Return session name (pane_id no longer needed — use session:^ for queries)
+    echo "$session"
 }
 
 # spawn_claude_worker_from_file SESSION NAME PROJECT_PATH MODEL PROMPT_FILE [EXTRA_FLAGS]
