@@ -86,6 +86,19 @@ def extract_text_content(msg: dict) -> str:
     return ''
 
 
+# Check if tool_result contains an error (tool_use_error tag or is_error flag)
+def is_tool_error(block: dict) -> bool:
+    if block.get('is_error'):
+        return True
+    content = block.get('content', '')
+    if isinstance(content, list) and len(content) > 0:
+        first = content[0]
+        text = first.get('text', '') if isinstance(first, dict) else str(first)
+    else:
+        text = str(content)
+    return '<tool_use_error>' in text or 'No such tool available' in text
+
+
 # Extract tool_use and tool_result pairs from messages
 def extract_tool_calls(messages: list[dict]) -> list[dict]:
     tool_use_cache = {}
@@ -112,6 +125,7 @@ def extract_tool_calls(messages: list[dict]) -> list[dict]:
                 if tool_use_id in tool_use_cache:
                     tool_data = tool_use_cache[tool_use_id]
                     tool_data['output'] = extract_result_content(block)
+                    tool_data['is_error'] = is_tool_error(block)
                     tool_calls.append(tool_data)
                     del tool_use_cache[tool_use_id]
 
@@ -306,8 +320,14 @@ def format_summary_table(tool_calls: list[dict]) -> str:
         ts = format_timestamp(call.get('timestamp', ''))
         params = format_input_params(call['input'])
         output = call.get('output') or ''
-        size = len(output)
-        size_label = "[no output]" if size == 0 else f"[{size} chars]"
+        if call.get('is_error'):
+            error_text = re.sub(r'</?tool_use_error>', '', output).strip()
+            if len(error_text) > 60:
+                error_text = error_text[:60] + '...'
+            size_label = f"[✗ {error_text}]"
+        else:
+            size = len(output)
+            size_label = "[no output]" if size == 0 else f"[{size} chars]"
         lines.append(f"[{ts}] #{i} {tool}: {params}  {size_label}")
 
     return '\n'.join(lines)
@@ -332,7 +352,10 @@ def format_input_params(input_data: dict) -> str:
 
     parts = []
     for key, value in input_data.items():
-        parts.append(f"{key}={value}")
+        value_str = str(value)
+        if len(value_str) > 100:
+            value_str = value_str[:100] + '...'
+        parts.append(f"{key}={value_str}")
 
     return ', '.join(parts)
 

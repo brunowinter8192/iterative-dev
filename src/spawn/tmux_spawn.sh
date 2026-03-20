@@ -195,7 +195,7 @@ spawn_claude_worker() {
 
     # Launch Claude with prompt as CLI argument, reading from file.
     # Chain touch signal file after claude exit (semicolon = runs even on error).
-    # The PostToolUse hook (worker-done-check.sh) picks up the .done file.
+    # The .done file can be checked manually (ls /tmp/worker-*.done) or by external tooling.
     local claude_cmd="cd $project_path && claude --model $model $extra_flags \"\$(cat $prompt_file)\" ; touch '/tmp/worker-${name}.done'"
     tmux send-keys -t "$pane_id" "$claude_cmd" C-m
 
