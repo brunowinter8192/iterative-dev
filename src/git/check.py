@@ -151,9 +151,16 @@ def _section(title: str):
     print(f"\n=== {title} ===")
 
 
+# For RM entries like 'old -> new', return new path only (the one to git add)
+def _extract_stage_path(path: str) -> str:
+    if " -> " in path:
+        return path.split(" -> ", 1)[1]
+    return path
+
+
 # Stage all unstaged and untracked files (minus SKIP)
 def stage_all(repo_path: str, unstaged: list, untracked: list) -> list[str]:
-    paths_to_stage = [p for _, p in unstaged] + untracked
+    paths_to_stage = [_extract_stage_path(p) for _, p in unstaged] + untracked
     if not paths_to_stage:
         return []
     for path in paths_to_stage:

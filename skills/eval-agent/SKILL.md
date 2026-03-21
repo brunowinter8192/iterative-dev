@@ -200,7 +200,8 @@ When evaluating agents that call MCP tools, verify that server-side guardrails (
 | GitHub | grep_repo | max_files | 20 | — |
 | GitHub | search_repos | query words | — | 3 (truncated) |
 | Reddit | search_*/get_* | limit | 5-25 | 100-500 |
-| Reddit | get_post_comments | depth | 20 | 50 |
+| Reddit | get_post_comments | depth | hardcoded=5 | — (not exposed) |
+| Reddit | get_post_comments | min_score | hardcoded=3 | — (not exposed) |
 | RAG | search/search_hybrid/search_keyword | top_k | 20 | 50 |
 | RAG | read_document | num_chunks | 10 | 20 |
 
@@ -284,13 +285,18 @@ CRITICAL:
 
 ### 4.5 Write to Plan File
 
-Write all proposals to the plan file (`~/.claude/plans/<active-plan>.md`).
+Create a **NEW** plan file for the proposals. **NEVER write into an existing plan file.**
 
-- Use the **Write tool** to write the full proposal set to the plan file
+```bash
+# Filename: eval-<project>-<YYYYMMDD>.md
+~/.claude/plans/eval-<project>-<YYYYMMDD>.md
+```
+
+- Use the **Write tool** to create the new file (never Edit, never append)
 - Format: same Proposal N structure from 4.4 (File, Location, WHY, Current, Proposed, Expected Impact)
 - Do NOT apply changes yet
 - Do NOT present proposals in chat
-- After writing: report "done" to user — they will review the plan file and approve
+- After writing: report the plan file path to user — they will review and approve
 
 The plan file doubles as the implementation blueprint — proposals written there are ready for direct execution after user approval.
 

@@ -61,6 +61,13 @@ def get_diff_summary(repo_path: str) -> str:
     return run(["git", "diff", "--cached", "--stat"], repo_path)
 
 
+# For RM entries like 'old -> new', return new path only (the one to git add)
+def _extract_stage_path(path: str) -> str:
+    if " -> " in path:
+        return path.split(" -> ", 1)[1]
+    return path
+
+
 # Print staging report
 def print_report(staged, unstaged, untracked, complete, diff_summary):
     print("=== STAGING STATUS ===")
@@ -69,7 +76,9 @@ def print_report(staged, unstaged, untracked, complete, diff_summary):
     else:
         print("  INCOMPLETE — stage these files before committing:")
         for xy, p in unstaged:
-            print(f"    {xy}  {p}  [UNSTAGED]")
+            stage_path = _extract_stage_path(p)
+            hint = f"  # git add {stage_path}" if stage_path != p else ""
+            print(f"    {xy}  {p}  [UNSTAGED]{hint}")
         for p in untracked:
             print(f"    ??  {p}  [UNTRACKED]")
 
