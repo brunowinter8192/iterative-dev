@@ -43,6 +43,8 @@ See [sources/sources.md](sources/sources.md).
 | `src/pipeline/jsonl_to_md.py` | Session Pipeline (shared dependency) |
 | `src/pipeline/list_agents.py` | Session Pipeline |
 | `src/pipeline/extract_calls.py` | Session Pipeline |
+| `server.py` | MCP Server (Bead + Worker tools) |
+| `mcp-start.sh` | MCP Server startup |
 | `plugin-sync.sh` | Plugin deployment |
 | `.claude-plugin/plugin.json` | Plugin manifest |
 
@@ -52,6 +54,8 @@ See [sources/sources.md](sources/sources.md).
 .
 ├── CLAUDE.md
 ├── README.md
+├── server.py
+├── mcp-start.sh
 ├── plugin-sync.sh
 ├── .claude-plugin/
 │   ├── plugin.json

@@ -78,19 +78,24 @@ Clarify with the user:
 
 When the scope is clear and the task involves implementing or fixing something in the repo:
 
-**1. Decisions**
-- Read relevant `decisions/` files if the project has them
-- Map divergences between bead context and current decisions (things may have changed since the bead was written)
-- **decisions/ Update Rule:** If this cycle's implementation changes production code that affects a pipeline decision → the relevant `decisions/` file MUST be updated. Note which file needs updating.
+**1. Status Quo (STOP — present to user)**
 
-**2. Dev Check**
-- Does `dev/` already have modules/scripts that address this problem area?
-- Read DOCS.md of the relevant `dev/` subdirectory FIRST, then only read module code if needed
-- Existing dev scripts > building new ad-hoc test scripts
-- For bugs: reproduce in dev/ with test DB first, THEN research causes
-- For features: build a minimal prototype/test in dev/ first, THEN research best approaches
-- Are new dev scripts needed? If yes: which directory, what pattern to follow?
-- Research agents dispatched before reproduction = wasted effort on assumptions
+Read relevant `decisions/` files + existing code. Present to user:
+- IST-Zustand in 2-3 Sätzen (what is currently implemented?)
+- Divergences between bead context and current decisions (things may have changed)
+- If decisions/ is outdated or missing for this component → flag explicitly
+- **STOP:** Wait for user confirmation before proceeding
+
+**2. Evidenzlage (STOP — present to user)**
+
+Check `dev/` and existing codebase for prior work on this problem. Present findings:
+- Existing dev scripts that address this problem area? (DOCS.md of relevant dev/ subdir first)
+- Existing fixes/workarounds? (`fixes/`, `debug/`, `KNOWN_ISSUES`, `CHANGELOG`)
+- Test suites that cover the affected code? Do they actually IMPORT the module being changed, or have their own copy?
+- Agent/workflow instruction files if optimizing an automated workflow? (Read the instruction file BEFORE proposing changes)
+- When debugging: read ACTUAL DATA first (dump, sample, log output), research external sources only AFTER the data doesn't self-explain
+- "No code change needed" conclusion? → Verify: what happens at the boundary between existing and new data? What failure modes exist?
+- **STOP:** Wait for user confirmation before proceeding
 
 **3. Source Assessment**
 - Produce an honest assessment of the knowledge foundation in ONE pass
@@ -103,8 +108,7 @@ When the scope is clear and the task involves implementing or fixing something i
 - Only AFTER the assessment: decide whether to research (for gaps) or proceed (if covered)
 - Wait for user input on whether research is needed
 - Do NOT claim "no sources needed" without having checked the Sources table
-- **Eval tasks:** Source Assessment MUST complete BEFORE designing eval methodology. External evidence determines which variables to test and what ranges to sweep — designing an eval without reading the literature produces wasted runs.
-- Concrete failure (2026-03-18): Designed chunking sweep based on Pipeline Paper (GTE-large, Encoder) claiming "smaller is better". Post-sweep research revealed Decoder models (Stella/Qwen2) need larger chunks (512-1024 tokens). Sweep was non-discriminating (1.0 Recall on 5 docs). Reading the Rethinking Chunk Size paper first would have prevented both problems.
+- **Eval tasks:** Source Assessment MUST complete BEFORE designing eval methodology.
 
 **4. Worker Scoping**
 - Each deliverable = potential worker task
@@ -122,6 +126,9 @@ When the scope is clear and the task involves implementing or fixing something i
 **5. Remarks**
 - Ask user explicitly for remarks before finalizing plan
 - Map the complete plan: short form in chat, long form in plan file
+
+**After Implementation:**
+- If this cycle changed production code that affects a pipeline decision → update the relevant `decisions/` file (IST section)
 
 ---
 

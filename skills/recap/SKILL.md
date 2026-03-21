@@ -269,6 +269,5 @@ Only enter when user confirms (e.g., "proceed", "close", "done").
 
 **PRE-CLOSE CHECK:** EMPTY PLATE RULE enforced — all Open Items must have Beads. Delete `recap_notes.md` (process artifact).
 
-1. `bd export` (JSONL export)
-2. Commit ALL repos via git-committer agent (see `~/.claude/rules/subagents.md`)
-3. Ask: "New cycle or done for now?"
+1. Commit ALL repos via git-committer agent (see `~/.claude/rules/subagents.md`)
+2. Ask: "New cycle or done for now?"
