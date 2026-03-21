@@ -92,6 +92,8 @@ See [sources/sources.md](sources/sources.md).
 ├── dev/
 │   ├── debug/
 │   │   └── log_permission_request.sh
+│   ├── pipeline/                   → [DOCS.md](dev/pipeline/DOCS.md)
+│   │   └── audit_error_patterns.py
 │   └── spawn/
 │       ├── test_direct_command.sh
 │       └── test_status_detection.sh

@@ -116,8 +116,8 @@ cd $PLUGIN_DIR && python3 -m src.pipeline.extract_calls \
 ```
 
 **Which calls to extract:**
+- All calls marked `[suspicious: N chars]` (output < 500 chars) — MUST be extracted and content verified: is it an error ("404", "No content extracted", broken HTML) or a legitimate short result ("0 results")?
 - All calls with large outputs (>1000 chars) — contain the real findings
-- All calls with small outputs (<400 chars) — verify if empty/error/short result
 - Calls where the agent changed strategy — read what triggered the change
 - The last 3 calls before the final response — understand what led to the conclusion
 
@@ -169,7 +169,7 @@ For Haiku agents fetching external content (LinkedIn, Reddit, GitHub): check whe
 **Check each search/fetch call:**
 1. Did the agent use the maximum sensible count for each tool?
 2. Did the agent use the tool's decision rules (e.g. count=50 for high-engagement posts)?
-3. Are there tool calls with suspiciously small outputs (<500 chars) that aren't errors? → likely wrong parameters or stale watchlist entries
+3. Are there tool calls marked `[suspicious: N chars]` that aren't errors? → likely wrong parameters or stale watchlist entries
 4. Did the agent skip optional fetch calls (reactions, second-page pagination) that would have added coverage?
 
 **Report format:**

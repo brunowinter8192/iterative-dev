@@ -91,8 +91,8 @@ Run `bd list -s open` to check open beads, then evaluate:
 ##### 3.1 Active Beads
 
 For each open bead touched this cycle:
-- Was it commented after every significant action? If not → note the gap
-- Is the latest comment sufficient for a fresh session to continue? If not → add comment in IMPROVE
+- Was a session-end comment written with STAND block? If not → add in IMPROVE
+- Is the latest comment sufficient for a fresh session to continue? If not → improve in IMPROVE
 
 ##### 3.2 New Beads
 

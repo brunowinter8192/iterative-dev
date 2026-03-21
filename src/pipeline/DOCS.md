@@ -6,7 +6,7 @@ Session JSONL analysis utilities. Used for eval workflows and subagent debugging
 
 **Purpose:** Converts Claude Code subagent JSONL session logs to Markdown summary (tool call table + task prompt + final response). Optionally includes dispatch context from main session.
 **Input:** JSONL file path, output path, optional `--dispatch` flag.
-**Output:** Markdown file with tool call summary (one line per call: timestamp, tool, params, output size or error marker). Error detection: tool_use_error results marked as `[✗ error text]`. Input params truncated to 100 chars in summary.
+**Output:** Markdown file with tool call summary (one line per call: timestamp, tool, params, output size or error/suspicious marker). Error detection: `is_error` results marked as `[✗ error text]`. MCP tool calls with output < 500 chars marked `[suspicious: N chars]` (signal for eval reviewer, not error classification). Input params truncated to 100 chars with newlines replaced by spaces. File-content params (`content`, `file_content`, `new_string`, bash heredoc) show `[N chars]` instead of content.
 
 ## list_agents.py
 

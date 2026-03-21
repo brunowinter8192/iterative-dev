@@ -9,8 +9,9 @@ Utilities for analyzing Claude Code session JSONL logs. Used by the eval workflo
 - Extracts all tool_use/tool_result pairs with timestamps
 - Strips `<system-reminder>` tags from all content
 - Outputs summary markdown: tool call table (one line per call with timestamp, tool name, params, output size or error marker)
-- Error detection: `is_tool_error()` checks for `<tool_use_error>` tags and "No such tool available" in tool_result content. Failed calls marked as `[✗ error text]` in summary instead of `[X chars]`
-- Input truncation: `format_input_params()` truncates values to 100 chars in summary table (prevents Write-calls with full file content from flooding the summary)
+- Error detection: `is_tool_error()` checks `is_error` flag, `<tool_use_error>` tags, and "No such tool available" in tool_result content. Failed calls marked as `[✗ error text]` in summary. Audit over 40364 tool_results (1442 sessions) confirmed: all hard errors have `is_error=True` — string patterns are redundant safety net. Evidence: `dev/pipeline/reports/error_patterns_20260321_203616.md`
+- Suspicious output detection: MCP tool calls (name starts with `mcp__`) with output < 500 chars marked `[suspicious: N chars]` in summary. Flags calls that returned "successfully" but with error content (404, "No content extracted", broken HTML). Built-in tools (Bash, Read, Grep) excluded — short output is normal for them. Not an error classification — signal for eval reviewer to extract and verify content. Evidence: `dev/pipeline/reports/error_patterns_20260321_203616.md`
+- Input truncation: `format_input_params()` truncates values to 100 chars, replaces newlines with spaces (single-line guarantee). File-content params (`content`, `file_content`, `new_string`, bash heredoc) show `[N chars]` instead of content.
 - Optional `--dispatch` flag: traces back to main session, extracts dispatch context (pre-dispatch messages, Agent tool_use prompt, post-dispatch response)
 - Dispatch context derivation: finds `progress` message with matching agentId, walks backwards to find Agent tool_use block
 
@@ -38,7 +39,9 @@ Utilities for analyzing Claude Code session JSONL logs. Used by the eval workflo
 
 ## Recommendation (SOLL)
 
-Pending — needs evaluation.
+- `is_tool_error()`: Keep (no change needed). Hard errors fully covered by `is_error` flag. MCP soft errors handled via suspicious marker + eval review — programmatic classification not feasible for content-based errors.
+- `format_summary_table()`: Keep current `[suspicious: N chars]` threshold at 500 chars. Consistent with eval-agent skill (MCP Content Volume Check).
+- `format_input_params()`: Keep current content detection + newline sanitization.
 
 ## Offene Fragen
 

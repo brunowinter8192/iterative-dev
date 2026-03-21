@@ -6,6 +6,9 @@ from datetime import datetime
 from pathlib import Path
 
 
+CONTENT_PARAM_KEYS = {'content', 'file_content', 'new_string'}
+
+
 # ORCHESTRATOR
 def convert_workflow(jsonl_path: str, output_path: str, include_dispatch: bool = False) -> int:
     messages = load_jsonl(jsonl_path)
@@ -327,7 +330,12 @@ def format_summary_table(tool_calls: list[dict]) -> str:
             size_label = f"[✗ {error_text}]"
         else:
             size = len(output)
-            size_label = "[no output]" if size == 0 else f"[{size} chars]"
+            if size == 0:
+                size_label = "[no output]"
+            elif size < 500 and tool.startswith('mcp__'):
+                size_label = f"[suspicious: {size} chars]"
+            else:
+                size_label = f"[{size} chars]"
         lines.append(f"[{ts}] #{i} {tool}: {params}  {size_label}")
 
     return '\n'.join(lines)
@@ -345,7 +353,16 @@ def format_timestamp(ts: str) -> str:
         return '??:??:??'
 
 
-# Format all input params as key=value pairs
+# Detect params that contain file content (Write, Edit, bash heredoc)
+def is_file_content_param(key: str, value: str) -> bool:
+    if key in CONTENT_PARAM_KEYS and len(value) > 200:
+        return True
+    if key == 'command' and ('<<' in value or 'cat >' in value) and len(value) > 200:
+        return True
+    return False
+
+
+# Format all input params as single-line key=value pairs
 def format_input_params(input_data: dict) -> str:
     if not input_data or not isinstance(input_data, dict):
         return '(no input)'
@@ -353,8 +370,11 @@ def format_input_params(input_data: dict) -> str:
     parts = []
     for key, value in input_data.items():
         value_str = str(value)
-        if len(value_str) > 100:
+        if is_file_content_param(key, value_str):
+            value_str = f'[{len(value_str)} chars]'
+        elif len(value_str) > 100:
             value_str = value_str[:100] + '...'
+        value_str = value_str.replace('\n', ' ')
         parts.append(f"{key}={value_str}")
 
     return ', '.join(parts)
