@@ -86,7 +86,7 @@ For each finding: estimate token waste (small/medium/large) and propose a hook r
 
 #### 3. Beads Evaluation
 
-Run `bd list -s open` to check open beads, then evaluate:
+Run `bead_list(status="open")` to check open beads, then evaluate:
 
 ##### 3.1 Active Beads
 
@@ -151,6 +151,20 @@ Prioritization (by OUTCOME):
 - Process Improvements = Automation Files ONLY. Docs/README = Content Improvements (4.1).
 - OUTCOME determines severity. Wrong process + correct result = Important (not Critical).
 - Every process error MUST produce a config change. "Lesson Learned" without config change = FAILURE.
+
+**Rule Layers — where to route each improvement:**
+
+| Layer | Path | Scope | When to use |
+|-------|------|-------|-------------|
+| Global rules | `~/.claude/rules/*.md` | All projects, always loaded | General behavior (communication, verification, scoping) |
+| Shared rules | `~/.claude/shared-rules/global/*.md` | Symlinked into projects | Code conventions, project standards |
+| Project rules | `<project>/.claude/rules/*.md` | One project only | Project-specific constraints, TUI standards, dev workflows |
+| Plugin skills | Plugin source repo `skills/*/SKILL.md` | Activated per-skill | Workflow phases, domain tools |
+
+**Path-scoped project rules (BIGGEST LEVER):**
+Project rules in `<project>/.claude/rules/` can use `paths:` frontmatter to activate ONLY when specific files are read. This is the most powerful mechanism for context-specific behavior — a rule that fires when touching `src/formatter.py` can enforce TUI color standards, a rule scoped to `decisions/` can enforce decision file structure.
+
+For each process error: identify which rule layer would have prevented it. If a path-scoped project rule would be most effective (error only happens in specific file context), create one. This is higher leverage than global rules because it targets the exact context where the error occurs.
 
 ##### 4.3 Documentation Check (MANDATORY)
 
@@ -249,14 +263,14 @@ After presenting improvements:
 1. Read plan file "## Improvements" and "## Open Items" sections
 2. **DOCS/README/decisions/ updates FIRST** — NEVER skippable
 3. For each other improvement:
-   - **Code?** → `bd create --title "..." --type=...`
+   - **Code?** → `bead_create(title, description)`
    - **Automation Files?** → Follow edit workflow in `~/.claude/rules/automation-framework.md`. Plugin files: edit in SOURCE REPO (see `~/.claude/rules/plugins.md`).
 4. Handle Beads (from RECAP Section 3):
-   - Create: `bd create --title "..." --type=...`
-   - Update: `bd comments add <id> "..."`
-   - Close: `bd close <id> --reason="..."`
+   - Create: `bead_create(title, description)`
+   - Update: `bead_comment(id, text)`
+   - Close: `bead_close(id, reason)`
 5. **Handle Open Items** (EMPTY PLATE RULE — see Section 5):
-   - For EACH Open Item: `bd create --title "..." --description="..." --type=task`
+   - For EACH Open Item: `bead_create(title, description)`
 6. Ask: "Proceed to CLOSING?"
 
 User confirms → next response starts with ✅ CLOSING
