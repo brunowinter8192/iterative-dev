@@ -102,19 +102,11 @@ worker_status() {
     local recent
     recent=$(tmux capture-pane -p -t "$pane_id" -S -5 2>/dev/null | grep -v '^$' | tail -5)
 
-    # Check for active processing indicators (thinking, writing, tool use)
-    if echo "$recent" | grep -qiE '(thinking|thought for|Actualizing|Envisioning|Shimmying|Cultivating|Gesticulating|Baking|Beaming|Imagining|Misting|↑ [0-9]|↓ [0-9])'; then
+    # Active timer visible (e.g. "5m 12s", "34s", "1m 0s") = working
+    if echo "$recent" | grep -qE '\([0-9]+m [0-9]+s|\([0-9]+s'; then
         echo "working"
-        return 0
-    fi
-
-    # Check for idle prompt (empty input line or accept-edits statusbar with no activity above)
-    local last_line
-    last_line=$(echo "$recent" | tail -1)
-    if echo "$last_line" | grep -qE '^\s*(❯|⏵⏵)\s'; then
-        echo "idle"
     else
-        echo "working"
+        echo "idle"
     fi
 }
 
