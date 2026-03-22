@@ -151,14 +151,24 @@ def worker_status(
 def worker_capture(
     name: str,
     lines: int | None = None,
+    tail: int | None = None,
     project_path: str | None = None
 ) -> list[TextContent]:
-    """Capture worker pane output to file."""
+    """Capture worker pane output to file. Use tail to get last N lines directly."""
     path = project_path or os.getcwd()
     if lines:
         output = _run_tmux(f'worker_capture "{name}" {lines} "{path}"')
     else:
         output = _run_tmux(f'worker_capture "{name}" "" "{path}"')
+    if tail and output and not output.startswith("ERROR"):
+        filepath = output.strip()
+        try:
+            with open(filepath, "r") as f:
+                all_lines = f.readlines()
+            tail_content = "".join(all_lines[-tail:])
+            return [TextContent(type="text", text=tail_content)]
+        except Exception:
+            pass
     return [TextContent(type="text", text=output)]
 
 

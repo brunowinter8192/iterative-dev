@@ -102,7 +102,7 @@ worker_status() {
     local last_line
     last_line=$(tmux capture-pane -p -t "$pane_id" -S -3 2>/dev/null | grep -v '^$' | tail -1)
 
-    if echo "$last_line" | grep -qE '^\s*❯\s*$'; then
+    if echo "$last_line" | grep -qE '^\s*(❯|⏵⏵)\s'; then
         echo "idle"
     else
         echo "working"
