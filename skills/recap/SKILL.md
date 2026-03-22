@@ -269,5 +269,6 @@ Only enter when user confirms (e.g., "proceed", "close", "done").
 
 **PRE-CLOSE CHECK:** EMPTY PLATE RULE enforced — all Open Items must have Beads. Delete `recap_notes.md` (process artifact).
 
-1. Commit ALL repos via git-committer agent (see `~/.claude/rules/subagents.md`)
-2. Ask: "New cycle or done for now?"
+1. **Bead STAND Block (MANDATORY):** For each Bead created or commented this session: write ONE `bead_comment` with STAND block (DONE/OPEN/NEW/DROPPED/APPROACH). This is the single session-end update — no mid-session commenting. The STAND block must enable a fresh Claude to continue without any prior context.
+2. Commit ALL repos via git-committer agent (see `~/.claude/rules/subagents.md`)
+3. Ask: "New cycle or done for now?"
