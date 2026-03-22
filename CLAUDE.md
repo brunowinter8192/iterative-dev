@@ -102,7 +102,7 @@ See [sources/sources.md](sources/sources.md).
 │   └── pipeline.md
 ├── sources/
 │   └── sources.md
-├── dev/
+├── dev/                            → [DOCS.md](dev/DOCS.md)
 │   ├── debug/
 │   │   └── log_permission_request.sh
 │   ├── pipeline/                   → [DOCS.md](dev/pipeline/DOCS.md)
