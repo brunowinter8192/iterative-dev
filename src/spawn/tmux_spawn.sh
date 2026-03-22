@@ -95,16 +95,17 @@ worker_status() {
     fi
 }
 
-# worker_capture NAME [LINES]
+# worker_capture NAME [LINES] [PROJECT_PATH]
 #   Captures worker pane content to /tmp/worker-<name>-pane.txt.
-#   Uses pwd to derive project scope.
 #   LINES: number of scrollback lines to capture (default: all).
+#   PROJECT_PATH: project the worker belongs to (default: pwd).
 #   Returns: path to the capture file.
 worker_capture() {
     local name="$1"
     local lines="${2:-}"
+    local project_path="${3:-$(pwd)}"
     local session
-    session=$(_worker_session_name "$(pwd)" "$name")
+    session=$(_worker_session_name "$project_path" "$name")
     local outfile="/tmp/worker-${name}-pane.txt"
 
     if ! tmux has-session -t "$session" 2>/dev/null; then
@@ -124,14 +125,15 @@ worker_capture() {
     echo "$outfile"
 }
 
-# worker_send NAME MESSAGE
+# worker_send NAME MESSAGE [PROJECT_PATH]
 #   Sends text input to a running worker's tmux pane (followed by Enter).
-#   Uses pwd to derive project scope.
+#   PROJECT_PATH: project the worker belongs to (default: pwd).
 worker_send() {
     local name="$1"
     local message="$2"
+    local project_path="${3:-$(pwd)}"
     local session
-    session=$(_worker_session_name "$(pwd)" "$name")
+    session=$(_worker_session_name "$project_path" "$name")
 
     if ! tmux has-session -t "$session" 2>/dev/null; then
         echo "ERROR: No session '$session'" >&2

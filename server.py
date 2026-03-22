@@ -150,24 +150,28 @@ def worker_status(
 @mcp.tool
 def worker_capture(
     name: str,
-    lines: int | None = None
+    lines: int | None = None,
+    project_path: str | None = None
 ) -> list[TextContent]:
     """Capture worker pane output to file."""
+    path = project_path or os.getcwd()
     if lines:
-        output = _run_tmux(f'worker_capture "{name}" {lines}')
+        output = _run_tmux(f'worker_capture "{name}" {lines} "{path}"')
     else:
-        output = _run_tmux(f'worker_capture "{name}"')
+        output = _run_tmux(f'worker_capture "{name}" "" "{path}"')
     return [TextContent(type="text", text=output)]
 
 
 @mcp.tool
 def worker_send(
     name: str,
-    message: str
+    message: str,
+    project_path: str | None = None
 ) -> list[TextContent]:
     """Send message to running worker."""
+    path = project_path or os.getcwd()
     safe_msg = message.replace('"', '\\"')
-    output = _run_tmux(f'worker_send "{name}" "{safe_msg}"')
+    output = _run_tmux(f'worker_send "{name}" "{safe_msg}" "{path}"')
     return [TextContent(type="text", text=output or "Message sent.")]
 
 
