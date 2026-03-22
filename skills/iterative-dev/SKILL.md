@@ -134,6 +134,33 @@ Check `dev/` and existing codebase for prior work on this problem. Present findi
 
 ## Implementation Phase (IMPLEMENT)
 
+### Auto-Loop (Autonomous Execution)
+
+After plan approval, Claude can start an autonomous loop that works through all deliverables without user intervention.
+
+**When to use:** User approved the plan and wants hands-off execution.
+
+**How to start:** Call `/iterative-dev:auto-loop <plan-file>` (or user calls it directly).
+
+**How it works:**
+1. Setup script creates state file `.claude/auto-loop.local.md`
+2. Stop hook intercepts every session exit and re-injects the plan prompt
+3. Claude works through deliverables one by one
+4. When ALL deliverables are complete: output `<promise>ALL_DELIVERABLES_COMPLETE</promise>`
+5. Stop hook detects promise → loop ends
+
+**Safety:** Max iterations default 20. Override with `--max-iterations N`.
+
+**Cancel:** `/iterative-dev:cancel-loop` or user removes `.claude/auto-loop.local.md`.
+
+**Rules during auto-loop:**
+- Work systematically through the plan file
+- Verify each deliverable before moving to the next
+- Do NOT output the promise until ALL deliverables are genuinely complete
+- Do NOT lie to exit the loop — the promise must be TRUE
+
+### Workers
+
 Implementation happens through **workers** (see `~/.claude/rules/workers.md` for spawn/orchestrate/merge procedures).
 
 ### Opus Role

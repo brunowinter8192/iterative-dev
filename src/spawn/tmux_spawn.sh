@@ -100,13 +100,16 @@ worker_status() {
     local pane_id
     pane_id=$(tmux list-panes -t "$session" -F "#{pane_id}" | head -1)
     local recent
-    recent=$(tmux capture-pane -p -t "$pane_id" -S -5 2>/dev/null | grep -v '^$' | tail -5)
+    recent=$(tmux capture-pane -p -t "$pane_id" 2>/dev/null | grep -v '^$' | tail -5)
 
-    # Active timer visible (e.g. "5m 12s", "34s", "1m 0s") = working
-    if echo "$recent" | grep -qE '\([0-9]+m [0-9]+s|\([0-9]+s'; then
-        echo "working"
-    else
+    # Idle indicators (worker finished, waiting for input):
+    # - "for Xm Xs" / "for Xs" in status line (e.g. "✻ Cogitated for 1m 41s")
+    # - "accept edits" prompt (waiting for edit approval)
+    # - ">" prompt at start of line (waiting for user input)
+    if echo "$recent" | grep -qE 'for [0-9]+[ms]|accept edits|^>'; then
         echo "idle"
+    else
+        echo "working"
     fi
 }
 

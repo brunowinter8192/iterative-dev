@@ -43,6 +43,8 @@ See [sources/sources.md](sources/sources.md).
 | `src/pipeline/jsonl_to_md.py` | Session Pipeline (shared dependency) |
 | `src/pipeline/list_agents.py` | Session Pipeline |
 | `src/pipeline/extract_calls.py` | Session Pipeline |
+| `hooks/stop-hook.sh` | Auto-Loop (stop hook) |
+| `scripts/setup-auto-loop.sh` | Auto-Loop (setup) |
 | `server.py` | MCP Server (Bead + Worker tools) |
 | `mcp-start.sh` | MCP Server startup |
 | `plugin-sync.sh` | Plugin deployment |
@@ -63,10 +65,17 @@ See [sources/sources.md](sources/sources.md).
 ├── agents/
 │   ├── code-investigate-specialist.md
 │   └── git-committer.md
+├── hooks/
+│   ├── hooks.json
+│   └── stop-hook.sh
+├── scripts/
+│   └── setup-auto-loop.sh
 ├── commands/
 │   ├── eval-spawn.md
 │   ├── docs-spawn.md
-│   └── rules-check-spawn.md
+│   ├── rules-check-spawn.md
+│   ├── auto-loop.md
+│   └── cancel-loop.md
 ├── skills/
 │   ├── iterative-dev/
 │   ├── recap/

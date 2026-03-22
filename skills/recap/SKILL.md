@@ -271,4 +271,5 @@ Only enter when user confirms (e.g., "proceed", "close", "done").
 
 1. **Bead STAND Block (MANDATORY):** For each Bead created or commented this session: write ONE `bead_comment` with STAND block (DONE/OPEN/NEW/DROPPED/APPROACH). This is the single session-end update — no mid-session commenting. The STAND block must enable a fresh Claude to continue without any prior context.
 2. Commit ALL repos via git-committer agent (see `~/.claude/rules/subagents.md`)
-3. Ask: "New cycle or done for now?"
+3. **NO post-commit verification by Opus.** The git-committer agent runs `git status` after commit. Do NOT run additional git commands to "verify" — it always shows clean state and wastes tokens.
+4. Ask: "New cycle or done for now?"
