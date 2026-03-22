@@ -72,7 +72,10 @@ worker_list() {
 }
 
 # worker_status NAME [PROJECT_PATH]
-#   Returns status of a single worker: running, exited, or unknown.
+#   Returns status: working, idle, exited, or unknown.
+#   working = Claude Code is actively processing
+#   idle = Claude Code is waiting for input (prompt visible)
+#   exited = pane process has terminated
 worker_status() {
     local name="$1"
     local project_path="${2:-$(pwd)}"
@@ -88,10 +91,21 @@ worker_status() {
     dead=$(tmux display-message -t "${session}:^" -p "#{pane_dead}" 2>/dev/null || echo "?")
     if [ "$dead" = "1" ]; then
         echo "exited"
-    elif [ "$dead" = "0" ]; then
-        echo "running"
-    else
+        return 0
+    elif [ "$dead" != "0" ]; then
         echo "unknown"
+        return 1
+    fi
+
+    local pane_id
+    pane_id=$(tmux list-panes -t "$session" -F "#{pane_id}" | head -1)
+    local last_line
+    last_line=$(tmux capture-pane -p -t "$pane_id" -S -3 2>/dev/null | grep -v '^$' | tail -1)
+
+    if echo "$last_line" | grep -qE '^\s*❯\s*$'; then
+        echo "idle"
+    else
+        echo "working"
     fi
 }
 
@@ -143,7 +157,9 @@ worker_send() {
     local pane_id
     pane_id=$(tmux list-panes -t "$session" -F "#{pane_id}" | head -1)
 
-    tmux send-keys -t "$pane_id" "$message" C-m
+    printf '%s' "$message" | tmux load-buffer -
+    tmux paste-buffer -d -t "$pane_id"
+    tmux send-keys -t "$pane_id" C-m
 }
 
 # --- Functions ---
