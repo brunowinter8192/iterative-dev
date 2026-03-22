@@ -9,7 +9,7 @@ import argparse
 import subprocess
 import os
 
-SKIP_PATTERNS = [".beads/", ".DS_Store", ".env", "credentials", ".claude/worktrees/"]
+SKIP_PATTERNS = [".beads/", ".DS_Store", ".env", "credentials", ".claude/worktrees/", "WORKER_REPORT.md"]
 
 BROKEN_HOOK_PATTERNS = [
     ("bd sync", "BROKEN: uses 'bd sync' — run 'bd export' instead"),
