@@ -5,11 +5,9 @@ description: Mandatory rules for workers spawned in git worktrees. Covers worktr
 
 # Worker Rules — Worktree Isolation & Report
 
-These rules are MANDATORY for every worker session running in a git worktree.
+These rules apply to every worker session. Run the Pre-Edit Check to determine your mode.
 
 ## 1. Worktree Isolation
-
-You are running in a git worktree — an isolated copy of the repo on a dedicated branch.
 
 ### Pre-Edit Check (ONCE, before your first file edit)
 
@@ -18,9 +16,13 @@ pwd
 git branch --show-current
 ```
 
-- `pwd` must show a path containing `.claude/worktrees/`
-- `git branch --show-current` must show your worker branch name (NOT `main`)
-- If EITHER check fails: **STOP IMMEDIATELY.** Do not edit any files. Report the error.
+**Evaluate:**
+- If `pwd` contains `.claude/worktrees/` AND branch is NOT `main` → **Worktree Mode** (follow all isolation rules below)
+- If `pwd` does NOT contain `.claude/worktrees/` AND branch is `main` → **Direct Mode** (worktree=false, spawned intentionally on main — skip isolation rules, edit files directly, do NOT commit)
+
+### Worktree Mode Rules
+
+You are running in a git worktree — an isolated copy of the repo on a dedicated branch.
 
 ### Rules
 

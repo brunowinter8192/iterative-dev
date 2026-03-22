@@ -99,9 +99,18 @@ worker_status() {
 
     local pane_id
     pane_id=$(tmux list-panes -t "$session" -F "#{pane_id}" | head -1)
-    local last_line
-    last_line=$(tmux capture-pane -p -t "$pane_id" -S -3 2>/dev/null | grep -v '^$' | tail -1)
+    local recent
+    recent=$(tmux capture-pane -p -t "$pane_id" -S -5 2>/dev/null | grep -v '^$' | tail -5)
 
+    # Check for active processing indicators (thinking, writing, tool use)
+    if echo "$recent" | grep -qiE '(thinking|thought for|Actualizing|Envisioning|Shimmying|Cultivating|Gesticulating|Baking|Beaming|Imagining|Misting|↑ [0-9]|↓ [0-9])'; then
+        echo "working"
+        return 0
+    fi
+
+    # Check for idle prompt (empty input line or accept-edits statusbar with no activity above)
+    local last_line
+    last_line=$(echo "$recent" | tail -1)
     if echo "$last_line" | grep -qE '^\s*(❯|⏵⏵)\s'; then
         echo "idle"
     else
