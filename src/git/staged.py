@@ -5,8 +5,11 @@ Usage: python3 -m src.git.staged <repo-path>
 
 # INFRASTRUCTURE
 
+import logging
 import subprocess
 import sys
+
+logger = logging.getLogger(__name__)
 
 SKIP_PATTERNS = [".beads/", ".DS_Store", ".env", "credentials", ".claude/worktrees/"]
 
@@ -14,6 +17,7 @@ SKIP_PATTERNS = [".beads/", ".DS_Store", ".env", "credentials", ".claude/worktre
 # ORCHESTRATOR
 
 def staged_workflow(repo_path: str) -> None:
+    logger.info("staged_workflow repo=%s", repo_path)
     status_lines = parse_status(repo_path)
     staged, unstaged, untracked = classify_files(status_lines)
     diff_summary = get_diff_summary(repo_path)

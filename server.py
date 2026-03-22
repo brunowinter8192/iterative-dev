@@ -1,10 +1,13 @@
 # INFRASTRUCTURE
+import logging
 import os
 import subprocess
 from typing import Literal
 
 from fastmcp import FastMCP
 from mcp.types import TextContent
+
+logger = logging.getLogger(__name__)
 
 mcp = FastMCP("iterative-dev")
 
@@ -20,8 +23,10 @@ def _run_bd(args: list[str], repo: str | None = None) -> str:
     if repo:
         cmd += ["--db", os.path.join(repo, ".beads", "dolt")]
     cmd += args
+    logger.debug("Running: %s", " ".join(cmd))
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
     if result.returncode != 0:
+        logger.error("bd failed: %s", result.stderr.strip())
         return f"ERROR: {result.stderr.strip()}"
     return result.stdout.strip()
 
@@ -41,24 +46,28 @@ def _run_bd_create(args: list[str], repo: str | None = None) -> str:
 def _run_tmux(func_call: str) -> str:
     """Source tmux_spawn.sh and run a function."""
     cmd = f'source "{TMUX_SPAWN_SH}" && {func_call}'
+    logger.debug("Running tmux: %s", func_call)
     result = subprocess.run(
         ["bash", "-c", cmd],
         capture_output=True, text=True, timeout=60,
         cwd=os.getcwd()
     )
     if result.returncode != 0:
+        logger.error("tmux failed: %s", result.stderr.strip())
         return f"ERROR: {result.stderr.strip()}"
     return result.stdout.strip()
 
 
 def _run_git(args: list[str], cwd: str | None = None) -> str:
     """Run git command and return stdout."""
+    logger.debug("Running: git %s", " ".join(args))
     result = subprocess.run(
         ["git"] + args,
         capture_output=True, text=True, timeout=30,
         cwd=cwd or os.getcwd()
     )
     if result.returncode != 0:
+        logger.error("git failed: %s", result.stderr.strip())
         return f"ERROR: {result.stderr.strip()}"
     return result.stdout.strip()
 
@@ -167,8 +176,8 @@ def worker_capture(
                 all_lines = f.readlines()
             tail_content = "".join(all_lines[-tail:])
             return [TextContent(type="text", text=tail_content)]
-        except Exception:
-            pass
+        except (OSError, ValueError) as e:
+            logger.error("Failed to read capture file %s: %s", filepath, e)
     return [TextContent(type="text", text=output)]
 
 
@@ -194,6 +203,7 @@ def worker_spawn(
     worktree: bool = True
 ) -> list[TextContent]:
     """Spawn worker with optional worktree isolation."""
+    logger.info("worker_spawn name=%s model=%s worktree=%s project=%s", name, model, worktree, project_path)
     results = []
 
     if not os.path.isfile(prompt_file):
@@ -257,6 +267,7 @@ def worker_merge(
     project_path: str | None = None
 ) -> list[TextContent]:
     """Merge worker branch, cleanup worktree + tmux."""
+    logger.info("worker_merge name=%s", name)
     path = project_path or os.getcwd()
     results = []
 

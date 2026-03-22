@@ -1,11 +1,15 @@
 # INFRASTRUCTURE
 import argparse
+import logging
 
 from .jsonl_to_md import load_jsonl, extract_tool_calls, format_tool_call, write_output, format_summary_table
+
+logger = logging.getLogger(__name__)
 
 
 # ORCHESTRATOR
 def extract_workflow(jsonl_path: str, call_numbers: list[int], output_path: str | None = None) -> str:
+    logger.info("extract_workflow input=%s calls=%s", jsonl_path, call_numbers)
     messages = load_jsonl(jsonl_path)
     tool_calls = extract_tool_calls(messages)
 

@@ -5,8 +5,11 @@ Usage: python3 -m src.git.post <repo-path>
 
 # INFRASTRUCTURE
 
+import logging
 import subprocess
 import sys
+
+logger = logging.getLogger(__name__)
 
 SKIP_PATTERNS = [".beads/", ".DS_Store", ".env", "credentials", ".claude/worktrees/"]
 
@@ -14,6 +17,7 @@ SKIP_PATTERNS = [".beads/", ".DS_Store", ".env", "credentials", ".claude/worktre
 # ORCHESTRATOR
 
 def post_workflow(repo_path: str) -> None:
+    logger.info("post_workflow repo=%s", repo_path)
     commit_hash = get_last_commit(repo_path)
     remaining = get_remaining_changes(repo_path)
     print_report(commit_hash, remaining)

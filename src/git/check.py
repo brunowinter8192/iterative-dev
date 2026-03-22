@@ -6,8 +6,11 @@ Usage: python3 -m src.git.check <repo-path> [--auto-stage]
 # INFRASTRUCTURE
 
 import argparse
+import logging
 import subprocess
 import os
+
+logger = logging.getLogger(__name__)
 
 SKIP_PATTERNS = [".beads/", ".DS_Store", ".env", "credentials", ".claude/worktrees/", "WORKER_REPORT.md"]
 
@@ -19,6 +22,7 @@ BROKEN_HOOK_PATTERNS = [
 # ORCHESTRATOR
 
 def check_workflow(repo_path: str, auto_stage: bool = False) -> None:
+    logger.info("check_workflow repo=%s auto_stage=%s", repo_path, auto_stage)
     status_lines = parse_status(repo_path)
     staged, unstaged, untracked, skipped = classify_files(status_lines)
     import_warnings = find_import_warnings(repo_path, unstaged)

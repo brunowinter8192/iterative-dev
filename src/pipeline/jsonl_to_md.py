@@ -1,16 +1,19 @@
 # INFRASTRUCTURE
 import argparse
 import json
+import logging
 import re
 from datetime import datetime
 from pathlib import Path
 
+logger = logging.getLogger(__name__)
 
 CONTENT_PARAM_KEYS = {'content', 'file_content', 'new_string'}
 
 
 # ORCHESTRATOR
 def convert_workflow(jsonl_path: str, output_path: str, include_dispatch: bool = False) -> int:
+    logger.info("convert_workflow input=%s output=%s dispatch=%s", jsonl_path, output_path, include_dispatch)
     messages = load_jsonl(jsonl_path)
     task_prompt, final_response = extract_session_context(messages)
     tool_calls = extract_tool_calls(messages)

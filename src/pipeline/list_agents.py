@@ -1,7 +1,10 @@
 # INFRASTRUCTURE
 import argparse
+import logging
 import re
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 # From pipeline/jsonl_to_md.py: JSONL parsing and main session derivation
 from .jsonl_to_md import load_jsonl, derive_main_session, find_task_anchor
@@ -11,6 +14,7 @@ CC_PROJECTS_DIR = Path.home() / '.claude' / 'projects'
 
 # ORCHESTRATOR
 def list_agents_workflow(project_path: str, session: str | None = None) -> list[dict]:
+    logger.info("list_agents project=%s session=%s", project_path, session)
     cc_project_dir = derive_cc_project_dir(project_path)
     jsonl_paths = find_subagent_jsonls(cc_project_dir)
     agents = [build_agent_info(p) for p in jsonl_paths]
