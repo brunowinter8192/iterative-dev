@@ -10,3 +10,4 @@
 | [craigsc/cmux](https://github.com/craigsc/cmux) | 379 | GitHub Repo | Shell-based worktree lifecycle for Claude Code. Ephemeral worktrees, `cmux rm` cleanup. Community validates tmux+worktree pattern. | spawn |
 | [gavraz/recon](https://github.com/gavraz/recon) | 112 | GitHub Repo | tmux-native dashboard for monitoring Claude Code agents (Rust + Ratatui). Status detection via tmux queries. | spawn |
 | [nielsgroen/claude-tmux](https://github.com/nielsgroen/claude-tmux) | 71 | GitHub Repo | tmux popup with session management + worktree support (Rust). Status detection via `capture-pane` content analysis. | spawn |
+| [Martian-Engineering/maniple](https://github.com/Martian-Engineering/maniple) | 37 | GitHub Repo | MCP server for orchestrating Claude Code/Codex sessions via iTerm2 or tmux (Python). First inspiration for MCP-based worker orchestration. | spawn |

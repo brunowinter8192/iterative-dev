@@ -129,6 +129,14 @@ Every Process Improvement MUST reference an exact Automation File path + section
 Format: `[Description] → [Automation File path] → [Section to add/extend]`
 Automation File locations: see `~/.claude/rules/automation-framework.md`
 
+**READ BEFORE WRITE (MANDATORY):**
+Before proposing ANY process improvement: READ the target Automation File. You need to know:
+1. What sections already exist (avoid duplicating existing rules)
+2. Exact line numbers for insertion points
+3. Whether the improvement overlaps with or contradicts existing content
+
+Concrete failure (2026-03-23): Proposed workers.md improvements without reading the file. Would have referenced wrong section names and missed existing "Reusing Workers" content. User had to ask "hast du die automation files gelesen?"
+
 ##### 4.1 Content Improvements (Code/Docs)
 
 Prioritization:
