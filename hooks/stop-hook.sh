@@ -7,6 +7,7 @@
 set -euo pipefail
 
 HOOK_INPUT=$(cat)
+CWD=$(echo "$HOOK_INPUT" | jq -r '.cwd // ""')
 
 STATE_FILE=".claude/auto-loop.local.md"
 
@@ -37,6 +38,7 @@ fi
 # Check max iterations
 if [[ $MAX_ITERATIONS -gt 0 ]] && [[ $ITERATION -ge $MAX_ITERATIONS ]]; then
   echo "Auto-loop: Max iterations ($MAX_ITERATIONS) reached."
+  python3 ~/.claude/scripts/hook_logger.py "Stop" "stop-hook.sh" "$CWD" "Auto-loop: Max iterations ($MAX_ITERATIONS) reached" &
   rm "$STATE_FILE"
   exit 0
 fi
@@ -56,6 +58,7 @@ if [[ -z "$SESSION_TRANSCRIPT" ]]; then
   awk -v st="session_transcript: \"$TRANSCRIPT_PATH\"" 'NR>1 && /^---$/ && !done {print st; done=1} {print}' "$STATE_FILE" > "$TEMP_FILE"
   mv "$TEMP_FILE" "$STATE_FILE"
 elif [[ "$SESSION_TRANSCRIPT" != "$TRANSCRIPT_PATH" ]]; then
+  python3 ~/.claude/scripts/hook_logger.py "Stop" "stop-hook.sh" "$CWD" "Auto-loop: Wrong session, skipping" &
   exit 0
 fi
 
@@ -76,6 +79,7 @@ if grep -q '"role":"assistant"' "$TRANSCRIPT_PATH"; then
 
       if [[ -n "$PROMISE_TEXT" ]] && [[ "$PROMISE_TEXT" = "$COMPLETION_PROMISE" ]]; then
         echo "Auto-loop: All deliverables complete. Loop ended."
+        python3 ~/.claude/scripts/hook_logger.py "Stop" "stop-hook.sh" "$CWD" "Auto-loop: All deliverables complete" &
         rm "$STATE_FILE"
         exit 0
       fi
@@ -92,6 +96,8 @@ sed "s/^iteration: .*/iteration: $NEXT_ITERATION/" "$STATE_FILE" > "$TEMP_FILE"
 mv "$TEMP_FILE" "$STATE_FILE"
 
 SYSTEM_MSG="Auto-loop iteration $NEXT_ITERATION/$MAX_ITERATIONS"
+
+python3 ~/.claude/scripts/hook_logger.py "Stop" "stop-hook.sh" "$CWD" "$SYSTEM_MSG" &
 
 jq -n \
   --arg msg "$SYSTEM_MSG" \
