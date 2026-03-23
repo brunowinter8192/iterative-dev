@@ -88,8 +88,10 @@ Check `dev/` and existing codebase for prior work on this problem. Present findi
 
 Define deliverables with measurable completion criteria:
 - Each deliverable: WHAT is done, HOW to verify (test command, file exists, output matches)
-- These KPIs feed the auto-loop — loop ends when all KPIs are met or max 20 iterations
+- **Investigation-first deliverables:** When root cause is UNKNOWN, split the deliverable: Phase 1 = investigate (what is the actual behavior, how does the system work), Phase 2 = fix based on findings. NEVER prescribe a solution in the worker prompt when the cause is unverified.
 - Plan file MUST include a Deliverables section with KPIs
+
+Concrete failure (2026-03-23): "Token-Tracking Bug fixen" with prescribed "5h block ceiling" in worker prompt. Root cause was unknown — should have been "Investigate how JSONL files are organized per session, then fix." Result: wrong fix implemented, then corrected (3 commits instead of 1).
 
 **5. Remarks**
 
@@ -107,15 +109,27 @@ Concrete failure (2026-03-23): Deliverables and affected decisions/ files only i
 
 ## Implementation Phase (IMPLEMENT)
 
-### Auto-Loop (MANDATORY)
+### Autonomous Execution
 
-After plan approval, ALWAYS call `/iterative-dev:auto-loop <plan-file>`.
-Stop hook fires `continue` on idle — no prompt re-injection, just keeps Claude going.
-Loop runs until:
-- All deliverables complete → output `<promise>ALL_DELIVERABLES_COMPLETE</promise>`
-- OR max iterations reached (default 20)
+After plan approval, work through deliverables systematically:
+1. Read plan file → identify open deliverables
+2. Implement next deliverable (or spawn workers)
+3. Verify against KPI
+4. Repeat until all complete
 
 Workers and orchestration: see `~/.claude/rules/workers.md`
+
+### Worker Wait Pattern (Background Timer)
+
+After spawning workers, estimate how long they need and set a background timer:
+
+```
+Bash(command="sleep 120 && echo 'workers check'", run_in_background=true)
+```
+
+When the timer fires (task-notification), check worker status:
+- `worker_status(name)` → `idle` = done, `working` = set another timer
+- If all idle → `worker_capture(name, tail=30)` to review results, then merge
 
 ### Cross-Session Verification Pattern
 
@@ -123,9 +137,7 @@ When a change cannot be tested in the current session (e.g., plugin changes that
 1. **Worker implements** the change (retains full context)
 2. **Bead tracks** what's DONE and what's OPEN (verification pending)
 3. **Next session:** test the change. If it fails → re-send the worker via `worker_send` with fix instructions. The worker has the full context from implementation — no re-exploration needed.
-4. **Do NOT leave the worker's tmux session open** unless explicitly needed for re-send in next session.
-
-Concrete pattern (2026-03-23): Auto-Loop MCP Tools implemented by worker in worktree. Merge + plugin-sync done, but MCP tool verification requires CC restart. Bead created with OPEN: verification. Next session tests, worker available for fixes.
+4. **Keep the worker's tmux session open** for re-send in next session. Worker kill only after verification passes + user approval. Document alive workers in Bead STAND block.
 
 ### Scope Extension During IMPLEMENT
 
