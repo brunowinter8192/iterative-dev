@@ -80,6 +80,16 @@ When you hit an unexpected problem that blocks your task (DB errors, API limits,
 
 The parent reads WORKER_REPORT.md, sees the STOP reason, and decides next steps. Your job is to document the problem clearly, not to fix it.
 
+### Idle Signal (MANDATORY)
+
+After your final commit (or after writing WORKER_REPORT.md if no commit needed), print the word `idle` as the very last thing you do before waiting for input:
+
+```
+echo idle
+```
+
+This enables reliable status detection by the orchestrator. Do NOT print anything after this.
+
 ### Rules
 
 - The report is a handoff artifact — the parent session reads it from the worktree filesystem.

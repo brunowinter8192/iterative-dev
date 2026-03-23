@@ -66,10 +66,11 @@ _worker_detect_status() {
     recent=$(tmux capture-pane -p -t "$pane_id" 2>/dev/null | grep -v '^$' | tail -5)
 
     # Idle indicators (worker finished, waiting for input):
+    # - "idle" exact line (worker printed idle signal after final commit)
     # - "for Xm Xs" / "for Xs" in status line (e.g. "✻ Cogitated for 1m 41s")
     # - "accept edits" prompt (waiting for edit approval)
     # - ">" prompt at start of line (waiting for user input)
-    if echo "$recent" | grep -qE 'for [0-9]+[ms]|accept edits|^>'; then
+    if echo "$recent" | grep -qE '^idle$|for [0-9]+[ms]|accept edits|^>'; then
         echo "idle"
     else
         echo "working"
