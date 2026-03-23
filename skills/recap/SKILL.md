@@ -231,6 +231,10 @@ List any tasks from the original plan that were NOT executed.
 
 **EMPTY PLATE RULE:** Every Open Item MUST become a Bead before CLOSING.
 
+**NO COMMIT/PUSH BEADS:** Beads NEVER contain "commit and push" as the remaining task. Git operations are CLOSING-phase work (git-committer agent). If all code changes are done and only commit/push remains — that's not a Bead, that's CLOSING. Creating a Bead for "push this repo" means CLOSING was incomplete.
+
+Concrete failure (2026-03-23): Created Bead "blank: worker_send Fix + Ghostty-Kill Push" for 3 changes that only needed pushing. Git-committer had already pushed in CLOSING. Bead was obsolete at creation time.
+
 ### Presenting Beads Hygiene
 
 **Beads status MUST appear in BOTH the plan file AND in chat text.**

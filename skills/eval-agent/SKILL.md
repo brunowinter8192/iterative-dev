@@ -219,6 +219,55 @@ GUARDRAILS CHECK:
 
 ---
 
+## Phase 3.5: MCP Server Check
+
+**Run when Phase 3 identifies any of these problem patterns:**
+- Token-limit error on a tool call (output too large)
+- Agent made redundant follow-up calls to fetch data the first tool should have returned
+- Suspicious calls that are real server errors (not legitimate "0 results")
+- Agent couldn't use a parameter because it doesn't exist server-side
+- Output missing fields that would have prevented extra calls
+
+**Workflow:**
+
+### Step 1: Dispatch code-investigate-specialist
+
+Find the plugin source repo (same path as 4.2). Dispatch the sub with the specific problem from Phase 3:
+
+```
+Dispatch: code-investigate-specialist
+Project path: <plugin source repo>
+Task: [Concrete question based on problem]
+
+Examples:
+- "In src/github/search_repos.py: does format_repo_results include license, updated_at, open_issues fields from the raw API response? Is there an output size cap?"
+- "In src/reddit/search_posts.py: what is the default limit passed to the API? Is there a floor enforced?"
+- "In server.py: does tool X expose parameter Y? What is the default value?"
+
+Output needed: File path + exact code lines + YES/NO answer to each question.
+```
+
+The sub explores server.py + src/ files freely. Do NOT pre-constrain the search path — let the sub find the relevant files.
+
+### Step 2: Verify critical claims
+
+After sub returns: verify at least 1 critical claim yourself before writing proposals.
+- Sub says "field X is not in format_repo_results" → grep the file yourself
+- Sub says "no output cap exists" → read the workflow function yourself
+- Sub says "floor is enforced at line N" → read that line yourself
+
+**Agent = Scout, not Authority. Unverified server claims → wrong proposals.**
+
+### Step 3: Server Proposals → Plan File
+
+Server proposals use the same format as automation file proposals (4.4) but with:
+- **File:** full path to the server source file (e.g. `src/github/search_repos.py`)
+- **Type:** `[SERVER FIX]` label so they're distinguishable from MD proposals
+
+Server proposals go into the SAME plan file as automation file proposals.
+
+---
+
 ## Phase 4: Read Automation Files & Propose
 
 ### 4.1 Identify Plugin
