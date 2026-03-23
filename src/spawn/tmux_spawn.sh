@@ -202,7 +202,7 @@ tell application \"Ghostty\"
     activate
     set win to new window
     set t to terminal 1 of selected tab of win
-    input text \"tmux attach -t $session\" to t
+    input text \"tmux attach -t $session; exit\" to t
     send key \"enter\" to t
 end tell
 "
