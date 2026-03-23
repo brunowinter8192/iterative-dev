@@ -44,48 +44,11 @@ _worker_session_name() {
 
 # --- Orchestration ---
 
-# worker_list [PROJECT_PATH]
-#   Lists active worker sessions for the given project (default: pwd).
-#   Output: NAME STATUS (running/exited) per line.
-worker_list() {
-    local project_path="${1:-$(pwd)}"
-    local project
-    project=$(_worker_project_name "$project_path")
-    local prefix="worker-${project}-"
-    local sessions
-    sessions=$(tmux list-sessions -F "#{session_name}" 2>/dev/null \
-        | grep "^${prefix}" || true)
-
-    if [ -z "$sessions" ]; then
-        return 0
-    fi
-
-    while IFS= read -r session_name; do
-        local name="${session_name#$prefix}"
-        local dead
-        dead=$(tmux display-message -t "${session_name}:^" -p "#{pane_dead}" 2>/dev/null || echo "?")
-        local status="running"
-        [ "$dead" = "1" ] && status="exited"
-        [ "$dead" = "?" ] && status="unknown"
-        echo "$name  $status"
-    done <<< "$sessions"
-}
-
-# worker_status NAME [PROJECT_PATH]
+# _worker_detect_status SESSION
 #   Returns status: working, idle, exited, or unknown.
-#   working = Claude Code is actively processing
-#   idle = Claude Code is waiting for input (prompt visible)
-#   exited = pane process has terminated
-worker_status() {
-    local name="$1"
-    local project_path="${2:-$(pwd)}"
-    local session
-    session=$(_worker_session_name "$project_path" "$name")
-
-    if ! tmux has-session -t "$session" 2>/dev/null; then
-        echo "unknown"
-        return 1
-    fi
+#   Shared logic used by worker_list and worker_status.
+_worker_detect_status() {
+    local session="$1"
 
     local dead
     dead=$(tmux display-message -t "${session}:^" -p "#{pane_dead}" 2>/dev/null || echo "?")
@@ -111,6 +74,55 @@ worker_status() {
     else
         echo "working"
     fi
+}
+
+# worker_list [PROJECT_PATH]
+#   Lists active worker sessions for the given project (default: pwd).
+#   Output: NAME  STATUS  SPAWNED  PURPOSE per line (STATUS: working/idle/exited/unknown).
+worker_list() {
+    local project_path="${1:-$(pwd)}"
+    local project
+    project=$(_worker_project_name "$project_path")
+    local prefix="worker-${project}-"
+    local sessions
+    sessions=$(tmux list-sessions -F "#{session_name}" 2>/dev/null \
+        | grep "^${prefix}" || true)
+
+    if [ -z "$sessions" ]; then
+        return 0
+    fi
+
+    while IFS= read -r session_name; do
+        local name="${session_name#$prefix}"
+        local status
+        status=$(_worker_detect_status "$session_name" 2>/dev/null || echo "unknown")
+        local spawned
+        spawned=$(tmux show-environment -t "$session_name" WORKER_SPAWNED 2>/dev/null | cut -d= -f2)
+        [ -z "$spawned" ] && spawned="(?)"
+        local purpose
+        purpose=$(tmux show-environment -t "$session_name" WORKER_PURPOSE 2>/dev/null | cut -d= -f2)
+        [ -z "$purpose" ] && purpose="(?)"
+        echo "$name  $status  $spawned  $purpose"
+    done <<< "$sessions"
+}
+
+# worker_status NAME [PROJECT_PATH]
+#   Returns status: working, idle, exited, or unknown.
+#   working = Claude Code is actively processing
+#   idle = Claude Code is waiting for input (prompt visible)
+#   exited = pane process has terminated
+worker_status() {
+    local name="$1"
+    local project_path="${2:-$(pwd)}"
+    local session
+    session=$(_worker_session_name "$project_path" "$name")
+
+    if ! tmux has-session -t "$session" 2>/dev/null; then
+        echo "unknown"
+        return 1
+    fi
+
+    _worker_detect_status "$session"
 }
 
 # worker_capture NAME [LINES] [PROJECT_PATH]
@@ -236,6 +248,14 @@ spawn_claude_worker() {
     # Atomic remain-on-exit via ; chain — set before process can exit.
     tmux new-session -d -s "$session" "$claude_cmd" \; \
         set-option -p -t "$session" remain-on-exit on
+
+    # Store spawn metadata for worker_list display
+    tmux set-environment -t "$session" WORKER_SPAWNED "$(date +%H:%M)"
+    local purpose
+    purpose=$(echo "$task_prompt" | grep -m1 "^# " | sed 's/^# //' || echo "")
+    [ -z "$purpose" ] && purpose="(?)"
+    tmux set-environment -t "$session" WORKER_PURPOSE "$purpose"
+    tmux set-environment -t "$session" WORKER_PARENT "${CLAUDE_SESSION_ID:-unknown}"
 
     # Open Ghostty window attached to this worker's session
     open_tmux_viewer "$session"

@@ -47,11 +47,18 @@ def _run_tmux(func_call: str) -> str:
     """Source tmux_spawn.sh and run a function."""
     cmd = f'source "{TMUX_SPAWN_SH}" && {func_call}'
     logger.debug("Running tmux: %s", func_call)
-    result = subprocess.run(
-        ["bash", "-c", cmd],
-        capture_output=True, text=True, timeout=60,
-        cwd=os.getcwd()
-    )
+    try:
+        result = subprocess.run(
+            ["bash", "-c", cmd],
+            capture_output=True, text=True, timeout=60,
+            cwd=os.getcwd()
+        )
+    except subprocess.TimeoutExpired:
+        logger.error("tmux timed out: %s", func_call)
+        return "ERROR: tmux command timed out after 60s (worker may not be idle)"
+    except OSError as e:
+        logger.error("tmux OSError: %s", e)
+        return f"ERROR: {e.strerror}"
     if result.returncode != 0:
         logger.error("tmux failed: %s", result.stderr.strip())
         return f"ERROR: {result.stderr.strip()}"
