@@ -95,8 +95,13 @@ Define deliverables with measurable completion criteria:
 
 Ask user explicitly for remarks before calling ExitPlanMode.
 
-**After Implementation:**
-- If this cycle changed production code that affects a pipeline decision → update the relevant `decisions/` file
+**After Plan Approval — IMPLEMENT Kickoff (MANDATORY):**
+Before starting implementation, summarize in chat:
+- Deliverables with exit criteria (what signals "done")
+- All affected file categories (src/, decisions/, dev/, docs)
+- Worker dispatch plan (which workers, which files each)
+This is NOT optional. The user must see the execution plan before workers are spawned.
+Concrete failure (2026-03-23): Deliverables and affected decisions/ files only in plan file, not in chat. User had to ask twice.
 
 ---
 
