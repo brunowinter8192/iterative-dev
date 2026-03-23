@@ -117,6 +117,16 @@ Loop runs until:
 
 Workers and orchestration: see `~/.claude/rules/workers.md`
 
+### Cross-Session Verification Pattern
+
+When a change cannot be tested in the current session (e.g., plugin changes that need CC restart):
+1. **Worker implements** the change (retains full context)
+2. **Bead tracks** what's DONE and what's OPEN (verification pending)
+3. **Next session:** test the change. If it fails → re-send the worker via `worker_send` with fix instructions. The worker has the full context from implementation — no re-exploration needed.
+4. **Do NOT leave the worker's tmux session open** unless explicitly needed for re-send in next session.
+
+Concrete pattern (2026-03-23): Auto-Loop MCP Tools implemented by worker in worktree. Merge + plugin-sync done, but MCP tool verification requires CC restart. Bead created with OPEN: verification. Next session tests, worker available for fixes.
+
 ### Scope Extension During IMPLEMENT
 
 When the user introduces a new scope during IMPLEMENT (e.g., "let's also build X"):
