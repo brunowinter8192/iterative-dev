@@ -19,6 +19,7 @@ FRONTMATTER=$(sed -n '/^---$/,/^---$/{ /^---$/d; p; }' "$STATE_FILE")
 ITERATION=$(echo "$FRONTMATTER" | grep '^iteration:' | sed 's/iteration: *//')
 MAX_ITERATIONS=$(echo "$FRONTMATTER" | grep '^max_iterations:' | sed 's/max_iterations: *//')
 COMPLETION_PROMISE=$(echo "$FRONTMATTER" | grep '^completion_promise:' | sed 's/completion_promise: *//' | sed 's/^"\(.*\)"$/\1/')
+SESSION_TRANSCRIPT=$(echo "$FRONTMATTER" | grep '^session_transcript:' | sed 's/session_transcript: *//' | sed 's/^"\(.*\)"$/\1/' || echo "")
 
 # Validate numeric fields
 if [[ ! "$ITERATION" =~ ^[0-9]+$ ]]; then
@@ -46,6 +47,15 @@ TRANSCRIPT_PATH=$(echo "$HOOK_INPUT" | jq -r '.transcript_path')
 if [[ ! -f "$TRANSCRIPT_PATH" ]]; then
   echo "Auto-loop: Transcript not found ($TRANSCRIPT_PATH)" >&2
   rm "$STATE_FILE"
+  exit 0
+fi
+
+# Session scoping: bind loop to the session that started it
+if [[ -z "$SESSION_TRANSCRIPT" ]]; then
+  TEMP_FILE="${STATE_FILE}.tmp.$$"
+  awk -v st="session_transcript: \"$TRANSCRIPT_PATH\"" 'NR>1 && /^---$/ && !done {print st; done=1} {print}' "$STATE_FILE" > "$TEMP_FILE"
+  mv "$TEMP_FILE" "$STATE_FILE"
+elif [[ "$SESSION_TRANSCRIPT" != "$TRANSCRIPT_PATH" ]]; then
   exit 0
 fi
 
