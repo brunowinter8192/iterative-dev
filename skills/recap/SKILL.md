@@ -5,10 +5,14 @@ description: Cycle review — RECAP, IMPROVE, CLOSING phases. Activate after IMP
 
 # Cycle Review
 
-EVERY RESPONSE STARTS WITH A PHASE INDICATOR:
-- `🔍 RECAP` - Report phase (Plan Mode active - read-only enforced)
-- `🛠️ IMPROVE` - Improvements phase
-- `✅ CLOSING` - Cycle completion
+**EVERY RESPONSE STARTS WITH A POSITION INDICATOR** — phase + current section:
+- `🔍 RECAP — Section 1: Session Reflection`
+- `🔍 RECAP — Section 2: Hooks Evaluation`
+- `🔍 RECAP — Section 3: Beads Evaluation`
+- `🔍 RECAP — Section 4: Improvements`
+- `🔍 RECAP — Section 5: Open Items`
+- `🛠️ IMPROVE`
+- `✅ CLOSING`
 
 **Phase Detection:** System message contains "Plan mode is active" → you are in RECAP.
 
@@ -86,41 +90,18 @@ For each finding: estimate token waste (small/medium/large) and propose a hook r
 
 #### 3. Beads Evaluation
 
-Run `bead_list(status="open")` to check open beads, then evaluate:
+Run `bead_list(status="open")`. For each open bead:
+- What was done this session relevant to this bead?
+- Can this bead be closed? → mark for close with reason
+- What's still to do next session?
+- What must a fresh Opus with zero context know to continue seamlessly?
 
-##### 3.1 Active Beads
-
-For each open bead touched this cycle:
-- Was a session-end comment written with STAND block? If not → add in IMPROVE
-- Is the latest comment sufficient for a fresh session to continue? If not → improve in IMPROVE
-
-##### 3.2 New Beads
-
-Discovered work that needs cross-session tracking?
-- List candidates with proposed title and description
-- Title = topic, not date (e.g., "LSP Integration" not "Session 02.03")
-
-##### 3.3 Close Completed Beads
-
-For each bead where the topic is fully resolved:
-- Mark for closing with reason
-- **Format:** `<id>: <reason>`
-
-##### 3.4 Continuation Check (MANDATORY)
-
-After listing all beads to close: **Would closing them leave ZERO open beads?**
-
-If yes → a Continuation-Bead MUST be created in IMPROVE phase:
-- Title: Next work topic (NOT "Session YYYY-MM-DD")
-- Description: What was done (context), what's next (scope), key files/repos
-
-##### 3.5 IMPROVE Action List (MANDATORY)
-
+Output:
 ```
 BEADS ACTIONS:
 - CLOSE: <id> — <reason>
 - COMMENT: <id> — <what to write>
-- CREATE: "<title>" — <description summary>
+- CREATE: "<title>" — <what was done + what's still to do>
 ```
 
 #### 4. Improvements
@@ -237,15 +218,11 @@ Concrete failure (2026-03-23): Created Bead "blank: worker_send Fix + Ghostty-Ki
 
 ### Presenting Beads Hygiene
 
-**Beads status MUST appear in BOTH the plan file AND in chat text.**
+Before writing any bead comments, present in chat:
+- What was done this session (brief summary)
+- What Opus intends to write as OPEN in the bead
 
-Format in chat (BEFORE Process Improvements):
-```
-**<id>** (<title>) — <ACTIVE or CLOSE vorgeschlagen>
-- Stand: <last comment summary>
-- Kommentiert diese Session: JA/NEIN
-- Reason (if close): <why>
-```
+User can correct before the bead comment is set. The actual bead content will be more detailed.
 
 ### Presenting Process Improvements
 
@@ -274,16 +251,13 @@ After presenting improvements:
 
 1. Read plan file "## Improvements" and "## Open Items" sections
 2. **DOCS/README/decisions/ updates FIRST** — NEVER skippable
-3. For each other improvement:
-   - **Code?** → `bead_create(title, description)`
-   - **Automation Files?** → Follow edit workflow in `~/.claude/rules/automation-framework.md`. Plugin files: edit in SOURCE REPO (see `~/.claude/rules/plugins.md`).
+3. Automation File improvements → Follow edit workflow in `~/.claude/rules/automation-framework.md`. Plugin files: edit in SOURCE REPO (see `~/.claude/rules/plugins.md`).
 4. Handle Beads (from RECAP Section 3):
-   - Create: `bead_create(title, description)`
-   - Update: `bead_comment(id, text)`
+   - Create: `bead_create(title, description)` — content = what was done + what's still to do
+   - Comment: `bead_comment(id, text)` — STAND block
    - Close: `bead_close(id, reason)`
-5. **Handle Open Items** (EMPTY PLATE RULE — see Section 5):
-   - For EACH Open Item: `bead_create(title, description)`
-6. Ask: "Proceed to CLOSING?"
+   - Open Items without a bead → create bead here (EMPTY PLATE RULE)
+5. Ask: "Proceed to CLOSING?"
 
 User confirms → next response starts with ✅ CLOSING
 
@@ -294,6 +268,15 @@ User confirms → next response starts with ✅ CLOSING
 Only enter when user confirms (e.g., "proceed", "close", "done").
 
 **PRE-CLOSE CHECK:** EMPTY PLATE RULE enforced — all Open Items must have Beads. Delete `recap_notes.md` (process artifact).
+
+### Cross-Session Verification
+
+When a change cannot be tested in the current session (e.g., plugin changes that need CC restart):
+1. **Worker stays alive** — tmux session open, do NOT kill. Worker kill only after verification passes + user approval.
+2. **Bead tracks** what's DONE and what's OPEN (verification pending). Document alive workers in Bead STAND block: worker name, what it did, what to verify.
+3. **Next session:** test the change. If it fails → re-send the worker via `worker_send` with fix instructions. The worker has full context from implementation — no re-exploration needed.
+
+### Workflow
 
 1. **Bead STAND Block (MANDATORY):** For each Bead created or commented this session: write ONE `bead_comment` with STAND block (DONE/OPEN/NEW/DROPPED/APPROACH). This is the single session-end update — no mid-session commenting. The STAND block must enable a fresh Claude to continue without any prior context.
 2. Commit ALL repos via git-committer agent (see `~/.claude/rules/subagents.md`)

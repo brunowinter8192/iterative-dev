@@ -7,95 +7,82 @@ description: (project)
 
 ### Session Start (MANDATORY)
 
-`bead_list(status="open")` → read relevant work beads. No bead for current work → `bead_create(title, description)` before starting.
+`bead_list(status="open")` → read relevant work beads.
 
-**Priority:** Read the most recently updated bead FIRST (`bead_show(id)` shows Created/Updated dates). The newest bead has the freshest context and is most likely the current session target.
+---
 
-**After reading bead comments, VERIFY:** Does the bead already answer the scope question you're about to ask? If the bead comments contain explicit next steps, decisions, or approaches — state them as fact, don't re-ask as an open question.
-
-### Session End
-
-ONE `bead_comment(id, text)` with STAND block — what was done, what's open. That's the only bead comment per session. No mid-session commenting.
-
-EVERY RESPONSE STARTS WITH A PHASE INDICATOR:
-- `📋 PLAN` - Planning phase (Plan Mode active)
-- `🔨 IMPLEMENT` - Implementation phase
+**EVERY RESPONSE STARTS WITH A POSITION INDICATOR** — phase + current step:
+- `📋 PLAN — Phase 1, Step 1: Session Scope`
+- `📋 PLAN — Phase 1, Step 2: Status Quo`
+- `📋 PLAN — Phase 1, Step 3: Dev Scripts Check`
+- `📋 PLAN — Phase 1, Step 4: Gap Analysis`
+- `📋 PLAN — Phase 2, Step 1: Worker Split`
+- `📋 PLAN — Phase 2, Step 2: Deliverables & KPIs`
+- `🔨 IMPLEMENT — [current section, e.g. "Worker Lifecycle" / "After Deliverables Complete"]`
 
 ---
 
 ## Planning Phase (PLAN)
 
-### Scoping
+### Phase 1 — Understand
 
-Clarify with the user:
+Sequential steps. After each step: present findings, wait for remarks, then proceed.
 
-**1. SCOPE - What is the end goal?**
-→ "What should the output be?"
-→ File? Script? Documentation? Analysis?
-→ **If Documentation:** "Who is the target reader?"
-  - **Default assumption:** AI (you) is the primary reader
-  - Optimize for: clarity, structure, completeness (AI needs full context)
+**Step 1 — Session Scope 🛑 STOP**
 
-**2. SOURCES - Which files/folders are relevant?**
-→ "Which folders should I look at?"
-→ "Is there a reference script?"
-→ User knows the structure better than you
+Repeat what the user wants in your own words. Wait for remarks before proceeding.
 
-**3. CONNECTIONS - How do the sources relate?**
-→ "How does X use data from Y?"
-→ read DOCS.md
+**Step 2 — Status Quo 🛑 STOP**
 
-**4. REFERENCES - Is there an existing pattern to follow?**
-→ "Is there an existing pattern in your other projects we should follow?"
-→ Especially for testing, debug, infrastructure tasks
-→ User's existing patterns beat generic best practices
+1. **Decisions Check** — Read the relevant `decisions/` file(s) for this topic area.
+   - What is the current documented IST-Stand? What is SOLL?
+   - What items are marked OPEN?
+   - If `decisions/` is outdated or missing for this component → flag explicitly
+2. **Code Check** — Read the actual implementation files referenced in the decisions.
+   - Does the code match the documented state?
+   - Any drift between `decisions/` and what's in source? → flag explicitly
+3. **Present status quo to user.**
 
-**THEN:** Explore with direction (DOCS.md → relevant scripts → structures)
+Wait for remarks before proceeding.
 
-### Planning Flow
+**Step 3 — Dev Scripts Check 🛑 STOP**
 
-Sequential steps. STOP after each step, present findings to user. Proceed only when user confirms.
-
-**1. Status Quo (STOP — present to user)**
-
-Read relevant `decisions/` files + existing code. Present to user:
-- Current state in 2-3 sentences (what is currently implemented?)
-- Divergences between bead context and current decisions (things may have changed)
-- If decisions/ is outdated or missing for this component → flag explicitly
-
-**2. Evidence Base (STOP — present to user)**
-
-Check `dev/` and existing codebase for prior work on this problem. Present findings:
-- Existing dev scripts that address this problem area? (DOCS.md of relevant dev/ subdir first)
+Read `dev/` DOCS.md → identify scripts that address this topic area. Present findings:
+- Existing dev scripts relevant to this problem?
 - Existing fixes/workarounds? (`fixes/`, `debug/`, `KNOWN_ISSUES`, `CHANGELOG`)
-- Test suites that cover the affected code? Do they actually IMPORT the module being changed, or have their own copy?
+- Test suites that cover the affected code? Do they IMPORT the module being changed, or have their own copy?
 - Agent/workflow instruction files if optimizing an automated workflow? (Read the instruction file BEFORE proposing changes)
-- When debugging: read ACTUAL DATA first (dump, sample, log output), research external sources only AFTER the data doesn't self-explain
+- When debugging: read ACTUAL DATA first (dump, sample, log output); research external sources only AFTER the data doesn't self-explain
 
-**3. Source Assessment (STOP — present to user)**
+Wait for remarks before proceeding.
 
-- Produce an honest assessment of the knowledge foundation in ONE pass
-- **List components:** What technologies/libraries/algorithms does this task use?
-- **CLAUDE.md Sources Table:** For EACH component, check — is there an indexed source?
-- **Search indexed sources:** Does the source actually ANSWER the open questions, or just mention the topic?
-- **Plugin sources:** GitHub repos, Reddit threads, or other plugin-accessible sources relevant?
-- **Identify gaps:** For which components do we have NO source?
-- **Declare:** Present as table: Component | Source | Coverage | Gap
-- Only AFTER the assessment: decide whether to research (for gaps) or proceed (if covered)
-- Do NOT claim "no sources needed" without having checked the Sources table
+**Step 4 — Gap Analysis 🛑 STOP**
 
-**4. Deliverables & KPIs (STOP — present to user)**
+- Do we need more information? Which? (produce a sources table if relevant: Component | Source | Coverage | Gap)
+- Do we need more dev scripts? Which?
+- If research is needed → existing pattern in other projects to follow? User's existing patterns beat generic best practices.
+- Close all gaps BEFORE moving to Phase 2.
+
+Wait for remarks before proceeding.
+
+### Phase 2 — Worker Scoping
+
+**Step 1 — Worker Split**
+
+- How to split workers across the task
+- Which gaps (from Phase 1, Step 4) does each worker close first
+
+**Step 2 — Deliverables & KPIs 🛑 STOP**
 
 Define deliverables with measurable completion criteria:
 - Each deliverable: WHAT is done, HOW to verify (test command, file exists, output matches)
 - **Investigation-first deliverables:** When root cause is UNKNOWN, split the deliverable: Phase 1 = investigate (what is the actual behavior, how does the system work), Phase 2 = fix based on findings. NEVER prescribe a solution in the worker prompt when the cause is unverified.
 - Plan file MUST include a Deliverables section with KPIs
+- **Per worker: define what exactly, up to which point, and the approval gate** — especially when research is involved: worker stops at a defined checkpoint, user gives approval before the next step begins
 
 Concrete failure (2026-03-23): "Token-Tracking Bug fixen" with prescribed "5h block ceiling" in worker prompt. Root cause was unknown — should have been "Investigate how JSONL files are organized per session, then fix." Result: wrong fix implemented, then corrected (3 commits instead of 1).
 
-**5. Remarks**
-
-Ask user explicitly for remarks before calling ExitPlanMode.
+Wait for remarks before calling ExitPlanMode.
 
 **After Plan Approval — IMPLEMENT Kickoff (MANDATORY):**
 Before starting implementation, summarize in chat:
@@ -109,15 +96,13 @@ Concrete failure (2026-03-23): Deliverables and affected decisions/ files only i
 
 ## Implementation Phase (IMPLEMENT)
 
-### Autonomous Execution
-
-After plan approval, work through deliverables systematically:
-1. Read plan file → identify open deliverables
-2. Implement next deliverable (or spawn workers)
-3. Verify against KPI
-4. Repeat until all complete
-
 Workers and orchestration: see `~/.claude/rules/workers.md`
+
+### Worker Lifecycle
+
+- **Keep workers alive** at all times — do NOT kill until user explicitly approves
+- **When a worker finishes a step:** code review FIRST (read every changed file), then merge
+- **After a deliverable is done:** do NOT re-prompt the worker — the deliverable is closed
 
 ### Worker Wait Pattern (Background Timer)
 
@@ -131,24 +116,33 @@ When the timer fires (task-notification), check worker status:
 - `worker_status(name)` → `idle` = done, `working` = set another timer
 - If all idle → `worker_capture(name, tail=30)` to review results, then merge
 
-### Cross-Session Verification Pattern
-
-When a change cannot be tested in the current session (e.g., plugin changes that need CC restart):
-1. **Worker implements** the change (retains full context)
-2. **Bead tracks** what's DONE and what's OPEN (verification pending)
-3. **Next session:** test the change. If it fails → re-send the worker via `worker_send` with fix instructions. The worker has the full context from implementation — no re-exploration needed.
-4. **Keep the worker's tmux session open** for re-send in next session. Worker kill only after verification passes + user approval. Document alive workers in Bead STAND block.
-
 ### Scope Extension During IMPLEMENT
 
 When the user introduces a new scope during IMPLEMENT (e.g., "let's also build X"):
-1. **Do NOT expand the current cycle** — finish what's planned first
-2. **Dispatch a worker** for the new scope (worktree if code-only, project-dir if MCP needed)
-3. **User works directly with the worker** on the new scope
-4. **Opus stays on the original scope** and closes the cycle cleanly (verify, glue)
-5. Worker results are merged in the NEXT cycle
+
+Mini-scoping (no full Phase 1 needed):
+1. Summarize in chat: what is the user's task, what would a worker do
+2. Spawn worker if user has no remarks
 
 ### After Deliverables Complete
 
-1. **Verify** — run KPIs from plan
-2. **Glue work** — trivial wiring (imports, registration, small config edits)
+**1. Present status table in chat:**
+
+| Deliverable | Status | What was done | Opus verification |
+|-------------|--------|---------------|-------------------|
+| … | ✅ Done / ⚠️ Partial | … | Code review / Test run / Not verified |
+
+Be brutally honest in the "Opus verification" column — code read ≠ verified, test ran in worktree without venv ≠ verified.
+
+**2. Scope user verification (🛑 STOP)**
+
+For each deliverable: propose a concrete verification step the **user** can perform as the final quality gate.
+- What exactly to click, run, or check
+- What the expected output or behavior is
+- NOT how Opus would check it — how the user can confirm it themselves
+
+Wait for remarks. When user has no remarks → run verification together.
+
+**3. Glue work** — trivial wiring (imports, registration, small config edits)
+
+
