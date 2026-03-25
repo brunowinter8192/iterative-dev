@@ -5,6 +5,8 @@ description: (project)
 
 # Iterative Development Skill
 
+**Glue work** (imports, registration, trivial wiring, small config edits) is done by Opus directly — dynamically while workers are running or after a worker merges. Not a phase, not a step. Standard behavior.
+
 ### Session Start (MANDATORY)
 
 `bead_list(status="open")` → read relevant work beads.
@@ -28,11 +30,13 @@ description: (project)
 
 Sequential steps. After each step: present findings, wait for remarks, then proceed.
 
-**Step 1 — Session Scope 🛑 STOP**
+**Step 1 — Session Scope**
 
-Repeat what the user wants in your own words. Wait for remarks before proceeding.
+Repeat what the user wants in your own words.
 
-**Step 2 — Status Quo 🛑 STOP**
+🛑 STOP — Ask for remarks.
+
+**Step 2 — Status Quo**
 
 1. **Decisions Check** — Read the relevant `decisions/` file(s) for this topic area.
    - What is the current documented IST-Stand? What is SOLL?
@@ -41,11 +45,16 @@ Repeat what the user wants in your own words. Wait for remarks before proceeding
 2. **Code Check** — Read the actual implementation files referenced in the decisions.
    - Does the code match the documented state?
    - Any drift between `decisions/` and what's in source? → flag explicitly
-3. **Present status quo to user.**
+   - **Flag reference patterns:** Which existing files/functions serve as the pattern for new code? Mark them explicitly as Reference Files.
+3. **Present status quo to user.** State explicitly:
+   - Which files/components are affected
+   - What the current state is (IST) and why it matters for this task
+   - Where the work will happen (which directories, which decision areas)
+   - **Reference Files** identified — existing code that workers must follow as pattern
 
-Wait for remarks before proceeding.
+🛑 STOP — Ask for remarks.
 
-**Step 3 — Dev Scripts Check 🛑 STOP**
+**Step 3 — Dev Scripts Check**
 
 Read `dev/` DOCS.md → identify scripts that address this topic area. Present findings:
 - Existing dev scripts relevant to this problem?
@@ -54,16 +63,18 @@ Read `dev/` DOCS.md → identify scripts that address this topic area. Present f
 - Agent/workflow instruction files if optimizing an automated workflow? (Read the instruction file BEFORE proposing changes)
 - When debugging: read ACTUAL DATA first (dump, sample, log output); research external sources only AFTER the data doesn't self-explain
 
-Wait for remarks before proceeding.
+🛑 STOP — Ask for remarks.
 
-**Step 4 — Gap Analysis 🛑 STOP**
+**Step 4 — Gap Analysis**
 
-- Do we need more information? Which? (produce a sources table if relevant: Component | Source | Coverage | Gap)
+Be brutally honest: could you implement this feature or fix with 99% accuracy using only the information gathered so far? If not — what exactly is missing?
+
+- Do we need more information? Which? Research sources available: web, GitHub, Reddit, arxiv. Produce a sources table: Component | Source | Coverage | Gap
 - Do we need more dev scripts? Which?
 - If research is needed → existing pattern in other projects to follow? User's existing patterns beat generic best practices.
 - Close all gaps BEFORE moving to Phase 2.
 
-Wait for remarks before proceeding.
+🛑 STOP — Ask for remarks.
 
 ### Phase 2 — Worker Scoping
 
@@ -72,7 +83,7 @@ Wait for remarks before proceeding.
 - How to split workers across the task
 - Which gaps (from Phase 1, Step 4) does each worker close first
 
-**Step 2 — Deliverables & KPIs 🛑 STOP**
+**Step 2 — Deliverables & KPIs**
 
 Define deliverables with measurable completion criteria:
 - Each deliverable: WHAT is done, HOW to verify (test command, file exists, output matches)
@@ -80,41 +91,20 @@ Define deliverables with measurable completion criteria:
 - Plan file MUST include a Deliverables section with KPIs
 - **Per worker: define what exactly, up to which point, and the approval gate** — especially when research is involved: worker stops at a defined checkpoint, user gives approval before the next step begins
 
-Concrete failure (2026-03-23): "Token-Tracking Bug fixen" with prescribed "5h block ceiling" in worker prompt. Root cause was unknown — should have been "Investigate how JSONL files are organized per session, then fix." Result: wrong fix implemented, then corrected (3 commits instead of 1).
-
-Wait for remarks before calling ExitPlanMode.
-
-**After Plan Approval — IMPLEMENT Kickoff (MANDATORY):**
-Before starting implementation, summarize in chat:
-- Deliverables with exit criteria (what signals "done")
+**Present in chat for each deliverable:**
+- What will be built/fixed
+- How Opus verifies it (run tests, MCP call, check output) — code review does NOT count as verification
+- How the user verifies it as final quality gate (what to click, run, or check; expected outcome)
 - All affected file categories (src/, decisions/, dev/, docs)
-- Worker dispatch plan (which workers, which files each)
-This is NOT optional. The user must see the execution plan before workers are spawned.
-Concrete failure (2026-03-23): Deliverables and affected decisions/ files only in plan file, not in chat. User had to ask twice.
+- Worker dispatch plan (which workers, which files each, which Reference Files to follow as pattern)
+
+🛑 STOP — Ask for remarks before calling ExitPlanMode.
 
 ---
 
 ## Implementation Phase (IMPLEMENT)
 
-Workers and orchestration: see `~/.claude/rules/workers.md`
-
-### Worker Lifecycle
-
-- **Keep workers alive** at all times — do NOT kill until user explicitly approves
-- **When a worker finishes a step:** code review FIRST (read every changed file), then merge
-- **After a deliverable is done:** do NOT re-prompt the worker — the deliverable is closed
-
-### Worker Wait Pattern (Background Timer)
-
-After spawning workers, estimate how long they need and set a background timer:
-
-```
-Bash(command="sleep 120 && echo 'workers check'", run_in_background=true)
-```
-
-When the timer fires (task-notification), check worker status:
-- `worker_status(name)` → `idle` = done, `working` = set another timer
-- If all idle → `worker_capture(name, tail=30)` to review results, then merge
+Workers, lifecycle, background timer, merging: see `~/.claude/rules/workers.md`
 
 ### Scope Extension During IMPLEMENT
 
@@ -143,6 +133,5 @@ For each deliverable: propose a concrete verification step the **user** can perf
 
 Wait for remarks. When user has no remarks → run verification together.
 
-**3. Glue work** — trivial wiring (imports, registration, small config edits)
 
 

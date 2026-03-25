@@ -57,8 +57,9 @@ Analyze the session across two dimensions:
 - User did not explicitly state what he wants, gave bad directions
 
 **References:**
-- Did I explicitly ask for references early enough?
-- Were the references helpful or did they lead me astray?
+- Were reference files identified early enough (Phase 1 Code Check)?
+- References can come from the user OR from code investigation — did subagents flag relevant existing code as reference patterns?
+- Were the references helpful or did they lead astray?
 
 ##### 1.2 Assumptions/Hallucinations
 
@@ -141,19 +142,7 @@ Prioritization (by OUTCOME):
 - OUTCOME determines severity. Wrong process + correct result = Important (not Critical).
 - Every process error MUST produce a config change. "Lesson Learned" without config change = FAILURE.
 
-**Rule Layers — where to route each improvement:**
-
-| Layer | Path | Scope | When to use |
-|-------|------|-------|-------------|
-| Global rules | `~/.claude/rules/*.md` | All projects, always loaded | General behavior (communication, verification, scoping) |
-| Shared rules | `~/.claude/shared-rules/global/*.md` | Symlinked into projects | Code conventions, project standards |
-| Project rules | `<project>/.claude/rules/*.md` | One project only | Project-specific constraints, TUI standards, dev workflows |
-| Plugin skills | Plugin source repo `skills/*/SKILL.md` | Activated per-skill | Workflow phases, domain tools |
-
-**Path-scoped project rules (BIGGEST LEVER):**
-Project rules in `<project>/.claude/rules/` can use `paths:` frontmatter to activate ONLY when specific files are read. This is the most powerful mechanism for context-specific behavior — a rule that fires when touching `src/formatter.py` can enforce TUI color standards, a rule scoped to `decisions/` can enforce decision file structure.
-
-For each process error: identify which rule layer would have prevented it. If a path-scoped project rule would be most effective (error only happens in specific file context), create one. This is higher leverage than global rules because it targets the exact context where the error occurs.
+Routing table and rule layers: see `~/.claude/rules/automation-framework.md`.
 
 ##### 4.3 Documentation Check (MANDATORY)
 

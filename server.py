@@ -196,8 +196,24 @@ def worker_send(
 ) -> list[TextContent]:
     """Send message to running worker."""
     path = project_path or os.getcwd()
-    safe_msg = message.replace('"', '\\"')
-    output = _run_tmux(f'worker_send "{name}" "{safe_msg}" "{path}"')
+    cmd = f'source "{TMUX_SPAWN_SH}" && worker_send "{name}" "$_WORKER_MSG" "{path}"'
+    logger.debug("Running tmux worker_send: name=%s path=%s", name, path)
+    try:
+        result = subprocess.run(
+            ["bash", "-c", cmd],
+            capture_output=True, text=True, timeout=60,
+            cwd=os.getcwd(),
+            env={**os.environ, "_WORKER_MSG": message}
+        )
+    except subprocess.TimeoutExpired:
+        logger.error("worker_send timed out: %s", name)
+        return [TextContent(type="text", text="ERROR: worker_send timed out after 60s")]
+    except OSError as e:
+        logger.error("worker_send OSError: %s", e)
+        return [TextContent(type="text", text=f"ERROR: {e.strerror}")]
+    output = result.stdout.strip()
+    if result.returncode != 0:
+        output = f"ERROR: {result.stderr.strip()}"
     return [TextContent(type="text", text=output or "Message sent.")]
 
 
