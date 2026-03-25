@@ -174,11 +174,13 @@ worker_send() {
     local pane_id
     pane_id=$(tmux list-panes -t "$session" -F "#{pane_id}" | head -1)
 
-    # paste-buffer + separate send-keys C-m has a race condition where Enter
-    # arrives before paste completes, especially with long messages.
-    # Fix: append newline to message itself so paste includes the Enter.
-    printf '%s\n' "$message" | tmux load-buffer -
+    # Paste message, then send Enter as key event.
+    # Claude Code TUI ignores pasted newlines as submit — needs real key event.
+    # Sleep prevents race condition where Enter arrives before paste completes.
+    printf '%s' "$message" | tmux load-buffer -
     tmux paste-buffer -d -t "$pane_id"
+    sleep 0.2
+    tmux send-keys -t "$pane_id" Enter
 }
 
 # --- Functions ---
