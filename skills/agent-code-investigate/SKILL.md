@@ -49,13 +49,24 @@ description: Tool reference and usage guidelines for the code-investigate-specia
 - Need `jq` or `python3` for structured data
 - Need to combine multiple operations
 
+**macOS (BSD find) vs Linux (GNU find):**
+- macOS find does NOT support `-printf` → use `stat` instead:
+  ```bash
+  # Dateien nach Änderungszeit sortieren (macOS-safe):
+  find <path> -name "*.jsonl" -type f | xargs stat -f "%m %N" | sort -rn | head -10
+  ```
+- `-exec`, `-maxdepth`, `-type`, `-name`, `-not -path` → funktionieren auf beiden Plattformen
+
 ## Directory Guard
 
-Before using Read tool, verify target is FILE not directory.
+Before using Read tool on ANY path WITHOUT a file extension: MANDATORY check.
 
-1. **If unsure:** Run `ls -F <path>` first (directories end with `/`)
-2. **If EISDIR error:** Immediately switch to `ls` or `find`
-3. **NEVER** assume a path is a file - verify first
+1. **ALWAYS check paths without extension:** Run `ls -F <path>` first (directories end with `/`)
+2. **Paths with extension (.py, .md, .sh, .json):** OK to Read directly
+3. **If EISDIR error:** Immediately switch to `find <path> -name "DOCS.md"` or `find <path> -maxdepth 1 -type f`
+4. **NEVER** assume a bare name (no extension) is a file
+
+**Konkret:** `jsonl_exploration`, `src`, `dev` → IMMER `ls -F` prüfen. `monitor.py`, `DOCS.md` → direkt lesen.
 
 ## Data Inspection Rules
 
