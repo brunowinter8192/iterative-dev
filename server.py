@@ -289,7 +289,7 @@ def worker_merge(
     name: str,
     project_path: str | None = None
 ) -> list[TextContent]:
-    """Merge worker branch, cleanup worktree + tmux."""
+    """Merge worker branch into main. Worker stays alive (tmux + worktree preserved)."""
     logger.info("worker_merge name=%s", name)
     path = project_path or os.getcwd()
     results = []
@@ -316,24 +316,43 @@ def worker_merge(
         return [TextContent(type="text", text="\n\n".join(results))]
     results.append(f"Merged: {merge_result}")
 
-    # Remove WORKER_REPORT.md
+    # Remove WORKER_REPORT.md from main (merged artifact)
     report_in_main = os.path.join(path, "WORKER_REPORT.md")
     if os.path.isfile(report_in_main):
         _run_git(["rm", "-f", "WORKER_REPORT.md"], cwd=path)
         _run_git(["commit", "-m", "cleanup: remove worker report"], cwd=path)
 
-    # Cleanup tmux session
+    # Worker stays alive — use worker_kill to cleanup later
+    results.append(f"Worker '{name}' still alive (tmux + worktree preserved)")
+
+    return [TextContent(type="text", text="\n\n".join(results))]
+
+
+@mcp.tool
+def worker_kill(
+    name: str,
+    project_path: str | None = None
+) -> list[TextContent]:
+    """Kill worker: terminate tmux session, remove worktree, delete branch."""
+    logger.info("worker_kill name=%s", name)
+    path = project_path or os.getcwd()
+    results = []
+
+    wt_path = os.path.join(path, ".claude", "worktrees", name)
+
+    # Kill tmux session
     project_name = os.path.basename(path)
     session_name = f"worker-{project_name}-{name}"
     subprocess.run(["tmux", "kill-session", "-t", session_name],
                     capture_output=True, timeout=10)
     results.append(f"Tmux session killed: {session_name}")
 
-    # Cleanup worktree + branch
+    # Remove worktree
     if os.path.isdir(wt_path):
         _run_git(["worktree", "remove", "--force", wt_path], cwd=path)
         results.append(f"Worktree removed: {wt_path}")
 
+    # Delete branch
     _run_git(["branch", "-d", name], cwd=path)
     results.append(f"Branch deleted: {name}")
 

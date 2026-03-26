@@ -56,11 +56,18 @@ Repeat what the user wants in your own words.
 
 **Step 3 — Dev Scripts Check**
 
-Read `dev/` DOCS.md → identify scripts that address this topic area. Present findings:
-- Existing dev scripts relevant to this problem?
-- Existing fixes/workarounds? (`fixes/`, `debug/`, `KNOWN_ISSUES`, `CHANGELOG`)
-- Test suites that cover the affected code? Do they IMPORT the module being changed, or have their own copy?
-- Agent/workflow instruction files if optimizing an automated workflow? (Read the instruction file BEFORE proposing changes)
+Dispatch a `code-investigate-specialist` agent with the context from Steps 1+2 (scope, affected files, IST-Stand). Agent scans `dev/` independently and reports back what is relevant and why:
+
+- Dev scripts AFFECTED by the change (need updating as part of this task)
+- Dev scripts that INFORM the task (reproduction scripts, validation suites, existing benchmarks)
+- Existing fixes/workarounds (`fixes/`, `debug/`, `KNOWN_ISSUES`, `CHANGELOG`)
+- Test suites that cover the affected code (do they IMPORT the module being changed, or have their own copy?)
+- Agent/workflow instruction files if optimizing an automated workflow
+
+**Agent prompt pattern:** "Given that we are changing [X files] for [Y purpose], scan `dev/` and report: (1) which dev scripts are affected by this change, (2) which dev scripts could help validate/reproduce the issue, (3) any existing workarounds or fixes."
+
+**Why agent, not Opus:** Opus already has code context from Step 2. Dev exploration is scout work — send the specialist, keep Opus context clean.
+
 - When debugging: read ACTUAL DATA first (dump, sample, log output); research external sources only AFTER the data doesn't self-explain
 
 🛑 STOP — Ask for remarks.
