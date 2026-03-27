@@ -36,7 +36,7 @@ python3 $PLUGIN_DIR/src/git/check.py <repo-path> --auto-stage
 ```
 
 Read the output:
-- `STAGED` / `UNSTAGED` / `UNTRACKED` all `(none)` → output `SKIP: <repo> — nothing to commit`, move to next repo
+- `STAGED` / `UNSTAGED` / `UNTRACKED` all `(none)` → skip to Step 2 (plugin-sync still runs), then output `SKIP: <repo> — nothing to commit`
 - `HOOK STATUS = WARNING` → run Step 1a before Step 4
 - `DIFF SUMMARY` → use for commit message in Step 4
 
@@ -46,7 +46,7 @@ Read the output:
 cd <repo-path> && bd export
 ```
 
-### Step 2 — Plugin-sync check
+### Step 2 — Plugin-sync (ALWAYS runs, even when nothing to commit)
 
 ```bash
 test -f <repo-path>/.claude-plugin/plugin.json && echo EXISTS || echo NONE
