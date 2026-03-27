@@ -22,8 +22,8 @@ description: Cycle review — RECAP, IMPROVE, CLOSING phases. Activate after IMP
 
 ### Phase Entry
 
-1. Ask user: "Activate Plan Mode for RECAP (`/plan`)"
-2. Wait for Plan Mode system message
+1. Check system message for "Plan mode is active" — if already active, skip to step 3
+2. If not active: Ask user to activate Plan Mode (`/plan`), wait for system message
 3. Proceed with evaluation report (read-only enforced by Plan Mode)
 
 ### Plan File Handling
@@ -143,6 +143,13 @@ Prioritization (by OUTCOME):
 - Every process error MUST produce a config change. "Lesson Learned" without config change = FAILURE.
 
 Routing table and rule layers: see `~/.claude/rules/automation-framework.md`.
+
+**Scope Check (MANDATORY before writing):**
+Before routing a process improvement to a global rule file (`~/.claude/rules/`), verify: is this lesson PROJECT-SPECIFIC or truly global?
+- Tool/technology-specific lessons (tmux, specific API, project-specific patterns) → project rule (`<project>/.claude/rules/`)
+- Universal behavior lessons (communication, scoping, verification methodology) → global rule (`~/.claude/rules/`)
+- `~/.claude/rules/verify-before-execution.md` is NOT a dump for all lessons. Only route there if the verification pattern applies across ALL projects.
+- Concrete failure (2026-03-27): tmux format variable lesson routed to global `verify-before-execution.md`. Only relevant to Monitor_CC — belongs in `Monitor_CC/.claude/rules/monitor-standards.md`.
 
 ##### 4.3 Documentation Check (MANDATORY)
 
