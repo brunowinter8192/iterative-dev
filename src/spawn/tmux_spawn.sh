@@ -47,8 +47,14 @@ _worker_session_name() {
 # _worker_detect_status SESSION
 #   Returns status: working, idle, exited, or unknown.
 #   Shared logic used by worker_list and worker_status.
+#   Uses window_activity timestamp (last output to window). Claude Code updates
+#   a live timer every second during thinking — so activity stays fresh
+#   while working. When idle (prompt visible, no output), activity goes stale.
+#   Workers have 1 window with 1 pane, so window_activity == pane activity.
+#   Note: pane_activity does not exist in all tmux versions; window_activity does.
 _worker_detect_status() {
     local session="$1"
+    local idle_threshold=10
 
     local dead
     dead=$(tmux display-message -t "${session}:^" -p "#{pane_dead}" 2>/dev/null || echo "?")
@@ -60,17 +66,12 @@ _worker_detect_status() {
         return 1
     fi
 
-    local pane_id
-    pane_id=$(tmux list-panes -t "$session" -F "#{pane_id}" | head -1)
-    local recent
-    recent=$(tmux capture-pane -p -t "$pane_id" 2>/dev/null | grep -v '^$' | tail -5)
+    local now last_activity delta
+    now=$(date +%s)
+    last_activity=$(tmux list-panes -t "$session" -F "#{window_activity}" 2>/dev/null | head -1)
+    delta=$((now - ${last_activity:-0}))
 
-    # Idle indicators (worker finished, waiting for input):
-    # - "idle" exact line (worker printed idle signal after final commit)
-    # - "for Xm Xs" / "for Xs" in status line (e.g. "✻ Cogitated for 1m 41s")
-    # - "accept edits" prompt (waiting for edit approval)
-    # - ">" prompt at start of line (waiting for user input)
-    if echo "$recent" | grep -qE '^idle$|for [0-9]+[ms]|accept edits|^>'; then
+    if [ "$delta" -gt "$idle_threshold" ]; then
         echo "idle"
     else
         echo "working"
