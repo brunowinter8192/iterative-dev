@@ -105,14 +105,14 @@ def bead_show(
 
 @mcp.tool
 def bead_create(
-    title: str,
+    bead_title: str,
     description: str,
     type: Literal["task"] = "task",
     labels: str | None = None,
     repo: str | None = None
 ) -> list[TextContent]:
     """Create a new bead."""
-    args = ["create", "--title", title, "--type", type, "--description", description]
+    args = ["create", "--title", bead_title, "--type", type, "--description", description]
     if labels:
         args += ["--labels", labels]
     output = _run_bd_create(args, repo)
