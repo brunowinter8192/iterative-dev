@@ -332,7 +332,7 @@ CRITICAL:
 - **Cost awareness:** Dispatcher = Opus, Sub = Haiku. Prefer better sub instructions over Opus pre-checks.
 - **Simplicity rule:** For Haiku agents: maximum 2-3 fields per block format
 
-### 4.5 Write to Plan File
+### 4.5 Write to Plan File & Present in Chat
 
 Create a **NEW** plan file for the proposals. **NEVER write into an existing plan file.**
 
@@ -344,10 +344,23 @@ Create a **NEW** plan file for the proposals. **NEVER write into an existing pla
 - Use the **Write tool** to create the new file (never Edit, never append)
 - Format: same Proposal N structure from 4.4 (File, Location, WHY, Current, Proposed, Expected Impact)
 - Do NOT apply changes yet
-- Do NOT present proposals in chat
-- After writing: report the plan file path to user — they will review and approve
+
+**Present proposals in chat** — for each proposal, explain in 2-3 sentences:
+- What the problem was (concrete failure evidence)
+- What the fix does
+- Why this automation file / section is the right target
+
+Same for Phase 3 findings: explain each problem in enough detail that the user can judge whether to fix it, skip it, or redirect the target file.
+
+After writing: report the plan file path to user — they will review and approve.
 
 The plan file doubles as the implementation blueprint — proposals written there are ready for direct execution after user approval.
+
+**Self-coined Terms (MANDATORY):** When analyzing automation files and you introduce a term for a concept that is NOT explicitly named in the file (e.g., calling a SKILL.md a "Dispatch-Skill"):
+- Label it on first use: "ich nenne das X — steht das so in der Datei?"
+- NEVER repeat the self-coined term as if it were established
+- After 1 correction: ask "Wie heißt das korrekt?" immediately
+- Concrete failure (2026-03-29): Called `rag:agent-md-cleanup` SKILL.md a "Dispatch-Skill" across multiple messages — required 2 user corrections before admitting the term was invented.
 
 ---
 
