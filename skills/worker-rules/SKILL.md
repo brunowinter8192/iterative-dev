@@ -1,6 +1,6 @@
 ---
 name: worker-rules
-description: Mandatory rules for workers spawned in git worktrees. Covers worktree isolation (never commit to main) and worker report (WORKER_REPORT.md handoff artifact).
+description: Mandatory rules for workers spawned in git worktrees. Covers worktree isolation (never commit to main) and completion checklist (inline verification output).
 ---
 
 # Worker Rules — Worktree Isolation & Report
@@ -42,49 +42,43 @@ git branch --show-current
 - Expected: your worker branch name
 - If it shows `main` or anything unexpected: **DO NOT COMMIT.** Something is wrong — stop and report.
 
-## 2. Worker Report (MANDATORY)
+## 2. Completion Checklist (MANDATORY)
 
-Before your **final commit**, create `WORKER_REPORT.md` in the worktree root.
+Your worker prompt includes a **Completion Checklist** section — task-specific verification items defined by the orchestrator.
 
-### Template
+### How It Works
 
-```markdown
-# Worker Report: <worker-name>
+1. The orchestrator defines checklist items in your prompt (e.g., "List all MCP tools found in server.py", "Confirm no absolute paths")
+2. You complete the task
+3. **Before your final commit**, output the filled checklist to the terminal — this is your last action
+4. The orchestrator reads your output via `worker_capture(tail=N)` to verify
 
-## Task
-<1-2 sentence summary of what was asked>
+### Output Format
 
-## Results
-<Concrete findings, what was built/changed/discovered — no vague summaries>
+Print the checklist as your final output (after committing, before going idle):
 
-## Files Changed
-<List of files created or modified, with one-line description each>
-
-## Open Issues
-<Anything that didn't work, needs follow-up, or was out of scope. "None" if clean.>
 ```
+COMPLETION CHECKLIST:
+- [x] <item 1>: <concrete result>
+- [x] <item 2>: <concrete result>
+- [ ] <item 3>: FAILED — <reason>
+```
+
+Be concrete: file paths, counts, specific values — not "done" or "verified".
 
 ### STOP Problems (Unexpected Errors)
 
-When you hit an unexpected problem that blocks your task (DB errors, API limits, unknown exceptions, infrastructure failures):
+When you hit an unexpected problem that blocks your task:
 
 1. **STOP immediately** — do not attempt autonomous workarounds
-2. **Write WORKER_REPORT.md** with `STOP:` prefix in the Results section:
-   ```markdown
-   ## Results
+2. **Output to terminal:**
+   ```
    STOP: <Problem description>
-
    <What you tried, what failed, error messages, file paths involved>
    ```
-3. **Exit cleanly** — the parent session is automatically notified when you exit
+3. **Go idle** — the parent session is automatically notified and reads via `worker_capture`
 
-The parent reads WORKER_REPORT.md, sees the STOP reason, and decides next steps. Your job is to document the problem clearly, not to fix it.
-
-### Rules
-
-- The report is a handoff artifact — the parent session reads it from the worktree filesystem.
-- Be concrete: file paths, endpoint URLs, error codes, not "explored various approaches".
-- **CRITICAL: Do NOT `git add` or `git commit` WORKER_REPORT.md.** It is a process artifact, not repo content. The parent session reads it directly from the worktree filesystem before cleanup. If you commit it, the parent must `git rm` it after merge — wasted effort.
+Your job is to document the problem clearly in your terminal output, not to fix it.
 
 ## 3. Implementation Rules
 

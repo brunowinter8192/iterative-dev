@@ -295,16 +295,6 @@ def worker_merge(
     path = project_path or os.getcwd()
     results = []
 
-    wt_path = os.path.join(path, ".claude", "worktrees", name)
-
-    # Read WORKER_REPORT.md if exists
-    report_path = os.path.join(wt_path, "WORKER_REPORT.md")
-    report = ""
-    if os.path.isfile(report_path):
-        with open(report_path) as f:
-            report = f.read()
-        results.append(f"=== WORKER REPORT ===\n{report}\n=== END REPORT ===")
-
     # Check commits
     log_output = _run_git(["log", f"main..{name}", "--oneline"], cwd=path)
     if log_output and not log_output.startswith("ERROR"):
@@ -316,12 +306,6 @@ def worker_merge(
         results.append(f"Merge failed: {merge_result}")
         return [TextContent(type="text", text="\n\n".join(results))]
     results.append(f"Merged: {merge_result}")
-
-    # Remove WORKER_REPORT.md from main (merged artifact)
-    report_in_main = os.path.join(path, "WORKER_REPORT.md")
-    if os.path.isfile(report_in_main):
-        _run_git(["rm", "-f", "WORKER_REPORT.md"], cwd=path)
-        _run_git(["commit", "-m", "cleanup: remove worker report"], cwd=path)
 
     # Worker stays alive — use worker_kill to cleanup later
     results.append(f"Worker '{name}' still alive (tmux + worktree preserved)")

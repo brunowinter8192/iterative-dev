@@ -30,8 +30,8 @@ Write the worker prompt to `/tmp/spawn-worker-docs-review.md`:
 3. If NEEDS FIXES: implement ALL fixes (create, rename, move, delete, update DOCS.md files)
 4. Read source files (*.py, *.sh) to extract Purpose/Input/Output for new DOCS.md entries
 5. Use existing DOCS.md files in the project as pattern reference
-6. Write WORKER_REPORT.md with findings table AND list of changes made
-7. Commit all doc changes (NOT WORKER_REPORT.md)
+6. Commit all doc changes
+7. Output Completion Checklist to terminal: findings table, list of changes made, any remaining gaps
 
 Documentation rules path: DOCS_RULES_PATH
 ```
@@ -55,7 +55,7 @@ Report: "Worker docs-review gestartet. Arbeitet autonom durch Review + Fixes."
 
 When worker completes:
 
-1. Read `WORKER_REPORT.md` from the worktree (or project dir)
+1. Read Completion Checklist via `worker_capture(tail=50)`
 2. Verify key claims:
    - Spot-check 2-3 directories the worker flagged
    - Spot-check 1-2 directories the worker marked as OK

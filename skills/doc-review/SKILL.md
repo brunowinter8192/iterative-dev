@@ -17,7 +17,7 @@ Phased review of project documentation against the documentation rules in `.clau
 ```
 Documentation rules: <absolute-project-path>/.claude/rules/documentation.md
 ```
-Read the file at that path. If no path was provided and the file doesn't exist locally, write WORKER_REPORT.md with STOP: "No documentation rules path provided and .claude/rules/documentation.md not found."
+Read the file at that path. If no path was provided and the file doesn't exist locally, output `STOP: No documentation rules path provided and .claude/rules/documentation.md not found.` and go idle.
 
 1. Read the documentation rules file — this defines the standard
 2. Confirm the rules are loaded. Summarize key rules to the user:
@@ -237,9 +237,8 @@ When invoked from a worker prompt (e.g., docs-review command), ignore all STOP m
 
 1. Read rules (Phase 1)
 2. Map current state (Phase 2)
-3. Write findings to WORKER_REPORT.md (Phase 2 output format)
-4. If NEEDS FIXES: implement all fixes immediately (Phase 4)
-5. Update WORKER_REPORT.md with final results
-6. Commit all changes (not WORKER_REPORT.md)
+3. If NEEDS FIXES: implement all fixes immediately (Phase 4)
+4. Commit all changes
+5. Output Completion Checklist to terminal (what was found, what was fixed, what's still open)
 
 **Key:** In autonomous mode, the worker does review AND fix in one pass. No separate fix worker needed.

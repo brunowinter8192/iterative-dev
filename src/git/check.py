@@ -12,7 +12,7 @@ import os
 
 logger = logging.getLogger(__name__)
 
-SKIP_PATTERNS = [".beads/", ".DS_Store", ".env", "credentials", ".claude/worktrees/", "WORKER_REPORT.md"]
+SKIP_PATTERNS = [".beads/", ".DS_Store", ".env", "credentials", ".claude/worktrees/"]
 
 BROKEN_HOOK_PATTERNS = [
     ("bd sync", "BROKEN: uses 'bd sync' — run 'bd export' instead"),
