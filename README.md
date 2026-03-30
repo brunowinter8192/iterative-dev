@@ -12,6 +12,7 @@ Development workflow engine for [Claude Code](https://docs.anthropic.com/en/docs
 | Agent | `code-investigate-specialist` (Haiku) | Codebase exploration — returns FILE/LINES/RELEVANT blocks only |
 | Agent | `git-committer` (Haiku) | Autonomous git staging, commit, push for multiple repos. Auto-detects plugin repos and runs plugin-sync |
 | Command | `/spawn-worker` | Spawn isolated Claude session in a git worktree via tmux + Ghostty |
+| MCP Tool | `prompt` | Send a prompt to an external LLM (NVIDIA NIM, default: Mistral Large 675B). Requires `NVIDIA_API_KEY` in `.env` |
 
 ## Cross-Plugin Infrastructure
 

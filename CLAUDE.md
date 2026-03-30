@@ -32,6 +32,13 @@ See [sources/sources.md](sources/sources.md).
 | **Subagent Listing** | list_agents.py | --session latest filter |
 | **Tool Call Extraction** | extract_calls.py | --calls N,M selection |
 
+### LLM Proxy
+
+| Component | Implementation | Config |
+|-----------|---------------|--------|
+| **prompt Tool** | httpx POST to NVIDIA NIM API | Default model: mistral-large-3-675b-instruct-2512 |
+| **Authentication** | NVIDIA_API_KEY from .env | 40 req/min free tier |
+
 ### Key Files
 
 | File | Component |
@@ -43,7 +50,8 @@ See [sources/sources.md](sources/sources.md).
 | `src/pipeline/jsonl_to_md.py` | Session Pipeline (shared dependency) |
 | `src/pipeline/list_agents.py` | Session Pipeline |
 | `src/pipeline/extract_calls.py` | Session Pipeline |
-| `server.py` | MCP Server (Bead + Worker tools) |
+| `server.py` | MCP Server (Bead + Worker + LLM Proxy tools) |
+| `.env` | API Keys (NVIDIA_API_KEY, GITHUB_TOKEN) |
 | `mcp-start.sh` | MCP Server startup |
 | `plugin-sync.sh` | Plugin deployment |
 | `.claude-plugin/plugin.json` | Plugin manifest |

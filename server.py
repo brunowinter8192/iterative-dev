@@ -4,6 +4,7 @@ import os
 import subprocess
 from typing import Literal
 
+import httpx
 from fastmcp import FastMCP
 from mcp.types import TextContent
 
@@ -358,6 +359,56 @@ def worker_kill(
 
     return [TextContent(type="text", text="\n\n".join(results))]
 
+
+
+# TOOLS — LLM Proxy
+
+NVIDIA_NIM_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
+DEFAULT_LLM_MODEL = "mistralai/mistral-large-3-675b-instruct-2512"
+
+
+@mcp.tool
+def prompt(
+    text: str,
+    model: str | None = None
+) -> list[TextContent]:
+    """Send a prompt to an external LLM (NVIDIA NIM) and return the response.
+
+    Args:
+        text: The prompt to send.
+        model: NVIDIA NIM model ID. Default: mistral-large-3-675b.
+    """
+    api_key = os.environ.get("NVIDIA_API_KEY", "")
+    if not api_key:
+        return [TextContent(type="text", text="ERROR: NVIDIA_API_KEY not set")]
+
+    use_model = model or DEFAULT_LLM_MODEL
+
+    try:
+        resp = httpx.post(
+            NVIDIA_NIM_URL,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": use_model,
+                "messages": [{"role": "user", "content": text}],
+            },
+            timeout=120,
+        )
+    except httpx.TimeoutException:
+        return [TextContent(type="text", text="ERROR: Request timed out after 120s")]
+
+    if resp.status_code != 200:
+        return [TextContent(type="text", text=f"ERROR {resp.status_code}: {resp.text[:500]}")]
+
+    data = resp.json()
+    content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+    if not content:
+        return [TextContent(type="text", text=f"ERROR: empty response. Raw: {resp.text[:500]}")]
+
+    return [TextContent(type="text", text=content)]
 
 
 if __name__ == "__main__":
