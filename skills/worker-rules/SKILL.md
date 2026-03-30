@@ -130,5 +130,6 @@ When writing to RAG `data/documents/` (PDF conversions, chunks, JSON):
 - Do NOT create test files unless explicitly asked
 - Do NOT run the MCP server or make MCP tool calls (you don't have the Chrome session)
 - Do NOT run `bd` commands (bead CLI) — worktrees copy `.beads/` state, and bd operations corrupt the main repo's bead data
+- Do NOT create beads (via MCP tools or CLI) — not in RECAP, not during work, not ever. Beads are the parent session's (Opus) responsibility. Only create beads if the user EXPLICITLY instructs you to
 - Do NOT create README.md or DOCS.md files unless explicitly instructed in the worker prompt — by default, documentation is the parent session's responsibility (Opus glue work)
 - Do NOT write RAG data to plugin cache paths — always use the RAG project repo path (see above)
