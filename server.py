@@ -357,8 +357,8 @@ DEFAULT_LLM_MODEL = "mistralai/mistral-large-3-675b-instruct-2512"
 
 MODEL_ALIASES = {
     "gemma": "google/gemma-3-27b-it",
-    "deepseek": "deepseek-ai/deepseek-r1",
-    "mistral": "mistralai/mistral-large-3-675b-instruct-2512",
+    "deepseek": "deepseek-ai/deepseek-v3.2",
+    "mistral": "mistralai/mistral-large-2-instruct",
 }
 
 
