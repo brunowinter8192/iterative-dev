@@ -17,7 +17,21 @@ def list_agents_workflow(project_path: str, session: str | None = None) -> list[
     logger.info("list_agents project=%s session=%s", project_path, session)
     cc_project_dir = derive_cc_project_dir(project_path)
     jsonl_paths = find_subagent_jsonls(cc_project_dir)
-    agents = [build_agent_info(p) for p in jsonl_paths]
+    agents = []
+    for p in jsonl_paths:
+        try:
+            agents.append(build_agent_info(p))
+        except (RuntimeError, FileNotFoundError) as e:
+            logger.warning("Skipping agent %s: %s", p.stem, e)
+            stat = p.stat()
+            agents.append({
+                'agent_id': p.stem.replace('agent-', ''),
+                'agent_type': 'UNKNOWN (parse error)',
+                'session_id': p.parent.parent.name,
+                'timestamp': stat.st_mtime,
+                'size_kb': stat.st_size / 1024,
+                'path': str(p),
+            })
     agents.sort(key=lambda a: a['timestamp'], reverse=True)
     if session == 'latest':
         agents = filter_latest_session(agents)

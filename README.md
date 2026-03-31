@@ -65,6 +65,8 @@ Get a free NVIDIA NIM API key at [build.nvidia.com](https://build.nvidia.com). T
 | Tool | Description | Example prompt |
 |------|-------------|----------------|
 | `prompt` | Send a prompt to an external LLM (NVIDIA NIM) and return the response | "Use the prompt tool to ask Mistral to summarize this code" |
+| `eval_list_agents` | List subagents for a project session with type, timestamp, size, and JSONL paths | "List agents from the latest session" |
+| `eval_extract` | Convert agent JSONL to summary, or extract specific tool calls by number | "Extract tool calls 1, 3, 7 from this agent session" |
 
 ### Agents
 

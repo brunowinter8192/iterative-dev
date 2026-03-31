@@ -18,6 +18,7 @@ Utilities for analyzing Claude Code session JSONL logs. Used by the eval workflo
 **list_agents.py (Subagent Listing):**
 - Scans `~/.claude/projects/<escaped-path>/*/subagents/agent-*.jsonl`
 - For each subagent: extracts agent_type from main session (sync via progress anchor, async via tool_result text matching)
+- Graceful per-agent error handling: agents with parse errors (RuntimeError, FileNotFoundError) are included as `UNKNOWN (parse error)` instead of crashing the entire listing
 - Outputs aligned table: agent_id, agent_type, timestamp, size
 - `--session latest` filter for most recent session only
 - Imports from jsonl_to_md: `load_jsonl`, `derive_main_session`, `find_task_anchor`
@@ -32,6 +33,10 @@ Utilities for analyzing Claude Code session JSONL logs. Used by the eval workflo
 - `python3 -m src.pipeline.jsonl_to_md --input <path> --output <path> [--dispatch]`
 - `python3 -m src.pipeline.list_agents --project <path> [--session latest]`
 - `python3 -m src.pipeline.extract_calls --input <path> --calls 1,3 [--output <path>]`
+
+**MCP Wrappers (server.py):**
+- `eval_list_agents(project_path, session?)`: wraps `list_agents_workflow()` + `format_table()`. Returns formatted agent table + JSONL paths.
+- `eval_extract(jsonl_path, calls?)`: without `calls` wraps `convert_workflow()` with dispatch=True (returns summary content directly). With `calls` wraps `extract_workflow()` (returns extracted tool calls).
 
 **Cross-Plugin:** jsonl_to_md is used by RAG plugin's eval workflow for converting subagent sessions to readable markdown.
 

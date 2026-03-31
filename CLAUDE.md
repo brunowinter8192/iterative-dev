@@ -31,6 +31,7 @@ See [sources/sources.md](sources/sources.md).
 | **JSONL to Markdown** | jsonl_to_md.py | --dispatch for main session context |
 | **Subagent Listing** | list_agents.py | --session latest filter |
 | **Tool Call Extraction** | extract_calls.py | --calls N,M selection |
+| **Eval MCP Wrappers** | eval_list_agents, eval_extract in server.py | project_path, session, jsonl_path, calls |
 
 ### LLM Proxy
 
