@@ -373,8 +373,10 @@ def _call_nim(text: str, model: str, api_key: str) -> str:
         json={
             "model": model,
             "messages": [{"role": "user", "content": text}],
+            "max_tokens": 4096,
+            "temperature": 0.15,
         },
-        timeout=120,
+        timeout=300,
     )
     if resp.status_code != 200:
         raise RuntimeError(f"ERROR {resp.status_code}: {resp.text[:500]}")
