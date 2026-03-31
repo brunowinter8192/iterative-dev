@@ -357,8 +357,8 @@ DEFAULT_LLM_MODEL = "mistralai/mistral-large-3-675b-instruct-2512"
 
 MODEL_ALIASES = {
     "gemma": "google/gemma-3-27b-it",
-    "deepseek": "deepseek-ai/deepseek-v3.2",
     "mistral": "mistralai/mistral-small-3.1-24b-instruct-2503",
+    "mistral-medium": "mistralai/mistral-medium-3-instruct",
 }
 
 
@@ -398,7 +398,7 @@ def prompt(
     Args:
         text: The prompt/instructions to send. If input_file is set, the file
               content is appended after the prompt text.
-        model: Model name — use alias (gemma, deepseek, mistral) or full
+        model: Model name — use alias (gemma, mistral, mistral-medium) or full
                NVIDIA NIM model ID. Default: mistral.
         input_file: Optional path to a file to read and append to the prompt.
         output_file: Optional path to write the LLM response to.
