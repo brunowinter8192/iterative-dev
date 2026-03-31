@@ -354,47 +354,78 @@ def worker_kill(
 NVIDIA_NIM_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 DEFAULT_LLM_MODEL = "mistralai/mistral-large-3-675b-instruct-2512"
 
+MODEL_ALIASES = {
+    "gemma": "google/gemma-3-27b-it",
+    "deepseek": "deepseek-ai/deepseek-r1",
+    "mistral": "mistralai/mistral-large-3-675b-instruct-2512",
+}
+
+
+def _call_nim(text: str, model: str, api_key: str) -> str:
+    """Call NVIDIA NIM API. Returns response text or raises."""
+    resp = httpx.post(
+        NVIDIA_NIM_URL,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": model,
+            "messages": [{"role": "user", "content": text}],
+        },
+        timeout=120,
+    )
+    if resp.status_code != 200:
+        raise RuntimeError(f"ERROR {resp.status_code}: {resp.text[:500]}")
+    content = resp.json().get("choices", [{}])[0].get("message", {}).get("content", "")
+    if not content:
+        raise RuntimeError(f"ERROR: empty response. Raw: {resp.text[:500]}")
+    return content
+
 
 @mcp.tool
 def prompt(
     text: str,
-    model: str | None = None
+    model: str | None = None,
+    input_file: str | None = None,
+    output_file: str | None = None,
 ) -> list[TextContent]:
     """Send a prompt to an external LLM (NVIDIA NIM) and return the response.
 
     Args:
-        text: The prompt to send.
-        model: NVIDIA NIM model ID. Default: mistral-large-3-675b.
+        text: The prompt/instructions to send. If input_file is set, the file
+              content is appended after the prompt text.
+        model: Model name — use alias (gemma, deepseek, mistral) or full
+               NVIDIA NIM model ID. Default: mistral.
+        input_file: Optional path to a file to read and append to the prompt.
+        output_file: Optional path to write the LLM response to.
     """
     api_key = os.environ.get("NVIDIA_API_KEY", "")
     if not api_key:
         return [TextContent(type="text", text="ERROR: NVIDIA_API_KEY not set")]
 
-    use_model = model or DEFAULT_LLM_MODEL
+    use_model = MODEL_ALIASES.get(model, model) if model else DEFAULT_LLM_MODEL
+
+    full_prompt = text
+    if input_file:
+        try:
+            file_content = Path(input_file).read_text(encoding="utf-8")
+            full_prompt = f"{text}\n\n---\n\n{file_content}"
+        except FileNotFoundError:
+            return [TextContent(type="text", text=f"ERROR: File not found: {input_file}")]
 
     try:
-        resp = httpx.post(
-            NVIDIA_NIM_URL,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": use_model,
-                "messages": [{"role": "user", "content": text}],
-            },
-            timeout=120,
-        )
+        content = _call_nim(full_prompt, use_model, api_key)
     except httpx.TimeoutException:
         return [TextContent(type="text", text="ERROR: Request timed out after 120s")]
+    except RuntimeError as e:
+        return [TextContent(type="text", text=str(e))]
 
-    if resp.status_code != 200:
-        return [TextContent(type="text", text=f"ERROR {resp.status_code}: {resp.text[:500]}")]
-
-    data = resp.json()
-    content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-    if not content:
-        return [TextContent(type="text", text=f"ERROR: empty response. Raw: {resp.text[:500]}")]
+    if output_file:
+        out_path = Path(output_file)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(content, encoding="utf-8")
+        return [TextContent(type="text", text=f"Written to {output_file} ({len(content)} chars, model: {use_model})")]
 
     return [TextContent(type="text", text=content)]
 
