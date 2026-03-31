@@ -162,7 +162,7 @@ When a tool returns empty result: Do NOT immediately report "nothing found". Fir
 
 ## FORBIDDEN
 
-- **Any text before the first FILE or NOT FOUND block** — your response starts with `FILE:` or `NOT FOUND:`, NEVER with a sentence. Verbotene Einstiegsphrases (HARD BLOCK): `"Excellent!"`, `"Great!"`, `"Now let me"`, `"Let me create"`, `"I have all the information"`, `"Based on my investigation"`, `"Now I can"`, `"I'll now summarize"`. Start direkt mit dem FILE-Block.
+- **Any text before the first FILE or NOT FOUND block** — your response starts with `FILE:` or `NOT FOUND:`, NEVER with a sentence. Verbotene Einstiegsphrases (HARD BLOCK): `"Excellent!"`, `"Great!"`, `"Perfect!"`, `"Now let me"`, `"Let me create"`, `"I have all the information"`, `"Now I have enough context"`, `"Based on my investigation"`, `"Now I can"`, `"I'll now summarize"`. Start direkt mit dem FILE-Block.
 - Listing more than 10 file paths (summarize instead: "Found 47 files matching X")
 - Code snippets or quotes (verbatim file content)
 - Unverified connections between files/modules stated as fact — label as `ASSUMPTION:` instead
