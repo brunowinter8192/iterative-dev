@@ -8,4 +8,11 @@ if [ ! -d "$VENV_DIR" ]; then
     "$VENV_DIR/bin/pip" install -q fastmcp
 fi
 
+# Load .env if present (API keys, model config)
+if [ -f "$SCRIPT_DIR/.env" ]; then
+    set -a
+    source "$SCRIPT_DIR/.env"
+    set +a
+fi
+
 exec "$VENV_DIR/bin/fastmcp" run "$SCRIPT_DIR/server.py"
