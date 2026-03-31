@@ -81,6 +81,13 @@ Be brutally honest: could you implement this feature or fix with 99% accuracy us
 - If research is needed → existing pattern in other projects to follow? User's existing patterns beat generic best practices.
 - Close all gaps BEFORE moving to Phase 2.
 
+**Gap Closing = ACTUALLY reading the sources (CRITICAL):**
+- When gaps are identified: check `sources/sources.md` — is the needed info already indexed?
+- If indexed: QUERY the source (RAG search, file read) and extract the answer NOW
+- "We have it indexed" ≠ gap closed. Gap is closed when you KNOW the answer, not when you know WHERE the answer might be.
+- User approves moving to Phase 2 → all listed gaps must be closed with concrete answers, not pointers to sources.
+- Concrete failure (2026-03-31): Identified 3 knowledge gaps (Crawl4AI PDF handling, cookie-wall DOM patterns, SearXNG language filtering). All sources were indexed in RAG. Said "alles im RAG verfügbar, kein Research nötig" without querying RAG. User had to push 3 times before actual RAG queries were fired.
+
 🛑 STOP — Ask for remarks.
 
 ### Phase 2 — Worker Scoping
