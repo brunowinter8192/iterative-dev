@@ -53,7 +53,7 @@ echo "  To:   $CACHE_DIR"
 # Use .gitignore to exclude untracked files from transfer.
 # Protect runtime artifacts (installed by /plugin install) from --delete.
 rsync -av \
-    --filter='P venv/' --filter='P .venv/' --filter='P node_modules/' \
+    --filter='P venv/' --filter='P .venv/' --filter='P node_modules/' --filter='P .env' \
     --filter=':- .gitignore' \
     --exclude='.git' \
     --delete \
