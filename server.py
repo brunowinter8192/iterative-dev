@@ -8,6 +8,10 @@ import httpx
 from fastmcp import FastMCP
 from mcp.types import TextContent
 
+from src.pipeline.list_agents import format_table, list_agents_workflow
+from src.pipeline.jsonl_to_md import convert_workflow
+from src.pipeline.extract_calls import extract_workflow
+
 logger = logging.getLogger(__name__)
 
 mcp = FastMCP("iterative-dev")
@@ -392,6 +396,43 @@ def prompt(
     if not content:
         return [TextContent(type="text", text=f"ERROR: empty response. Raw: {resp.text[:500]}")]
 
+    return [TextContent(type="text", text=content)]
+
+
+# TOOLS — Eval
+
+@mcp.tool
+def eval_list_agents(
+    project_path: str,
+    session: Literal["latest"] | None = None
+) -> list[TextContent]:
+    """List subagents for a project session."""
+    agents = list_agents_workflow(project_path, session=session)
+    table = format_table(agents)
+    paths = "\n".join(f"{a['agent_id']}: {a['path']}" for a in agents)
+    return [TextContent(type="text", text=f"{table}\n\nJSONL paths:\n{paths}")]
+
+
+@mcp.tool
+def eval_extract(
+    jsonl_path: str,
+    calls: str | None = None
+) -> list[TextContent]:
+    """Convert agent JSONL to summary, or extract specific tool calls."""
+    if calls:
+        call_numbers = [int(n.strip()) for n in calls.split(",")]
+        content = extract_workflow(jsonl_path, call_numbers)
+    else:
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=".md", delete=False) as f:
+            tmp_path = f.name
+        convert_workflow(jsonl_path, tmp_path, include_dispatch=True)
+        summary_path = tmp_path.replace(".md", "_summary.md")
+        with open(summary_path, "r") as f:
+            content = f.read()
+        os.unlink(summary_path)
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
     return [TextContent(type="text", text=content)]
 
 

@@ -31,44 +31,26 @@ When multiple agents are selected for evaluation:
 
 ## Phase 1: Find Subagent
 
-### 1.1 Session JSONL Location
+### 1.1 List Agents
 
-Session JSONLs are written **dynamically** during the session (not only at session end). The active session's JSONL is always available.
-
-CC projects directory: `~/.claude/projects/<escaped-project-path>/`
-- `<escaped-project-path>` = absolute project path with `/` replaced by `-` (leading `/` becomes `-`)
-- Example: `/Users/foo/MyProject` → `-Users-foo-MyProject`
-
-**Find the newest session (= the active one):**
-```bash
-ls -t ~/.claude/projects/<escaped-project-path>/*.jsonl | head -1
+Call the MCP tool:
+```
+eval_list_agents(project_path="<project_path>")
+# For latest session only:
+eval_list_agents(project_path="<project_path>", session="latest")
 ```
 
-**Find subagents of that session:**
-```bash
-SESSION_DIR=$(ls -td ~/.claude/projects/<escaped-project-path>/*/ | head -1)
-ls $SESSION_DIR/subagents/
-```
+This returns: formatted agent table (agent_id, agent_type, timestamp, size) + JSONL paths for each agent.
 
-### 1.2 List Agents
+### 1.2 User Selection
 
-1. Run list_agents.py to get all subagents with their types:
-   ```bash
-   cd $PLUGIN_DIR && python3 -m src.pipeline.list_agents --project <project_path>
-   # Latest session only:
-   cd $PLUGIN_DIR && python3 -m src.pipeline.list_agents --project <project_path> --session latest
-   ```
-   This outputs: agent_id, agent_type, timestamp, size (sorted newest first).
-
-   **If list_agents.py fails** (e.g., "Main session not found"): The script derives the main session JSONL from the subagent path. If the JSONL doesn't exist yet or the session directory is stale, use the manual approach from 1.1 to identify the correct session, then pass specific subagent paths directly to Phase 2.
-
-2. Present the table to user
-3. If `session` was given: use `--session latest` flag, take all agents from most recent session
-4. If `<count>` was given: take the N most recent from today's date, no user selection needed
-5. If user says "the newest" or similar: take the single most recent from today's date
-6. Otherwise: ask user which subagent(s) to evaluate
-7. For the selected agent(s), get the JSONL path:
-   `~/.claude/projects/<escaped-project-path>/*/subagents/agent-<agent_id>.jsonl`
+1. Present the agent table to user
+2. **ALWAYS ask user which agents to evaluate** — regardless of `session`, `<count>`, or "the newest":
+   - Show the full agent list
+   - Ask: "Welche Agents sollen ausgewertet werden?"
+   - Wait for user selection before proceeding
+   - Exception: if user already specified a concrete agent_id in the invocation arguments → skip the question
+3. Note the JSONL path(s) for selected agent(s) from the tool output
 
 ---
 
@@ -76,50 +58,31 @@ ls $SESSION_DIR/subagents/
 
 For each selected subagent:
 
-### 2.1 Convert JSONL to Summary
+### 2.1 Get Summary
 
-```bash
-cd $PLUGIN_DIR && python3 -m src.pipeline.jsonl_to_md \
-    --input "<jsonl_path>" --output "/tmp/eval-<agent_id>.md" --dispatch
+Call the MCP tool to convert the agent JSONL to a summary:
+```
+eval_extract(jsonl_path="<jsonl_path from Phase 1>")
 ```
 
-This produces ONE file:
-- `/tmp/eval-<agent_id>_summary.md` — dispatch context + task prompt + tool call summary + final response
-
-### 2.2 Read Summary
-
-Use the **Read tool** to read the summary file:
-
-```
-Read /tmp/eval-<agent_id>_summary.md
-```
-
-This gives the complete overview:
+This returns the complete summary directly:
 - Dispatch Context (pre-dispatch messages, dispatch prompt, post-dispatch)
 - Task Prompt
-- Tool Call Summary — each line shows: `[HH:MM:SS] #N tool_name: key=value, key=value  [size chars]` or `[no output]`
+- Tool Call Summary — each line: `[HH:MM:SS] #N tool_name: key=value  [size chars]` or `[no output]`
 - Final Response
 
-### 2.3 Extract Specific Tool Calls
+### 2.2 Extract Specific Tool Calls
 
 Based on the summary, identify interesting calls and extract them:
-
-```bash
-cd $PLUGIN_DIR && python3 -m src.pipeline.extract_calls \
-    --input "<jsonl_path>" --calls "1,3,7,12"
 ```
-
-Or save to file:
-```bash
-cd $PLUGIN_DIR && python3 -m src.pipeline.extract_calls \
-    --input "<jsonl_path>" --calls "1,3,7,12" --output "/tmp/eval-<agent_id>_calls.md"
+eval_extract(jsonl_path="<jsonl_path>", calls="1,3,7,12")
 ```
 
 **Which calls to extract:**
-- All calls marked `[suspicious: N chars]` (output < 500 chars) — MUST be extracted and content verified: is it an error ("404", "No content extracted", broken HTML) or a legitimate short result ("0 results")?
-- All calls with large outputs (>1000 chars) — contain the real findings
-- Calls where the agent changed strategy — read what triggered the change
-- The last 3 calls before the final response — understand what led to the conclusion
+- All calls marked `[suspicious: N chars]` (output < 500 chars)
+- All calls with large outputs (>1000 chars)
+- Calls where the agent changed strategy
+- The last 3 calls before the final response
 
 ---
 
@@ -365,11 +328,5 @@ The plan file doubles as the implementation blueprint — proposals written ther
 ---
 
 ## Phase 5: Cleanup
-
-After proposals are written/applied:
-
-```bash
-rm -f /tmp/eval-<agent_id>_summary.md /tmp/eval-<agent_id>_calls.md
-```
 
 **Then proceed to next agent if more are queued.**
