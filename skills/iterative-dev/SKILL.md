@@ -31,6 +31,23 @@ Opus does ONLY orchestration. Everything else goes to workers:
 
 **Exception:** Automation files (rules, SKILL.md, CLAUDE.md) are Opus's domain — these define HOW orchestration works and are not source code.
 
+### PLAN Phase = Worker/Subagent Work
+
+**PLAN Phase 1 (Understand) is NOT Opus work.** Opus orchestrates the understanding, it doesn't do the understanding itself.
+
+| Step | Who does it | How |
+|------|------------|-----|
+| Step 1 (Session Scope) | Opus | Repeat user intent — no code reading needed |
+| Step 2 (Status Quo) | Worker or code-investigate-specialist | Read decisions/, read code, compare, report findings to Opus |
+| Step 3 (Dev Scripts Check) | code-investigate-specialist | Scan dev/, report relevant scripts |
+| Step 4 (Gap Analysis) | Opus | Based on findings from Steps 2+3 — Opus decides, doesn't investigate |
+
+**Step 2 dispatch pattern:**
+- Specific factual question ("does extract_cache_turns group by requestId?") → **subagent** (code-investigate-specialist)
+- Broader investigation ("read all affected files, check decisions/ drift, report IST-Stand") → **worker** (stays alive for follow-up questions)
+
+Concrete failure (2026-04-02): Opus read jsonl_parser.py, monitor.py, formatter.py, 3 decisions/ files, ran Python one-liners on JSONL data — all during PLAN Step 2. Should have dispatched a worker for the investigation and read only the summary.
+
 ### Session Start (MANDATORY)
 
 `bead_list(status="open")` → read relevant work beads.
