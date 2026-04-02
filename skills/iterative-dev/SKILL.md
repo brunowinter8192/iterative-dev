@@ -7,6 +7,30 @@ description: (project)
 
 **Glue work** (imports, registration, trivial wiring, small config edits) is done by Opus directly — dynamically while workers are running or after a worker merges. Not a phase, not a step. Standard behavior.
 
+### Opus = Pure Orchestrator (CRITICAL)
+
+Opus does ONLY orchestration. Everything else goes to workers:
+
+**Opus does:**
+- Scoping, planning, deliverable definition
+- Worker spawn, worker_send, worker_merge, worker_kill
+- Automation file edits (`.claude/rules/`, CLAUDE.md, DOCS.md, SKILL.md)
+- Post-merge verification (run tests, MCP calls, screenshots)
+- Bead management, git operations
+
+**Workers do (via worker_spawn or worker_send):**
+- ALL source code edits — no exceptions
+- ALL code exploration (reading source files, JSONL analysis, grep/glob searches)
+- ALL investigation work (reproducing bugs, analyzing data, root cause analysis)
+- ALL decisions/ updates
+- Dev script creation or modification
+
+**The line:** If it requires reading more than 2-3 files to understand a problem, or if it involves ANY source file edit — it's worker work. Opus's context is the most expensive resource. Every file read, every grep, every JSONL analysis that Opus does directly is context that could have been preserved for orchestration.
+
+**Concrete anti-pattern:** Opus reads 5 files during PLAN Phase 1 Step 2 "to understand the code". WRONG — dispatch a `code-investigate-specialist` agent or spawn an investigation worker. Opus reads the FINDINGS, not the files.
+
+**Exception:** Automation files (rules, SKILL.md, CLAUDE.md) are Opus's domain — these define HOW orchestration works and are not source code.
+
 ### Session Start (MANDATORY)
 
 `bead_list(status="open")` → read relevant work beads.
