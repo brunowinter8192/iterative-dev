@@ -5,7 +5,7 @@
 Architecture: one tmux session per worker, named `worker-<project>-<name>`. Project-scoped — workers from different projects never collide.
 
 **Spawning:**
-- `spawn_claude_worker()` — creates tmux session with direct command arg (no shell-ready polling), writes prompt to temp file, launches `claude --model <model>` with prompt from file
+- `spawn_claude_worker()` — creates tmux session with direct command arg (no shell-ready polling), writes prompt to temp file, launches `claude-patched --model <model>` with prompt from file
 - `spawn_claude_worker_from_file()` — same but reads prompt from existing file
 - Direct command execution: command passed as arg to `tmux new-session` — env vars inherited automatically
 - `remain-on-exit on` set atomically via `;` chain — pane stays open after process exit for status detection
@@ -39,6 +39,15 @@ Architecture: one tmux session per worker, named `worker-<project>-<name>`. Proj
 - `claude inject` (anthropics/claude-code#24947) würde das lösen: programmatischer Input an laufende Session. OPEN, high-priority, kein Implementierungszeitplan.
 - Programmatic Input Submission (#15553) bestätigt: Claude Code ignoriert programmatischen stdin als Submit
 - Community-Konsens (Reddit, GitHub): Niemand hat einen funktionierenden Workaround. Alle warten auf `claude inject`.
+
+**Dev-Branch Workflow:**
+- Opus works on `dev` branch during IMPLEMENT. Workers branch from `dev` (worktrees at `.claude/worktrees/<name>/`).
+- `worker_merge` merges worker branch into whatever branch is currently checked out (dynamic via `git rev-parse --abbrev-ref HEAD`). No hardcoded `main`.
+- Opus reviews on `dev` — shared-rules use `.claude/worktrees/**` paths, so reading files on `dev` (normal project path) does NOT trigger execution rules.
+- Session end: `git checkout main && git merge dev` (fast-forward sync).
+
+**`claude-patched` (MANDATORY):**
+- Workers ALWAYS use `claude-patched` instead of `claude`. The patch fixes cache behavior (Cache Read instead of Cache Create per turn), preventing massive usage spikes.
 
 **File:** `src/spawn/tmux_spawn.sh` (245 lines)
 

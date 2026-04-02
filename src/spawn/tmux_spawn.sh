@@ -248,7 +248,7 @@ spawn_claude_worker() {
     echo "$task_prompt" > "$prompt_file"
 
     # Build claude command with .done signal chained after exit
-    local claude_cmd="cd $project_path && claude --model $model $extra_flags \"\$(cat $prompt_file)\" ; touch '/tmp/worker-${name}.done'"
+    local claude_cmd="cd $project_path && claude-patched --model $model $extra_flags \"\$(cat $prompt_file)\" ; touch '/tmp/worker-${name}.done'"
 
     # Create session with command as direct arg (no polling needed).
     # Atomic remain-on-exit via ; chain — set before process can exit.
@@ -262,6 +262,7 @@ spawn_claude_worker() {
     [ -z "$purpose" ] && purpose="(?)"
     tmux set-environment -t "$session" WORKER_PURPOSE "$purpose"
     tmux set-environment -t "$session" WORKER_PARENT "${CLAUDE_SESSION_ID:-unknown}"
+    tmux set-environment -t "$session" WORKER_MODEL "$model"
 
     # Open Ghostty window attached to this worker's session
     open_tmux_viewer "$session"

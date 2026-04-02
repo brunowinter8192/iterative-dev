@@ -301,7 +301,8 @@ def worker_merge(
     results = []
 
     # Check commits
-    log_output = _run_git(["log", f"main..{name}", "--oneline"], cwd=path)
+    current = _run_git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=path).strip()
+    log_output = _run_git(["log", f"{current}..{name}", "--oneline"], cwd=path)
     if log_output and not log_output.startswith("ERROR"):
         results.append(f"Commits:\n{log_output}")
 

@@ -120,6 +120,14 @@ Define deliverables with measurable completion criteria:
 
 Workers, lifecycle, background timer, merging: see `~/.claude/rules/workers.md`
 
+### Dev-Branch Setup (MANDATORY at IMPLEMENT start)
+
+Before spawning any workers:
+1. `git checkout -b dev` (or `git checkout dev` if it exists)
+2. All workers branch from `dev`, all merges land on `dev`
+3. Opus reviews on `dev` — execution rules do NOT trigger (worktree-only paths)
+4. At session end: `git checkout main && git merge dev` to sync
+
 ### Scope Extension During IMPLEMENT
 
 When the user introduces a new scope during IMPLEMENT (e.g., "let's also build X"):
@@ -137,6 +145,8 @@ Mini-scoping (no full Phase 1 needed):
 | … | ✅ Done / ⚠️ Partial | … | Code review / Test run / Not verified |
 
 Be brutally honest in the "Opus verification" column — code read ≠ verified, test ran in worktree without venv ≠ verified.
+
+**Code Review happens on `dev` branch** (normal project path), NOT by reading worktree files. This means execution-focused shared-rules (code-standards, server-pattern, etc.) do NOT trigger during Opus review — they only trigger inside `.claude/worktrees/` paths where workers operate.
 
 **2. Scope user verification (🛑 STOP)**
 
