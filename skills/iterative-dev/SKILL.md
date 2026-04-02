@@ -126,7 +126,7 @@ Before spawning any workers:
 1. `git checkout -b dev` (or `git checkout dev` if it exists)
 2. All workers branch from `dev`, all merges land on `dev`
 3. Opus reviews on `dev` — execution rules do NOT trigger (worktree-only paths)
-4. At session end: `git checkout main && git merge dev` to sync
+4. At session end: use `dev_sync` MCP tool to sync dev→main (no checkout needed — avoids beads-worktree conflict)
 
 ### Scope Extension During IMPLEMENT
 

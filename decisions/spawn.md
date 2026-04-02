@@ -44,7 +44,7 @@ Architecture: one tmux session per worker, named `worker-<project>-<name>`. Proj
 - Opus works on `dev` branch during IMPLEMENT. Workers branch from `dev` (worktrees at `.claude/worktrees/<name>/`).
 - `worker_merge` merges worker branch into whatever branch is currently checked out (dynamic via `git rev-parse --abbrev-ref HEAD`). No hardcoded `main`.
 - Opus reviews on `dev` — shared-rules use `.claude/worktrees/**` paths, so reading files on `dev` (normal project path) does NOT trigger execution rules.
-- Session end: `git checkout main && git merge dev` (fast-forward sync).
+- Session end: `dev_sync` MCP tool updates main/master ref to dev HEAD via `git update-ref` (no checkout needed — avoids beads-worktree conflict).
 
 **`claude-patched` (MANDATORY):**
 - Workers ALWAYS use `claude-patched` instead of `claude`. The patch fixes cache behavior (Cache Read instead of Cache Create per turn), preventing massive usage spikes.

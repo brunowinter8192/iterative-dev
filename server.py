@@ -350,6 +350,54 @@ def worker_kill(
     return [TextContent(type="text", text="\n\n".join(results))]
 
 
+@mcp.tool
+def dev_sync(
+    project_path: str | None = None
+) -> list[TextContent]:
+    """Sync dev branch to main without checkout. Uses git update-ref for fast-forward."""
+    path = project_path or os.getcwd()
+    results = []
+
+    # Verify we're on dev
+    current = _run_git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=path).strip()
+    if current != "dev":
+        return [TextContent(type="text", text=f"ERROR: Not on dev branch (on '{current}'). Switch to dev first.")]
+
+    # Check if main exists, fall back to master
+    main_check = _run_git(["rev-parse", "--verify", "main"], cwd=path)
+    if main_check.startswith("ERROR"):
+        main_check = _run_git(["rev-parse", "--verify", "master"], cwd=path)
+        if main_check.startswith("ERROR"):
+            return [TextContent(type="text", text="ERROR: Neither 'main' nor 'master' branch found.")]
+        main_branch = "master"
+    else:
+        main_branch = "main"
+
+    # Verify fast-forward (main is ancestor of dev)
+    ff_check = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", main_branch, "dev"],
+        capture_output=True, text=True, timeout=10, cwd=path
+    )
+    if ff_check.returncode != 0:
+        return [TextContent(type="text", text=f"ERROR: {main_branch} is not an ancestor of dev. Cannot fast-forward. Manual merge needed.")]
+
+    # Show what will be synced
+    log_output = _run_git(["log", f"{main_branch}..dev", "--oneline"], cwd=path)
+    if not log_output or log_output.startswith("ERROR"):
+        return [TextContent(type="text", text=f"Nothing to sync — {main_branch} is already up to date with dev.")]
+    results.append(f"Commits to sync:\n{log_output}")
+
+    # Update main ref to point to dev HEAD
+    dev_hash = _run_git(["rev-parse", "dev"], cwd=path).strip()
+    update_result = _run_git(["update-ref", f"refs/heads/{main_branch}", dev_hash], cwd=path)
+    if update_result.startswith("ERROR"):
+        return [TextContent(type="text", text=f"update-ref failed: {update_result}")]
+
+    results.append(f"Synced: {main_branch} → {dev_hash[:8]}")
+    results.append(f"Stay on dev. {main_branch} updated via ref update (no checkout needed).")
+
+    return [TextContent(type="text", text="\n\n".join(results))]
+
 
 # TOOLS — LLM Proxy
 
