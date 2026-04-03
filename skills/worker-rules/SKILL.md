@@ -42,6 +42,14 @@ git branch --show-current
 - Expected: your worker branch name
 - If it shows `main` or anything unexpected: **DO NOT COMMIT.** Something is wrong — stop and report.
 
+### Never Commit Dependency Directories
+
+Worktrees contain symlinked dependency directories (`venv`, `.venv`, `node_modules`) that point to the main repo's real directories. These symlinks MUST NOT be committed — they become circular self-references when merged back.
+
+**Rule:** NEVER `git add` or commit: `venv/`, `.venv/`, `node_modules/`, or any dependency directory. Even if `git status` shows them as untracked.
+
+Concrete failure (2026-04-03): dev-reorg worker committed `venv` symlink from worktree. After merge, project's venv became a circular symlink pointing to itself. Had to recreate venv from scratch.
+
 ## 2. Completion Checklist (MANDATORY)
 
 Your worker prompt includes a **Completion Checklist** section — task-specific verification items defined by the orchestrator.
