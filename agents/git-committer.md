@@ -61,7 +61,7 @@ $SYNC_SCRIPT "$PLUGIN_NAME" "<repo-path>"
 
 If NONE: skip.
 
-### Step 3 — Guard check
+### Step 3 — Guard check + re-stage
 
 ```bash
 git -C <repo-path> status --short
@@ -69,6 +69,12 @@ git -C <repo-path> status --short
 
 - Output contains `HEAD detached` → output `ERROR: <repo> — detached HEAD`, skip repo
 - Output contains unmerged paths → output `ERROR: <repo> — merge conflicts`, skip repo
+
+Re-stage to catch files created/modified by plugin-sync or other intermediate steps:
+
+```bash
+python3 $PLUGIN_DIR/src/git/check.py <repo-path> --auto-stage
+```
 
 ### Step 4 — Commit
 
