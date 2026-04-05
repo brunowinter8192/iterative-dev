@@ -41,23 +41,27 @@ Repeat what the user wants in your own words.
 
 🛑 STOP — Ask for remarks.
 
-**Step 2 — Investigation**
+**Step 2 — Investigation (Opus reads code DIRECTLY)**
 
-Spawn an **Investigation Worker** (or use `worker_send` to an idle worker with relevant context). The worker reads decisions/, code, AND dev/ — everything in one pass. Opus NEVER reads source files directly during PLAN.
+Opus reads the relevant source code, decisions/, and dev/ files DIRECTLY. No Investigation Worker. Opus must build its own mental model of the codebase before any worker is dispatched.
 
-**Worker prompt must cover:**
+**Opus reads:**
 1. **Decisions Check** — Read relevant `decisions/` files. IST-Stand vs SOLL? OPEN items? Drift between docs and code?
 2. **Code Check** — Read actual implementation files. Flag Reference Files (existing patterns for new code to follow).
 3. **Dev Scripts Check** — Scan `dev/` for scripts affected by the change, scripts that inform the task (reproduction, validation), existing fixes/workarounds.
-4. **Report back:** IST-Stand summary, affected files, Reference Files, relevant dev/ scripts, any anomalies.
 
-**Opus reads worker findings** via `worker_capture(tail=40-60)` and presents status quo to user:
+**Present status quo to user:**
 - Which files/components are affected
 - Current state (IST) and why it matters
 - Reference Files identified
 - Relevant dev/ scripts
 
-Concrete failure (2026-04-05): Opus dispatched 2 subagents for Steps 2+3 (code investigation + decisions/dev check). Workers then had to re-read all the same files. Subagent findings = throwaway context. Investigation Worker does one thorough pass and reports — reuse only if context budget allows (>30%).
+**WHY Opus reads directly (not a worker):**
+- Opus must be able to EVALUATE worker output later — this requires understanding the code
+- Workers report findings that Opus can't verify without own context → leads to accepting wrong conclusions
+- Investigation Workers produce throwaway context that Opus can't reuse for critical evaluation
+
+Concrete failure (2026-04-05, Session 16): Investigation Worker reported "keine Datenquelle für monitor/shared Content". Opus accepted this without challenge. Reality: the Hook-Script reads the files directly and injects them. Opus had no mental model to recognize the contradiction — because Opus never read the code.
 
 🛑 STOP — Ask for remarks.
 
@@ -85,7 +89,7 @@ Before proceeding to Phase 2, Opus must be able to answer:
 2. Which files/functions are involved and what do they do?
 3. If a worker delivers "all done" — would I recognize whether the deliverables address the RIGHT problem?
 
-If NO → continue investigating via `worker_send` to the Investigation Worker. Do NOT proceed to worker scoping without this milestone. Root cause may be unclear — that's OK. But Opus must understand enough to EVALUATE worker output.
+If NO → continue reading code. Do NOT proceed to worker scoping without this milestone. Root cause may be unclear — that's OK. But Opus must understand enough to EVALUATE worker output.
 
 Concrete failure (2026-04-05): Opus proceeded to worker scoping for hooks-redesign without understanding why `process_sessions_for_system_reminders()` wasn't showing results. Worker implemented noise-filter and persisted-file-loading (valid features, wrong problem). Opus couldn't recognize the misalignment because Opus had no mental model of the problem.
 
