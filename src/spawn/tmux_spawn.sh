@@ -270,22 +270,17 @@ spawn_claude_worker() {
         while lsof -iTCP:${worker_port} -sTCP:LISTEN >/dev/null 2>&1; do
             worker_port=$((worker_port + 1))
         done
-        # Generate worker-specific session_id for log file naming
-        local worker_session_id
-        if command -v md5 >/dev/null 2>&1; then
-            worker_session_id=$(echo -n "worker-${name}-${proxy_project_path}" | md5 | head -c 8)
-        else
-            worker_session_id=$(echo -n "worker-${name}-${proxy_project_path}" | md5sum | head -c 8)
-        fi
+        # Generate human-readable log id: worker_{name}_{timestamp}
+        local worker_log_id="worker_${name}_$(date +%s)"
         # Start worker-specific mitmproxy in background (live-copy to prevent hot-reload)
         local log_dir="${monitor_cc_root}/src/logs"
         mkdir -p "$log_dir"
         local worker_live_addon="${log_dir}/.proxy_addon_worker_${name}.py"
         cp "${monitor_cc_root}/src/proxy_addon.py" "$worker_live_addon"
-        MONITOR_CC_ROOT="$monitor_cc_root" PROXY_SESSION_ID="$worker_session_id" \
+        MONITOR_CC_ROOT="$monitor_cc_root" PROXY_LOG_ID="$worker_log_id" \
             mitmdump -p "$worker_port" -s "$worker_live_addon" \
             --set flow_detail=0 -q \
-            2>"${log_dir}/proxy_errors_${worker_session_id}.log" &
+            2>"${log_dir}/proxy_errors_${worker_log_id}.log" &
         local worker_proxy_pid=$!
         proxy_env_prefix="HTTPS_PROXY=http://localhost:${worker_port} NODE_EXTRA_CA_CERTS=~/.mitmproxy/mitmproxy-ca-cert.pem SSL_CERT_FILE=~/.mitmproxy/combined-ca.pem REQUESTS_CA_BUNDLE=~/.mitmproxy/combined-ca.pem "
         proxy_kill_cmd="kill ${worker_proxy_pid} 2>/dev/null ; rm -f '${worker_live_addon}' ; "
