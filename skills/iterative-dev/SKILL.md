@@ -118,7 +118,7 @@ Define deliverables with measurable completion criteria:
 - All affected file categories (src/, decisions/, dev/, docs)
 - Worker dispatch plan (which workers, which files each, which Reference Files to follow)
 
-🛑 STOP — Ask for remarks before calling ExitPlanMode.
+🛑 STOP — Ask for remarks before proceeding to IMPLEMENT.
 
 ---
 

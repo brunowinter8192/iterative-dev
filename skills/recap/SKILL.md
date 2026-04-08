@@ -14,17 +14,14 @@ description: Cycle review — RECAP, IMPROVE, CLOSING phases. Activate after IMP
 - `🛠️ IMPROVE`
 - `✅ CLOSING`
 
-**Phase Detection:** System message contains "Plan mode is active" → you are in RECAP.
-
 ---
 
 ## Recap Phase (RECAP)
 
 ### Phase Entry
 
-1. Check system message for "Plan mode is active" — if already active, skip to step 3
-2. If not active: Ask user to activate Plan Mode (`/plan`), wait for system message
-3. Proceed with evaluation report (read-only enforced by Plan Mode)
+1. Create or overwrite plan file at `~/.claude/plans/` with the evaluation report
+2. Proceed with evaluation — no edits to source code during RECAP, only the plan file
 
 ### Plan File Handling
 
@@ -168,7 +165,7 @@ Before routing a process improvement to a global rule file (`~/.claude/rules/`),
 | Entry points / CLI args | Read argparse, compare |
 | decisions/ files | Do they reflect current implementation? |
 
-4. Report per file in RECAP plan file:
+4. Report per file in RECAP report:
 ```
 DOCS DRIFT CHECK:
 - src/features/DOCS.md: OK / DRIFT (details)
@@ -222,7 +219,7 @@ User can correct before the bead comment is set. The actual bead content will be
 
 ### Presenting Process Improvements
 
-**Process Improvements MUST appear in BOTH the plan file AND in chat text.**
+**Process Improvements MUST appear in BOTH the report file AND in chat text.**
 
 ### Collecting Improvements
 
@@ -233,19 +230,19 @@ After presenting improvements:
 
 ### Phase Exit
 
-1. Ensure all improvements are written to plan file
-2. Call ExitPlanMode
+1. Ensure all improvements are written to report file
+2. Ask: "Bemerkungen bevor ich zur IMPROVE-Phase übergehe?"
 3. Next response starts with 🛠️ IMPROVE
 
 ---
 
 ## Improve Phase (IMPROVE)
 
-**Purpose:** Execute improvements from plan file.
+**Purpose:** Execute improvements from report file.
 
 ### Workflow
 
-1. Read plan file "## Improvements" and "## Open Items" sections
+1. Read report file "## Improvements" and "## Open Items" sections
 2. **DOCS/README/decisions/ updates FIRST** — NEVER skippable
 3. Automation File improvements → Follow edit workflow in `~/.claude/rules/automation-framework.md`. Plugin files: edit in SOURCE REPO (see `~/.claude/rules/plugins.md`).
 4. Handle Beads (from RECAP Section 3):
