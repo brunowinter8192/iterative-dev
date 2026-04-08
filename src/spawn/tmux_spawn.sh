@@ -247,8 +247,27 @@ spawn_claude_worker() {
     local prompt_file="/tmp/spawn-prompt-${name}-$$.txt"
     echo "$task_prompt" > "$prompt_file"
 
+    # Detect mitmproxy: strip worktree suffix to get original project path for hash
+    local proxy_project_path="$project_path"
+    if [[ "$project_path" == */.claude/worktrees/* ]]; then
+        proxy_project_path="${project_path%%/.claude/worktrees/*}"
+    fi
+    local proxy_session_id
+    if command -v md5 >/dev/null 2>&1; then
+        proxy_session_id=$(echo -n "$proxy_project_path" | md5 | head -c 8)
+    else
+        proxy_session_id=$(echo -n "$proxy_project_path" | md5sum | head -c 8)
+    fi
+    local proxy_env_prefix=""
+    local proxy_marker="/tmp/.monitor_cc_proxy_${proxy_session_id}"
+    if [ -f "$proxy_marker" ]; then
+        local proxy_port
+        proxy_port=$(cat "$proxy_marker")
+        proxy_env_prefix="HTTPS_PROXY=http://localhost:${proxy_port} NODE_EXTRA_CA_CERTS=~/.mitmproxy/mitmproxy-ca-cert.pem SSL_CERT_FILE=~/.mitmproxy/combined-ca.pem REQUESTS_CA_BUNDLE=~/.mitmproxy/combined-ca.pem "
+    fi
+
     # Build claude command with .done signal chained after exit
-    local claude_cmd="cd $project_path && claude-patched --model $model $extra_flags \"\$(cat $prompt_file)\" ; touch '/tmp/worker-${name}.done'"
+    local claude_cmd="cd $project_path && ${proxy_env_prefix}claude-patched --model $model $extra_flags \"\$(cat $prompt_file)\" ; touch '/tmp/worker-${name}.done'"
 
     # Create session with command as direct arg (no polling needed).
     # Atomic remain-on-exit via ; chain — set before process can exit.
