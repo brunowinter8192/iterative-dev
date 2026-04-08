@@ -277,16 +277,18 @@ spawn_claude_worker() {
         else
             worker_session_id=$(echo -n "worker-${name}-${proxy_project_path}" | md5sum | head -c 8)
         fi
-        # Start worker-specific mitmproxy in background
+        # Start worker-specific mitmproxy in background (live-copy to prevent hot-reload)
         local log_dir="${monitor_cc_root}/src/logs"
         mkdir -p "$log_dir"
+        local worker_live_addon="${log_dir}/.proxy_addon_worker_${name}.py"
+        cp "${monitor_cc_root}/src/proxy_addon.py" "$worker_live_addon"
         MONITOR_CC_ROOT="$monitor_cc_root" PROXY_SESSION_ID="$worker_session_id" \
-            mitmdump -p "$worker_port" -s "${monitor_cc_root}/src/proxy_addon.py" \
+            mitmdump -p "$worker_port" -s "$worker_live_addon" \
             --set flow_detail=0 -q \
             2>"${log_dir}/proxy_errors_${worker_session_id}.log" &
         local worker_proxy_pid=$!
         proxy_env_prefix="HTTPS_PROXY=http://localhost:${worker_port} NODE_EXTRA_CA_CERTS=~/.mitmproxy/mitmproxy-ca-cert.pem SSL_CERT_FILE=~/.mitmproxy/combined-ca.pem REQUESTS_CA_BUNDLE=~/.mitmproxy/combined-ca.pem "
-        proxy_kill_cmd="kill ${worker_proxy_pid} 2>/dev/null ; "
+        proxy_kill_cmd="kill ${worker_proxy_pid} 2>/dev/null ; rm -f '${worker_live_addon}' ; "
     fi
 
     # Build claude command with .done signal chained after exit
