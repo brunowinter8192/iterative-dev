@@ -273,6 +273,6 @@ When a change cannot be tested in the current session (e.g., plugin changes that
 
 1. **Bead STAND Block (MANDATORY):** For each Bead created or commented this session: write ONE `bead_comment` with STAND block (DONE/OPEN/NEW/DROPPED/APPROACH). This is the single session-end update — no mid-session commenting. The STAND block must enable a fresh Claude to continue without any prior context.
 2. **Dev → Main Sync:** Use `dev_sync()` MCP tool to sync dev→main. Then optionally `git branch -d dev` to clean up. All subsequent commits happen on `main`.
-3. Commit ALL repos via git-committer agent (see `~/.claude/rules/subagents.md`)
+3. Commit ALL repos via git-committer agent: `Agent(subagent_type="iterative-dev:git-committer", prompt="Commit and push all changes in <list repos with paths>")`
 4. **NO post-commit verification by Opus.** The git-committer agent runs `git status` after commit. Do NOT run additional git commands to "verify" — it always shows clean state and wastes tokens.
 5. Ask: "New cycle or done for now?"
