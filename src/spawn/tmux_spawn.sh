@@ -259,15 +259,38 @@ spawn_claude_worker() {
         proxy_session_id=$(echo -n "$proxy_project_path" | md5sum | head -c 8)
     fi
     local proxy_env_prefix=""
+    local proxy_kill_cmd=""
     local proxy_marker="/tmp/.monitor_cc_proxy_${proxy_session_id}"
-    if [ -f "$proxy_marker" ]; then
-        local proxy_port
-        proxy_port=$(cat "$proxy_marker")
-        proxy_env_prefix="HTTPS_PROXY=http://localhost:${proxy_port} NODE_EXTRA_CA_CERTS=~/.mitmproxy/mitmproxy-ca-cert.pem SSL_CERT_FILE=~/.mitmproxy/combined-ca.pem REQUESTS_CA_BUNDLE=~/.mitmproxy/combined-ca.pem "
+    if [ -f "$proxy_marker" ] && [ -f "/tmp/.monitor_cc_root" ]; then
+        local main_port monitor_cc_root
+        main_port=$(head -1 "$proxy_marker")
+        monitor_cc_root=$(cat "/tmp/.monitor_cc_root")
+        # Find a free port starting at main_port + 1
+        local worker_port=$((main_port + 1))
+        while lsof -iTCP:${worker_port} -sTCP:LISTEN >/dev/null 2>&1; do
+            worker_port=$((worker_port + 1))
+        done
+        # Generate worker-specific session_id for log file naming
+        local worker_session_id
+        if command -v md5 >/dev/null 2>&1; then
+            worker_session_id=$(echo -n "worker-${name}-${proxy_project_path}" | md5 | head -c 8)
+        else
+            worker_session_id=$(echo -n "worker-${name}-${proxy_project_path}" | md5sum | head -c 8)
+        fi
+        # Start worker-specific mitmproxy in background
+        local log_dir="${monitor_cc_root}/src/logs"
+        mkdir -p "$log_dir"
+        MONITOR_CC_ROOT="$monitor_cc_root" PROXY_SESSION_ID="$worker_session_id" \
+            mitmdump -p "$worker_port" -s "${monitor_cc_root}/src/proxy_addon.py" \
+            --set flow_detail=0 -q \
+            2>"${log_dir}/proxy_errors_${worker_session_id}.log" &
+        local worker_proxy_pid=$!
+        proxy_env_prefix="HTTPS_PROXY=http://localhost:${worker_port} NODE_EXTRA_CA_CERTS=~/.mitmproxy/mitmproxy-ca-cert.pem SSL_CERT_FILE=~/.mitmproxy/combined-ca.pem REQUESTS_CA_BUNDLE=~/.mitmproxy/combined-ca.pem "
+        proxy_kill_cmd="kill ${worker_proxy_pid} 2>/dev/null ; "
     fi
 
     # Build claude command with .done signal chained after exit
-    local claude_cmd="cd $project_path && ${proxy_env_prefix}claude-patched --model $model $extra_flags \"\$(cat $prompt_file)\" ; touch '/tmp/worker-${name}.done'"
+    local claude_cmd="cd $project_path && ${proxy_env_prefix}claude-patched --model $model $extra_flags \"\$(cat $prompt_file)\" ; ${proxy_kill_cmd}touch '/tmp/worker-${name}.done'"
 
     # Create session with command as direct arg (no polling needed).
     # Atomic remain-on-exit via ; chain — set before process can exit.
