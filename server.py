@@ -520,5 +520,84 @@ def eval_extract(
     return [TextContent(type="text", text=content)]
 
 
+# GIT TOOLS
+
+def _run_git_script(script: str, repo_path: str, extra_args: list[str] | None = None) -> str:
+    """Run a src/git script and return stdout."""
+    cmd = ["python3", "-m", f"src.git.{script}", repo_path] + (extra_args or [])
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, cwd=SCRIPT_DIR)
+    output = result.stdout.strip()
+    if result.returncode != 0 and result.stderr.strip():
+        output += f"\nERROR: {result.stderr.strip()}"
+    return output
+
+
+@mcp.tool
+def git_check(repo_path: str) -> list[TextContent]:
+    """Pre-commit check with auto-staging."""
+    return [TextContent(type="text", text=_run_git_script("check", repo_path, ["--auto-stage"]))]
+
+
+@mcp.tool
+def git_commit(repo_path: str, message: str) -> list[TextContent]:
+    """Run git commit."""
+    result = subprocess.run(
+        ["git", "-C", repo_path, "commit", "-m", message],
+        capture_output=True, text=True, timeout=30
+    )
+    output = result.stdout.strip()
+    if result.returncode != 0:
+        output = f"ERROR: {result.stderr.strip()}"
+    return [TextContent(type="text", text=output)]
+
+
+@mcp.tool
+def git_push(repo_path: str) -> list[TextContent]:
+    """Run git push."""
+    result = subprocess.run(
+        ["git", "-C", repo_path, "push"],
+        capture_output=True, text=True, timeout=30
+    )
+    output = result.stdout.strip() or result.stderr.strip()
+    if result.returncode != 0:
+        # Try with -u origin <branch>
+        branch = subprocess.run(
+            ["git", "-C", repo_path, "branch", "--show-current"],
+            capture_output=True, text=True
+        ).stdout.strip()
+        result2 = subprocess.run(
+            ["git", "-C", repo_path, "push", "-u", "origin", branch],
+            capture_output=True, text=True, timeout=30
+        )
+        output = result2.stdout.strip() or result2.stderr.strip()
+    return [TextContent(type="text", text=output)]
+
+
+@mcp.tool
+def git_post(repo_path: str) -> list[TextContent]:
+    """Post-commit verification."""
+    return [TextContent(type="text", text=_run_git_script("post", repo_path))]
+
+
+@mcp.tool
+def git_sync(repo_path: str) -> list[TextContent]:
+    """Plugin-sync if repo is a plugin."""
+    plugin_json = os.path.join(repo_path, ".claude-plugin", "plugin.json")
+    if not os.path.exists(plugin_json):
+        return [TextContent(type="text", text="NOT_A_PLUGIN")]
+    import json
+    with open(plugin_json) as f:
+        name = json.load(f)["name"]
+    sync_script = os.path.join(SCRIPT_DIR, "plugin-sync.sh")
+    result = subprocess.run(
+        [sync_script, name, repo_path],
+        capture_output=True, text=True, timeout=60
+    )
+    output = result.stdout.strip()
+    if result.returncode != 0:
+        output += f"\nERROR: {result.stderr.strip()}"
+    return [TextContent(type="text", text=output)]
+
+
 if __name__ == "__main__":
     mcp.run()
