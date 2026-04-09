@@ -304,7 +304,7 @@ spawn_claude_worker() {
     tmux set-environment -t "$session" WORKER_MODEL "$model"
 
     # Open Ghostty window attached to this worker's session
-    open_tmux_viewer "$session"
+    open_tmux_viewer "$session" &
 
     # Return session name (pane_id no longer needed — use session:^ for queries)
     echo "$session"
