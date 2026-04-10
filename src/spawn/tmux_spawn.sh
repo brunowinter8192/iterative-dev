@@ -261,10 +261,16 @@ spawn_claude_worker() {
     local proxy_env_prefix=""
     local proxy_kill_cmd=""
     local proxy_marker="/tmp/.monitor_cc_proxy_${proxy_session_id}"
-    if [ -f "$proxy_marker" ] && [ -f "/tmp/.monitor_cc_root" ]; then
+    if [ -f "$proxy_marker" ]; then
         local main_port monitor_cc_root
-        main_port=$(head -1 "$proxy_marker")
-        monitor_cc_root=$(cat "/tmp/.monitor_cc_root")
+        main_port=$(sed -n '1p' "$proxy_marker")
+        monitor_cc_root=$(sed -n '3p' "$proxy_marker")
+        if [ -z "$monitor_cc_root" ] || [ ! -d "$monitor_cc_root" ]; then
+            # Marker exists but no MONITOR_CC_ROOT (old format) — skip proxy setup
+            monitor_cc_root=""
+        fi
+    fi
+    if [ -f "$proxy_marker" ] && [ -n "$monitor_cc_root" ]; then
         # Find a free port starting at main_port + 1
         local worker_port=$((main_port + 1))
         while lsof -iTCP:${worker_port} -sTCP:LISTEN >/dev/null 2>&1; do
@@ -280,7 +286,7 @@ spawn_claude_worker() {
         MONITOR_CC_ROOT="$monitor_cc_root" PROXY_LOG_ID="$worker_log_id" \
             mitmdump -p "$worker_port" -s "$worker_live_addon" \
             --set flow_detail=0 -q \
-            2>"${log_dir}/proxy_errors_${worker_log_id}.log" &
+            >/dev/null 2>"${log_dir}/proxy_errors_${worker_log_id}.log" &
         local worker_proxy_pid=$!
         proxy_env_prefix="HTTPS_PROXY=http://localhost:${worker_port} NODE_EXTRA_CA_CERTS=~/.mitmproxy/mitmproxy-ca-cert.pem SSL_CERT_FILE=~/.mitmproxy/combined-ca.pem REQUESTS_CA_BUNDLE=~/.mitmproxy/combined-ca.pem "
         proxy_kill_cmd="kill ${worker_proxy_pid} 2>/dev/null ; rm -f '${worker_live_addon}' ; "
