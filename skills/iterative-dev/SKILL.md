@@ -129,7 +129,7 @@ Workers, lifecycle, background timer, merging: see workers rules (opus-workers-1
 **Opus↔Worker Iteration (the core loop):**
 All iteration happens between Opus and workers. Opus does NOT escalate to user for debugging, research, or implementation questions — Opus drives workers through these.
 
-1. Worker reports findings or completion → Opus reads via `worker_capture`
+1. Worker reports findings or completion → `worker_status` FIRST (confirm idle), THEN `worker_capture`
 2. Opus evaluates: Does this align with the actual problem? Is the approach correct?
 3. If misaligned → `worker_send` with correction: "This addresses X but the problem is Y. Focus on Y."
 4. If aligned but incomplete → `worker_send` with next step
