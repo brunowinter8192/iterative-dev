@@ -281,15 +281,20 @@ spawn_claude_worker() {
         # Start worker-specific mitmproxy in background (live-copy to prevent hot-reload)
         local log_dir="${monitor_cc_root}/src/logs"
         mkdir -p "$log_dir"
-        local worker_live_addon="${log_dir}/.proxy_addon_worker_${name}.py"
+        local worker_live_id="worker_${name}"
+        local worker_live_addon="${log_dir}/.proxy_addon_live_${worker_live_id}.py"
+        local worker_live_dir="${log_dir}/.proxy_live_${worker_live_id}"
         cp "${monitor_cc_root}/src/proxy_addon.py" "$worker_live_addon"
+        mkdir -p "$worker_live_dir"
+        cp -r "${monitor_cc_root}/src/proxy" "$worker_live_dir/"
         MONITOR_CC_ROOT="$monitor_cc_root" PROXY_LOG_ID="$worker_log_id" \
+            PROXY_PROJECT_PATH="$proxy_project_path" \
             mitmdump -p "$worker_port" -s "$worker_live_addon" \
             --set flow_detail=0 -q \
             >/dev/null 2>"${log_dir}/proxy_errors_${worker_log_id}.log" &
         local worker_proxy_pid=$!
         proxy_env_prefix="HTTPS_PROXY=http://localhost:${worker_port} NODE_EXTRA_CA_CERTS=~/.mitmproxy/mitmproxy-ca-cert.pem SSL_CERT_FILE=~/.mitmproxy/combined-ca.pem REQUESTS_CA_BUNDLE=~/.mitmproxy/combined-ca.pem "
-        proxy_kill_cmd="kill ${worker_proxy_pid} 2>/dev/null ; rm -f '${worker_live_addon}' ; "
+        proxy_kill_cmd="kill ${worker_proxy_pid} 2>/dev/null ; rm -f '${worker_live_addon}' ; rm -rf '${worker_live_dir}' ; "
     fi
 
     # Build claude command with .done signal chained after exit
