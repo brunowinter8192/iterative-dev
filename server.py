@@ -599,5 +599,77 @@ def git_sync(repo_path: str) -> list[TextContent]:
     return [TextContent(type="text", text=output)]
 
 
+# TOOLS — Plugins
+
+_ACTIVE_PLUGINS_REL = os.path.join(".claude", "active_plugins.json")
+_DEFAULT_ACTIVE_PLUGINS = ["iterative-dev"]
+
+
+def _active_plugins_path(project_path: str) -> str:
+    return os.path.join(project_path, _ACTIVE_PLUGINS_REL)
+
+
+def _load_active_plugins_file(project_path: str) -> list[str]:
+    import json
+    path = _active_plugins_path(project_path)
+    if not os.path.exists(path):
+        return list(_DEFAULT_ACTIVE_PLUGINS)
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        plugins = data.get("plugins", _DEFAULT_ACTIVE_PLUGINS)
+        return list(plugins) if isinstance(plugins, list) else list(_DEFAULT_ACTIVE_PLUGINS)
+    except (OSError, ValueError):
+        return list(_DEFAULT_ACTIVE_PLUGINS)
+
+
+def _save_active_plugins_file(project_path: str, plugins: list[str]) -> None:
+    import json
+    path = _active_plugins_path(project_path)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump({"plugins": plugins}, f, indent=2)
+
+
+@mcp.tool
+def activate_plugin(
+    plugin_name: str,
+    project_path: str | None = None
+) -> list[TextContent]:
+    """Activate an MCP plugin so the proxy injects its tool schemas into subsequent requests. Triggers a one-time controlled cache rebuild on the next request."""
+    path = project_path or os.getcwd()
+    plugins = _load_active_plugins_file(path)
+    if plugin_name in plugins:
+        return [TextContent(type="text", text=f"Plugin '{plugin_name}' already active. Current: {plugins}")]
+    plugins.append(plugin_name)
+    _save_active_plugins_file(path, plugins)
+    return [TextContent(type="text", text=f"Plugin '{plugin_name}' activated. Active plugins: {plugins}. Effect on next request (one-time cache rebuild expected).")]
+
+
+@mcp.tool
+def deactivate_plugin(
+    plugin_name: str,
+    project_path: str | None = None
+) -> list[TextContent]:
+    """Deactivate an MCP plugin so the proxy stops injecting its schemas. Triggers a one-time controlled cache rebuild on the next request."""
+    path = project_path or os.getcwd()
+    plugins = _load_active_plugins_file(path)
+    if plugin_name not in plugins:
+        return [TextContent(type="text", text=f"Plugin '{plugin_name}' not active. Current: {plugins}")]
+    plugins.remove(plugin_name)
+    _save_active_plugins_file(path, plugins)
+    return [TextContent(type="text", text=f"Plugin '{plugin_name}' deactivated. Active plugins: {plugins}. Effect on next request (one-time cache rebuild expected).")]
+
+
+@mcp.tool
+def list_active_plugins(
+    project_path: str | None = None
+) -> list[TextContent]:
+    """List currently active MCP plugins for the project."""
+    path = project_path or os.getcwd()
+    plugins = _load_active_plugins_file(path)
+    return [TextContent(type="text", text=f"Active plugins: {plugins}")]
+
+
 if __name__ == "__main__":
     mcp.run()
