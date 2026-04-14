@@ -1,12 +1,6 @@
 ---
 name: plugin-cli
-description: >
-  Use this skill to activate, deactivate, or list active MCP plugins for a project via the
-  active_plugins.json file. Trigger phrases: "activate plugin", "deactivate plugin", "which
-  plugins are active", "enable github-research", "disable plugin", "plugin aktivieren",
-  "plugin deaktivieren", "what plugins are injected", "list active plugins". Note: this
-  controls proxy-level tool injection (via active_plugins.json), not Claude Code enabledPlugins.
-  Replaces MCP tools activate_plugin, deactivate_plugin, list_active_plugins.
+description: See ~/.claude/shared-rules/global/cli-skills.md
 ---
 
 # Plugin CLI Skill

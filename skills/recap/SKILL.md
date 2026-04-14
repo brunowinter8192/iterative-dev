@@ -1,6 +1,6 @@
 ---
 name: recap
-description: Cycle review — RECAP, IMPROVE, CLOSING phases. Activate after IMPLEMENT is complete.
+description: See ~/.claude/shared-rules/global/cli-skills.md
 ---
 
 # Cycle Review

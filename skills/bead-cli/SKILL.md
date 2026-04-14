@@ -1,12 +1,6 @@
 ---
 name: bead-cli
-description: >
-  Use this skill whenever you need to read, create, update, or close beads via the bd CLI.
-  Activate at session start to list open beads, when the user asks to show a bead, create a
-  bead, add a comment, or close a bead. Trigger phrases: "list beads", "open beads", "show
-  bead", "create bead", "bead erstellen", "kommentar hinzufügen", "bead schließen", "close
-  bead", "add comment", "what beads are open". Replaces MCP tools bead_list, bead_show,
-  bead_create, bead_comment, bead_close.
+description: See ~/.claude/shared-rules/global/cli-skills.md
 ---
 
 # Bead CLI Skill

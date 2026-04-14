@@ -1,12 +1,6 @@
 ---
 name: git-cli
-description: >
-  Use this skill for git commit, git push, post-commit working-tree verification, and
-  plugin-sync — the non-check git operations that follow git_check (which stays as MCP).
-  Trigger phrases: "commit", "push", "git commit", "git push", "working tree clean?",
-  "post commit check", "plugin sync", "sync plugin", "plugin-sync". Always run AFTER
-  git_check has staged files and produced the diff summary for the commit message.
-  Replaces MCP tools git_commit, git_push, git_post, git_sync.
+description: See ~/.claude/shared-rules/global/cli-skills.md
 ---
 
 # Git CLI Skill

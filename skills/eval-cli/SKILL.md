@@ -1,12 +1,6 @@
 ---
 name: eval-cli
-description: >
-  Use this skill for post-session subagent evaluation: listing subagent JSONL files for a
-  project session, or extracting and summarizing specific tool calls from an agent JSONL.
-  Trigger phrases: "evaluate session", "list subagents", "show subagent calls", "extract tool
-  calls", "analyze agent session", "eval session", "what did the worker do", "agent auswerten",
-  "session analysieren", "subagent calls". Runs Python pipeline modules directly from the
-  iterative-dev plugin. Replaces MCP tools eval_list_agents and eval_extract.
+description: See ~/.claude/shared-rules/global/cli-skills.md
 ---
 
 # Eval CLI Skill

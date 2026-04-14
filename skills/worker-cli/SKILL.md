@@ -1,13 +1,6 @@
 ---
 name: worker-cli
-description: >
-  Use this skill for worker lifecycle operations that do NOT require spawning or sending
-  messages: list active workers, check worker status (idle vs busy), capture pane output,
-  merge a worker branch into dev, or kill a worker (tmux + worktree + branch cleanup).
-  Trigger phrases: "list workers", "check worker status", "worker fertig?", "capture worker
-  output", "read worker output", "worker capture", "merge worker", "worker mergen", "kill
-  worker", "worker aufräumen". Complements worker_spawn and worker_send which remain as MCP.
-  Replaces MCP tools worker_list, worker_status, worker_capture, worker_merge, worker_kill.
+description: See ~/.claude/shared-rules/global/cli-skills.md
 ---
 
 # Worker CLI Skill
