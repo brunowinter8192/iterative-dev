@@ -275,4 +275,3 @@ When a change cannot be tested in the current session (e.g., plugin changes that
 2. **Dev → Main Sync:** Use `dev_sync()` MCP tool to sync dev→main. Then optionally `git branch -d dev` to clean up. All subsequent commits happen on `main`.
 3. Commit ALL repos via MCP tools: `git_commit(repo_path, message)` per repo, then `git_push(repo_path)` per repo. Stage files with Bash `git add` before committing.
 4. **NO post-commit verification by Opus.** `git_commit` returns the commit hash. Do NOT run additional git commands to "verify" — it always shows clean state and wastes tokens.
-5. Ask: "New cycle or done for now?"
