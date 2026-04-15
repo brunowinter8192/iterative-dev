@@ -298,7 +298,10 @@ spawn_claude_worker() {
     fi
 
     # Build claude command with .done signal chained after exit
-    local claude_cmd="cd $project_path && ${proxy_env_prefix}claude --model $model $extra_flags \"\$(cat $prompt_file)\" ; ${proxy_kill_cmd}touch '/tmp/worker-${name}.done'"
+    # Pinned to v2.1.109 via ~/.local/bin/claude-109 wrapper (same pin as claude_proxy_start.sh).
+    # Override with CLAUDE_BIN env var if needed. Wrapper disables auto-updater.
+    local worker_claude_bin="${CLAUDE_BIN:-$HOME/.local/bin/claude-109}"
+    local claude_cmd="cd $project_path && ${proxy_env_prefix}$worker_claude_bin --model $model $extra_flags \"\$(cat $prompt_file)\" ; ${proxy_kill_cmd}touch '/tmp/worker-${name}.done'"
 
     # Create session with command as direct arg (no polling needed).
     # Atomic remain-on-exit via ; chain — set before process can exit.
