@@ -85,6 +85,51 @@ BEADS ACTIONS:
 - CREATE: "<title>" — <what was done + what's still to do>
 ```
 
+##### 2.1 Bead Comment Compression (MANDATORY)
+
+Long-running beads accumulate comment history across many sessions. At a certain point the comment chain becomes the bead's dominant content and makes it unreadable for a fresh Opus. RECAP is the clean-up point.
+
+**Rule — asymmetric detail:**
+
+- **DONE = short form.** One line per delivered item. No narrative, no rationale replay, no "we tried X then Y then Z". Just: _what exists now_. The reader does not need the journey, only the result.
+- **OPEN = long form.** Each open item gets full Sachverhalt / context so a fresh Opus can act without re-reading old comments. Include: which files, which function, which invariant, what has been ruled out, what the concrete next step is.
+- **Explanations only attach to OPEN items.** Background / "why this matters" prose belongs with the open work it explains, NEVER with done work.
+
+**When to compress an existing comment chain:**
+
+During RECAP Section 2, for every bead with ≥3 historical STAND comments:
+1. Read all prior STAND comments
+2. Collapse the historical DONE lines into a single short "Done so far:" bullet list in the new comment
+3. Write the NEW comment in the asymmetric format above — short DONE, long OPEN
+4. Do NOT re-state prior DONE items that are still valid. Done is done.
+
+The new comment supersedes the old narrative for the purpose of "what must a fresh Opus know". Old comments stay in the history for audit — they are not deleted — but the latest comment is authoritative.
+
+**Template:**
+
+```
+STAND <date>:
+
+DONE (short):
+- <delivered item 1>
+- <delivered item 2>
+- <delivered item 3>
+
+OPEN (detailed):
+
+### <open item 1 — one-line title>
+Sachverhalt: <what the problem is, where it lives in code, what's been ruled out>
+Next step: <concrete action a fresh Opus can execute>
+
+### <open item 2 — one-line title>
+Sachverhalt: ...
+Next step: ...
+
+APPROACH: <how the work was done this session — only if needed for OPEN continuation>
+```
+
+**Anti-pattern:** Replaying the full session story in DONE because "the context is interesting". It is not interesting to the next session. Compress mercilessly.
+
 #### 3. Improvements
 
 Every Process Improvement MUST reference an exact Automation File path + section.
