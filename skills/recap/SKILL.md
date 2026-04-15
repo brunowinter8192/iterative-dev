@@ -7,10 +7,9 @@ description: See ~/.claude/shared-rules/global/cli-skills.md
 
 **EVERY RESPONSE STARTS WITH A POSITION INDICATOR** — phase + current section:
 - `🔍 RECAP — Section 1: Session Reflection`
-- `🔍 RECAP — Section 2: Hooks Evaluation`
-- `🔍 RECAP — Section 3: Beads Evaluation`
-- `🔍 RECAP — Section 4: Improvements`
-- `🔍 RECAP — Section 5: Open Items`
+- `🔍 RECAP — Section 2: Beads Evaluation`
+- `🔍 RECAP — Section 3: Improvements`
+- `🔍 RECAP — Section 4: Open Items`
 - `🛠️ IMPROVE`
 - `✅ CLOSING`
 
@@ -70,23 +69,7 @@ Analyze the session across two dimensions:
 - **Semantic:** What columns mean, what functions do, data flow
 - **Behavioral:** Expected output format, error handling, edge cases
 
-#### 2. Hooks Evaluation
-
-**Questions:**
-- Did a hook block something it shouldn't have?
-- Did a hook allow something it should have blocked?
-- Is output silencing helping or hiding problems?
-- Should a recurring command pattern become a hook rule?
-
-**Token Efficiency Analysis:**
-Review Bash tool calls from this session and identify where hooks could have saved tokens:
-- Commands with large outputs that could be piped through `head -N` or `tail -N`
-- Repeated commands whose output could be cached or silenced after first run
-- Commands where only a subset of output was needed
-
-For each finding: estimate token waste (small/medium/large) and propose a hook rule or pattern.
-
-#### 3. Beads Evaluation
+#### 2. Beads Evaluation
 
 Run `bead_list(status="open")`. For each open bead:
 - What was done this session relevant to this bead?
@@ -102,7 +85,7 @@ BEADS ACTIONS:
 - CREATE: "<title>" — <what was done + what's still to do>
 ```
 
-#### 4. Improvements
+#### 3. Improvements
 
 Every Process Improvement MUST reference an exact Automation File path + section.
 Format: `[Description] → [Automation File path] → [Section to add/extend]`
@@ -116,7 +99,37 @@ Before proposing ANY process improvement: READ the target Automation File. You n
 
 Concrete failure (2026-03-23): Proposed workers.md improvements without reading the file. Would have referenced wrong section names and missed existing "Reusing Workers" content. User had to ask "hast du die automation files gelesen?"
 
-##### 4.1 Content Improvements (Code/Docs)
+**RULE IMPROVEMENT STAGING (MANDATORY — read before editing any rule file):**
+
+Editing a file under `~/.claude/shared-rules/` or `~/.claude/rules/` during an active
+session triggers a proxy-side cache rebuild in the NEXT request. The proxy's rule loader
+watches file mtime; any mtime change invalidates the cached `sys[2]` rules block, which
+shifts the prefix by thousands of bytes and forces a full CC write. Cost per edit:
+roughly the entire current context size as `cache_creation_input_tokens`.
+
+**Workflow:**
+1. During RECAP Section 3: do NOT edit rule files directly. Instead, append the proposed
+   improvement to `~/.claude/shared-rules/_staging/rule_improvements.md`. Use the format:
+   ```
+   ## <date> — <session topic>
+   ### <target rule file path> → <section>
+   <proposed improvement text, ready to paste>
+   ```
+2. At the END of the last daily session: review the staging file, decide which
+   improvements to apply, and execute all edits in one batch. The batch edit still causes
+   ONE rebuild — but only one, and only at end-of-day when further requests are cheap
+   (next-session fresh cache anyway).
+3. If the staging file does not exist yet, create it.
+
+**Exception:** The LAST session of the day may edit rule files directly if the user
+explicitly confirms it is the last session. In that case, the next-request rebuild is
+acceptable because the session ends shortly after.
+
+**Why staging is not a detour:** The staging file IS the improvement queue. RECAP Section
+3 output must still be listed in the plan file AND in chat. The staging file is a
+separate artifact that accumulates proposals across sessions until the batch is applied.
+
+##### 3.1 Content Improvements (Code/Docs)
 
 Prioritization:
 - **Critical:** Must fix (breaks functionality, wrong behavior)
@@ -125,17 +138,17 @@ Prioritization:
 
 **Handling:** Code → **Bead** (needs own cycle). Docs/README/Automation Files → **Direct Edit** in IMPROVE.
 
-##### 4.2 Process Improvements
+##### 3.2 Process Improvements
 
 Prioritization (by OUTCOME):
 - **Critical:** Process errors that WOULD HAVE caused critical code issues
 - **Important:** Process errors that caused detours but correct outcome
 - **Optional:** Minor process inefficiencies
 
-**Handling:** Same as 4.1 — Code → Bead, Automation Files → Direct Edit.
+**Handling:** Same as 3.1 — Code → Bead, Automation Files → Direct Edit.
 
 **Key rules:**
-- Process Improvements = Automation Files ONLY. Docs/README = Content Improvements (4.1).
+- Process Improvements = Automation Files ONLY. Docs/README = Content Improvements (3.1).
 - OUTCOME determines severity. Wrong process + correct result = Important (not Critical).
 - Every process error MUST produce a config change. "Lesson Learned" without config change = FAILURE.
 
@@ -148,7 +161,7 @@ Before routing a process improvement to a global rule file (`~/.claude/rules/`),
 - `~/.claude/rules/verify-before-execution.md` is NOT a dump for all lessons. Only route there if the verification pattern applies across ALL projects.
 - Concrete failure (2026-03-27): tmux format variable lesson routed to global `verify-before-execution.md`. Only relevant to Monitor_CC — belongs in `Monitor_CC/.claude/rules/monitor-standards.md`.
 
-##### 4.3 Documentation Check (MANDATORY)
+##### 3.3 Documentation Check (MANDATORY)
 
 **ALWAYS actively verify — not from memory:**
 
@@ -173,13 +186,13 @@ DOCS DRIFT CHECK:
 - DOCS.md (root): OK / DRIFT (details)
 ```
 
-5. Every DRIFT item → Content Improvement (4.1)
+5. Every DRIFT item → Content Improvement (3.1)
 
 **DOCS/README updates are NEVER optional, NEVER skippable.**
 
 For full structural reviews, use `/iterative-dev:doc-review`.
 
-##### 4.4 Decisions & Sources Check (MANDATORY)
+##### 3.4 Decisions & Sources Check (MANDATORY)
 
 **ALWAYS actively verify — not from memory:**
 
@@ -197,9 +210,9 @@ DECISIONS & SOURCES CHECK:
 - sources/sources.md: OK / STALE REFERENCE (<source> missing step <decision>)
 ```
 
-5. Every finding → Content Improvement (4.1)
+5. Every finding → Content Improvement (3.1)
 
-#### 5. Open Items
+#### 4. Open Items
 
 List any tasks from the original plan that were NOT executed.
 
@@ -245,7 +258,7 @@ After presenting improvements:
 1. Read report file "## Improvements" and "## Open Items" sections
 2. **DOCS/README/decisions/ updates FIRST** — NEVER skippable
 3. Automation File improvements → Follow edit workflow in `~/.claude/rules/automation-framework.md`. Plugin files: edit in SOURCE REPO (see `~/.claude/rules/plugins.md`).
-4. Handle Beads (from RECAP Section 3):
+4. Handle Beads (from RECAP Section 2):
    - Create: `bead_create(title, description)` — content = what was done + what's still to do
    - Comment: `bead_comment(id, text)` — STAND block
    - Close: `bead_close(id, reason)`
