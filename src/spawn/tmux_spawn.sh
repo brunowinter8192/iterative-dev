@@ -284,6 +284,13 @@ spawn_claude_worker() {
         local worker_live_id="worker_${name}"
         local worker_live_addon="${log_dir}/.proxy_addon_live_${worker_live_id}.py"
         local worker_live_dir="${log_dir}/.proxy_live_${worker_live_id}"
+        # Dedup guard: if this worker's live-copy already exists AND a mitmdump process is
+        # still using it, abort rather than overwriting (which would hot-reload the running proxy).
+        if [ -f "$worker_live_addon" ] && lsof "$worker_live_addon" >/dev/null 2>&1; then
+            echo "ERROR: Worker proxy for '$name' is already running (live addon in use)." >&2
+            echo "  Kill the existing '$name' worker or choose a different name." >&2
+            return 1
+        fi
         cp "${monitor_cc_root}/src/proxy_addon.py" "$worker_live_addon"
         mkdir -p "$worker_live_dir"
         cp -r "${monitor_cc_root}/src/proxy" "$worker_live_dir/"
