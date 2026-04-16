@@ -153,49 +153,45 @@ shifts the prefix by thousands of bytes and forces a full CC write. Cost per edi
 roughly the entire current context size as `cache_creation_input_tokens`.
 
 **Workflow:**
-1. During RECAP Section 3: do NOT edit rule files directly. Instead, append the proposed
-   improvement to `~/.claude/shared-rules/_staging/rule_improvements.md`. Use the format:
+1. During RECAP Section 3: do NOT edit rule files directly. Instead, CREATE one
+   per-session file under `~/.claude/shared-rules/_staging/`. Filename pattern:
    ```
-   ## <date> — <session topic>
-   ### <target rule file path> → <section>
+   <YYYY-MM-DD_HHMMSS>_<project>_<topic-slug>.md
+   ```
+   Example: `2026-04-17_142305_searxng_tier-eval-blocked.md`
+   Inside the file, use the format:
+   ```
+   # <YYYY-MM-DD> — <PROJECT_NAME>: <session topic in 5 words>
+
+   ## <target rule file path> → <section>
    <proposed improvement text, ready to paste>
+
+   ## <another target rule file path> → <another section>
+   <another improvement>
    ```
-2. At the END of the last daily session: review the staging file, decide which
-   improvements to apply, and execute all edits in one batch. The batch edit still causes
-   ONE rebuild — but only one, and only at end-of-day when further requests are cheap
-   (next-session fresh cache anyway).
-3. If the staging file does not exist yet, create it.
+   A single session can contain multiple improvements — all go into the one per-session file.
 
-**Exception:** The LAST session of the day may edit rule files directly if the user
-explicitly confirms it is the last session. In that case, the next-request rebuild is
-acceptable because the session ends shortly after.
+**One md per session. That's it.** The staging file accumulates — application is out of scope for this rule.
 
-**Why staging is not a detour:** The staging file IS the improvement queue. RECAP Section
-3 output must still be listed in the plan file AND in chat. The staging file is a
-separate artifact that accumulates proposals across sessions until the batch is applied.
+**EVERY SESSION MUST PRODUCE A STAGING FILE (NON-NEGOTIABLE):**
 
-**EVERY SESSION MUST PRODUCE A STAGING ENTRY (NON-NEGOTIABLE):**
-
-If a session produced ANY of the following, a staging entry is MANDATORY:
+If a session produced ANY of the following, a staging file is MANDATORY:
 - New empirical findings about system behavior (cache, proxy, tokenizer, etc.)
 - Process errors that need rule changes
 - Architecture decisions that affect future sessions
 - Workflow improvements discovered during execution
 
-The entry goes to `~/.claude/shared-rules/_staging/rule_improvements.md` with this format:
-```
-## <YYYY-MM-DD> — <PROJECT_NAME>: <session topic in 5 words>
-### <target rule file path> → <section>
-<proposed improvement text, ready to paste>
-```
+The file goes to `~/.claude/shared-rules/_staging/<YYYY-MM-DD_HHMMSS>_<project>_<topic>.md`
+with the format shown above.
 
-**Project name is MANDATORY in the header.** Without it, proposals are unattributable across
-projects.
+**Project name is MANDATORY in the filename AND the in-file header.** Without it,
+proposals are unattributable across projects.
 
 **Verification at RECAP entry:** Before writing the RECAP report, run:
-`tail -5 ~/.claude/shared-rules/_staging/rule_improvements.md`
-If the last entry is NOT from the current session → you MUST write one before proceeding.
-If nothing to improve → write a one-liner: `## <date> — <PROJECT>: no improvements identified`.
+`ls ~/.claude/shared-rules/_staging/$(date +%Y-%m-%d)_*.md 2>/dev/null`
+If no file for today's session on the current project exists → you MUST create one before
+proceeding. If nothing to improve → create a one-liner file with just the header line:
+`# <date> — <PROJECT>: no improvements identified`.
 
 Concrete failure (2026-04-16): Full Monitor_CC session with TTL verification, cross-session
 cache proof, sys[2]-marker validation, proxy architecture findings. Zero entries in staging
