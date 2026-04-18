@@ -71,7 +71,7 @@ Analyze the session across two dimensions:
 
 #### 2. Beads Evaluation
 
-Run `bead_list(status="open")`. For each open bead:
+Run `bd list -s open`. For each open bead:
 - What was done this session relevant to this bead?
 - Can this bead be closed? → mark for close with reason
 - What's still to do next session?
@@ -132,17 +132,20 @@ APPROACH: <how the work was done this session — only if needed for OPEN contin
 
 #### 3. Improvements
 
-Every Process Improvement MUST reference an exact Automation File path + section.
-Format: `[Description] → [Automation File path] → [Section to add/extend]`
-Automation File locations: see `~/.claude/rules/automation-framework.md`
+**Routing — `decisions/` vs Rules (READ FIRST):**
 
-**READ BEFORE WRITE (MANDATORY):**
-Before proposing ANY process improvement: READ the target Automation File. You need to know:
-1. What sections already exist (avoid duplicating existing rules)
-2. Exact line numbers for insertion points
-3. Whether the improvement overlaps with or contradicts existing content
+Every finding goes into exactly one bucket. Decide BEFORE writing the staging file.
 
-Concrete failure (2026-03-23): Proposed workers.md improvements without reading the file. Would have referenced wrong section names and missed existing "Reusing Workers" content. User had to ask "hast du die automation files gelesen?"
+- **`<project>/decisions/`** — IS-state facts, code-based decisions, empirical findings about THIS project. Examples: cache-rebuild case families, pipeline data model, hook byte limits, "proxy strips X at step Y". Relevant only when working in that specific functional area. Read on demand, NOT always-on.
+- **Rules / rule proposals** (`~/.claude/shared-rules/`) — things that must be at hand EVERY session. Always-loaded into system prompt. Split by scope:
+  - `global/` — universal behavior that applies regardless of project (communication, scoping, verification, tool usage)
+  - `opus/` — Opus-only concerns (orchestration, beads, workers)
+  - `worker/` — Worker-only concerns (code standards, dev conventions)
+  - `proj_<name>/` — **project-specific rules**. If a failure would have been prevented by knowing something structural about THIS project (its architecture, its conventions, its peculiar setup, the "if you touch X here, always Y" kind of invariant) → this is a project rule, NOT a global one. Project-specific is the right answer whenever the lesson does not generalize to other projects.
+
+Test for each finding:
+- "Do I need this in EVERY new session of this project?" → rule (project-specific `proj_<name>/` by default, global only if it truly applies across ALL projects)
+- "Only when I work on feature X or debug issue Y?" → `decisions/`
 
 **RULE IMPROVEMENT STAGING (MANDATORY — read before editing any rule file):**
 
@@ -173,9 +176,8 @@ roughly the entire current context size as `cache_creation_input_tokens`.
 
 **One md per session. That's it.** The staging file accumulates — application is out of scope for this rule.
 
-**EVERY SESSION MUST PRODUCE A STAGING FILE (NON-NEGOTIABLE):**
+**Staging file is MANDATORY when the session produced findings worth carrying forward:**
 
-If a session produced ANY of the following, a staging file is MANDATORY:
 - New empirical findings about system behavior (cache, proxy, tokenizer, etc.)
 - Process errors that need rule changes
 - Architecture decisions that affect future sessions
@@ -187,11 +189,11 @@ with the format shown above.
 **Project name is MANDATORY in the filename AND the in-file header.** Without it,
 proposals are unattributable across projects.
 
-**Verification at RECAP entry:** Before writing the RECAP report, run:
-`ls ~/.claude/shared-rules/_staging/$(date +%Y-%m-%d)_*.md 2>/dev/null`
-If no file for today's session on the current project exists → you MUST create one before
-proceeding. If nothing to improve → create a one-liner file with just the header line:
-`# <date> — <PROJECT>: no improvements identified`.
+**No staging file needed when:**
+- Nothing to improve (session ran cleanly, no findings)
+- All identified improvements were applied LIVE during the session (backlog empty at RECAP)
+
+In those cases the RECAP plan file itself is the record — no empty marker file.
 
 Concrete failure (2026-04-16): Full Monitor_CC session with TTL verification, cross-session
 cache proof, sys[2]-marker validation, proxy architecture findings. Zero entries in staging
@@ -221,14 +223,12 @@ Prioritization (by OUTCOME):
 - OUTCOME determines severity. Wrong process + correct result = Important (not Critical).
 - Every process error MUST produce a config change. "Lesson Learned" without config change = FAILURE.
 
-Routing table and rule layers: see `~/.claude/rules/automation-framework.md`.
-
 **Scope Check (MANDATORY before writing):**
-Before routing a process improvement to a global rule file (`~/.claude/rules/`), verify: is this lesson PROJECT-SPECIFIC or truly global?
-- Tool/technology-specific lessons (tmux, specific API, project-specific patterns) → project rule (`<project>/.claude/rules/`)
-- Universal behavior lessons (communication, scoping, verification methodology) → global rule (`~/.claude/rules/`)
-- `~/.claude/rules/verify-before-execution.md` is NOT a dump for all lessons. Only route there if the verification pattern applies across ALL projects.
-- Concrete failure (2026-03-27): tmux format variable lesson routed to global `verify-before-execution.md`. Only relevant to Monitor_CC — belongs in `Monitor_CC/.claude/rules/monitor-standards.md`.
+Before routing a process improvement to a global rule file (`~/.claude/shared-rules/global/`), verify: is this lesson PROJECT-SPECIFIC or truly global?
+- Tool/technology-specific lessons (tmux, specific API, project-specific patterns) → project rule (`~/.claude/shared-rules/proj_<name>/`)
+- Universal behavior lessons (communication, scoping, verification methodology) → global rule (`~/.claude/shared-rules/global/`)
+- `~/.claude/shared-rules/global/verify-before-execution.md` is NOT a dump for all lessons. Only route there if the verification pattern applies across ALL projects.
+- Concrete failure (2026-03-27): tmux format variable lesson routed to global `verify-before-execution.md`. Only relevant to Monitor_CC — belongs in `~/.claude/shared-rules/proj_monitor/monitor-standards.md`.
 
 ##### 3.3 Documentation Check (MANDATORY)
 
@@ -326,11 +326,11 @@ After presenting improvements:
 
 1. Read report file "## Improvements" and "## Open Items" sections
 2. **DOCS/README/decisions/ updates FIRST** — NEVER skippable
-3. Automation File improvements → Follow edit workflow in `~/.claude/rules/automation-framework.md`. Plugin files: edit in SOURCE REPO (see `~/.claude/rules/plugins.md`).
-4. Handle Beads (from RECAP Section 2):
-   - Create: `bead_create(title, description)` — content = what was done + what's still to do
-   - Comment: `bead_comment(id, text)` — STAND block
-   - Close: `bead_close(id, reason)`
+3. Automation File improvements → staging file under `~/.claude/shared-rules/_staging/` per the workflow in Section 3. Plugin files: edit in SOURCE REPO (plugin-sync details in `~/.claude/shared-rules/situational/plugins.md` — not auto-loaded, read on demand).
+4. Handle Beads (from RECAP Section 2) — all via `bd` CLI:
+   - Create: `bd --repo <project_path> create --title "<title>" --type task --description "<desc>"`
+   - Comment (STAND block): `bd comments add <id> "<text>"`
+   - Close: `bd close <id> --reason="<reason>"`
    - Open Items without a bead → create bead here (EMPTY PLATE RULE)
 5. Ask: "Proceed to CLOSING?"
 
@@ -353,7 +353,7 @@ When a change cannot be tested in the current session (e.g., plugin changes that
 
 ### Workflow
 
-1. **Bead STAND Block (MANDATORY):** For each Bead created or commented this session: write ONE `bead_comment` with STAND block (DONE/OPEN/NEW/DROPPED/APPROACH). This is the single session-end update — no mid-session commenting. The STAND block must enable a fresh Claude to continue without any prior context.
+1. **Bead STAND Block (MANDATORY):** For each Bead created or commented this session: write ONE `bd comments add <id> "<STAND text>"` with STAND block (DONE/OPEN/NEW/DROPPED/APPROACH). This is the single session-end update — no mid-session commenting. The STAND block must enable a fresh Claude to continue without any prior context.
 2. **Dev → Main Sync:** Use `dev_sync()` MCP tool to sync dev→main. Then optionally `git branch -d dev` to clean up. All subsequent commits happen on `main`.
-3. Commit ALL repos via MCP tools: `git_commit(repo_path, message)` per repo, then `git_push(repo_path)` per repo. Stage files with Bash `git add` before committing.
-4. **NO post-commit verification by Opus.** `git_commit` returns the commit hash. Do NOT run additional git commands to "verify" — it always shows clean state and wastes tokens.
+3. Commit ALL repos: pre-commit staging via `git_check(repo_path)` MCP, then CLI `git -C <repo> commit -m "<msg>"` (HEREDOC for multi-line) and `git -C <repo> push` per repo. Full flow in `~/.claude/shared-rules/global/git-commit-workflow.md`.
+4. **NO post-commit verification by Opus.** The commit command returns the hash. Do NOT run additional git commands to "verify" — it always shows clean state and wastes tokens.

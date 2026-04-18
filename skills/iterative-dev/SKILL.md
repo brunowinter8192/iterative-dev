@@ -5,17 +5,9 @@ description: (project)
 
 # Iterative Development Skill
 
-### Opus Role
-
-Opus sits BETWEEN user and workers. User says what they want, Opus understands it, Opus drives workers to execute it. All iteration loops (research, debugging, corrections) happen between Opus and workers — NOT between user and Opus. User is only involved for scope decisions and final verification/testing.
-
-- **Opus↔User:** Scope brainstorm, intent clarification, verification
-- **Opus↔Worker:** Investigation, implementation, iteration, bug fixes
-- **Never:** User↔Worker directly
-
 ### Session Start (MANDATORY)
 
-`bead_list(status="open")` → read relevant work beads.
+→ read beads.
 
 ---
 
@@ -41,9 +33,14 @@ Repeat what the user wants in your own words.
 
 🛑 STOP — Ask for remarks.
 
-**Step 2 — Investigation (Opus reads code DIRECTLY)**
+**Step 2 — Prep Investigation (Opus reads code DIRECTLY)**
 
-Opus reads the relevant source code, decisions/, and dev/ files DIRECTLY. No Investigation Worker. Opus must build its own mental model of the codebase before any worker is dispatched.
+This is Opus's OWN preparation investigation — NOT to be confused with the worker's later cross-model investigation in Phase 2 (workers-2). Two independent investigations are the whole point of the orchestration model:
+
+- **Phase 1 prep (here):** Opus reads code directly to build an own mental model. Cannot be delegated — if Opus has no model, Opus cannot evaluate worker findings later.
+- **Phase 2 cross-model (workers-2):** the dispatched worker reads files in the worktree independently, reports findings. Opus compares the two models. Convergence → Go; divergence → iterate.
+
+Delegating the Phase 1 prep to an "Investigation Worker" collapses the two sides into one — you lose the independent second model, and with it the verification power.
 
 **Opus reads:**
 1. **Decisions Check** — Read relevant `decisions/` files. IST-Stand vs SOLL? OPEN items? Drift between docs and code?
@@ -55,11 +52,6 @@ Opus reads the relevant source code, decisions/, and dev/ files DIRECTLY. No Inv
 - Current state (IST) and why it matters
 - Reference Files identified
 - Relevant dev/ scripts
-
-**WHY Opus reads directly (not a worker):**
-- Opus must be able to EVALUATE worker output later — this requires understanding the code
-- Workers report findings that Opus can't verify without own context → leads to accepting wrong conclusions
-- Investigation Workers produce throwaway context that Opus can't reuse for critical evaluation
 
 Concrete failure (2026-04-05, Session 16): Investigation Worker reported "keine Datenquelle für monitor/shared Content". Opus accepted this without challenge. Reality: the Hook-Script reads the files directly and injects them. Opus had no mental model to recognize the contradiction — because Opus never read the code.
 
@@ -95,28 +87,30 @@ Concrete failure (2026-04-05): Opus proceeded to worker scoping for hooks-redesi
 
 🛑 STOP — Ask for remarks.
 
-### Phase 2 — Worker Scoping
+### Phase 2 — First Worker Scope + Deliverables
 
-**Step 1 — Worker Split**
+**Scope ONE worker at a time.** Do NOT pre-plan a worker pipeline. The orchestration model is: dispatch one worker → evaluate findings (Cross-Model Comparison) → reuse via `worker_send` or — when dead/done — scope the NEXT worker. Upfront multi-worker planning violates AGGRESSIVE REUSE (workers-3) and commits to a split before Phase 2 findings justify it.
 
-- How to split workers across the task
-- Which gaps (from Phase 1, Step 3) does each worker close first
-- Investigation Worker from Step 2 can be reused via `worker_send` if its context overlaps
+**Step 1 — First Worker Scope**
+
+- Which gap (from Phase 1, Step 3) does this first worker close?
+- Is there an alive worker with overlapping context already? → prefer `worker_send` over a new spawn (see workers-3 AGGRESSIVE REUSE). Otherwise → fresh `worker_spawn`.
+- Abstract task, relevant files, Reference Files to follow.
+- Subsequent workers get scoped LATER, after the current one completes or dies.
 
 **Step 2 — Deliverables & KPIs**
 
-Define deliverables with measurable completion criteria:
+Define task-level deliverables with measurable completion criteria — NOT per worker. A single worker may close one deliverable or several (via follow-up `worker_send`). Worker-to-deliverable mapping emerges as the task runs.
+
 - Each deliverable: WHAT is done, HOW to verify (test command, file exists, output matches)
-- **Investigation-first deliverables:** When root cause is UNKNOWN, split: Phase 1 = investigate, Phase 2 = fix based on findings. NEVER prescribe a solution when the cause is unverified.
 - Plan file MUST include a Deliverables section with KPIs
-- **Per worker: define what exactly, up to which point, and the approval gate**
 
 **Present in chat for each deliverable:**
 - What will be built/fixed
 - How Opus verifies it (run tests, MCP call, check output) — code review does NOT count as verification
 - How the user verifies it as final quality gate
 - All affected file categories (src/, decisions/, dev/, docs)
-- Worker dispatch plan (which workers, which files each, which Reference Files to follow)
+- The FIRST worker's task + whether it's a fresh spawn or a reuse via `worker_send`
 
 🛑 STOP — Ask for remarks before proceeding to IMPLEMENT.
 
@@ -127,10 +121,10 @@ Define deliverables with measurable completion criteria:
 Workers, lifecycle, background timer, merging: see workers rules (opus-workers-1/2/3).
 
 **Opus↔Worker Iteration (the core loop):**
-All iteration happens between Opus and workers. Opus does NOT escalate to user for debugging, research, or implementation questions — Opus drives workers through these.
+All iteration happens between Opus and workers. Opus does NOT escalate to user for debugging, research, or implementation questions — Opus drives workers through these. This loop IS Phase 2 Cross-Model Comparison in action (see workers-2).
 
 1. Worker reports findings or completion → `worker_status` FIRST (confirm idle), THEN `worker_capture`
-2. Opus evaluates: Does this align with the actual problem? Is the approach correct?
+2. **Cross-Model Comparison:** Opus compares worker's findings against own mental model from Phase 1 prep. Convergence → Go; divergence → iterate.
 3. If misaligned → `worker_send` with correction: "This addresses X but the problem is Y. Focus on Y."
 4. If aligned but incomplete → `worker_send` with next step
 5. If done → merge, proceed to verification
@@ -150,7 +144,8 @@ When the user introduces a new scope during IMPLEMENT:
 
 Mini-scoping (no full Phase 1 needed):
 1. Summarize in chat: what is the user's task, what would a worker do
-2. Spawn worker if user has no remarks
+2. Check `worker_list` — is there an alive worker with context overlap? Default to `worker_send` on that worker (AGGRESSIVE REUSE, workers-3). Only spawn fresh if no candidate fits.
+3. Dispatch if user has no remarks — investigate-report-stop pattern still applies (see Phase 1 Prompt Structure in workers-1).
 
 ### After Deliverables Complete
 
