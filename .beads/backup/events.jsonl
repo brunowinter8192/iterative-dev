@@ -52,3 +52,5 @@
 {"actor":"Bruno Winter","comment":null,"created_at":"2026-04-02T23:41:02Z","event_type":"closed","id":52,"issue_id":"blank-56t","new_value":"Rules-Isolation und Dev-Branch Workflow implementiert und verifiziert. Dev-Branch Setup ist Standard in IMPLEMENT, worker_merge ist branch-aware, dev_sync Tool für no-checkout sync verfügbar.","old_value":""}
 {"actor":"Bruno Winter","comment":null,"created_at":"2026-04-02T23:41:03Z","event_type":"closed","id":53,"issue_id":"blank-86l","new_value":"Dev-Branch + Beads-Worktree Konflikt gelöst durch dev_sync MCP Tool — synct dev→main ohne checkout, vermeidet beads-Worktree-Konflikt komplett.","old_value":""}
 {"actor":"Bruno Winter","comment":null,"created_at":"2026-04-03T02:30:00Z","event_type":"created","id":54,"issue_id":"blank-iq8","new_value":"","old_value":""}
+{"actor":"Bruno Winter","comment":null,"created_at":"2026-04-08T20:29:51Z","event_type":"created","id":55,"issue_id":"blank-8am","new_value":"","old_value":""}
+{"actor":"Bruno Winter","comment":null,"created_at":"2026-04-17T00:33:46Z","event_type":"created","id":56,"issue_id":"blank-bbo","new_value":"","old_value":""}
