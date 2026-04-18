@@ -62,17 +62,33 @@ Concrete failure (2026-04-05, Session 16): Investigation Worker reported "keine 
 Two parts:
 
 **Part A — Gap Analysis:**
-- Do we need more information? Which? Sources available: web, GitHub, Reddit, arxiv. Produce a sources table: Component | Source | Coverage | Gap
-- Do we need more dev scripts?
-- If research is needed → existing pattern in other projects to follow?
-- Close all gaps BEFORE moving to Phase 2. Worker can do research via `worker_send` (GitHub subagent, web search).
 
-**Gap Closing = ACTUALLY reading the sources (CRITICAL):**
-- When gaps are identified: check `sources/sources.md` — is the needed info already indexed?
-- If indexed: QUERY the source (RAG search, file read) and extract the answer NOW
-- "We have it indexed" ≠ gap closed. Gap is closed when you KNOW the answer, not when you know WHERE the answer might be.
+Produce a sources table: Component | Source | Coverage | Gap
 
-Concrete failure (2026-03-31): Identified 3 knowledge gaps. All sources were indexed in RAG. Said "alles im RAG verfuegbar, kein Research noetig" without querying RAG. User had to push 3 times.
+**Explicitly enumerate ALL resource categories** — not only our own code:
+
+1. **Our own code** — `src/`, `decisions/`, `dev/`, existing logs in `src/logs/` or `data/`
+2. **3rd-party library source** — e.g. tmux (`tty-keys.c`), mitmproxy addon hooks, any dependency whose behavior you'd otherwise guess at. GitHub repos readable via the `github-search` skill.
+3. **Vendor / API docs** — Anthropic API reference, Claude Code internals, etc. Often indexed in `sources/sources.md`.
+4. **Live data** — greppable proxy JSONL, session JSONL, existing reports. Structural evidence beats guessing at shape.
+5. **Web / Reddit / arxiv** — last resort for behavioral questions not answered by source or docs.
+
+For each resource: state WHICH question it answers. If no resource is listed for a question, the question is OPEN.
+
+**Gap-closed means EVIDENCE, not plausible extrapolation.**
+
+- Closed ✅ = "I have concrete evidence from resource X (file:line, grep count, doc quote, log entry) that answers question Y."
+- NOT closed ❌ = "The existing code looks like it probably does Z, so the fix is probably W."
+- Reading existing code is evidence about OUR code. It is NOT evidence about 3rd-party semantics (tmux button codes, mitmproxy hook order, Anthropic field shapes) — those need their own source.
+
+Concrete failure (2026-04-18): Gap analysis for Monitor_CC warnings-pane fix initially claimed "Alle Infos für die Fixes liegen im Code". User pushed back: the scroll-direction bug depends on tmux SGR button 64/65 semantics (tmux source `tty-keys.c`), the tool-error false-positive fix depends on Anthropic `is_error` field shape (Anthropic API docs + proxy JSONL live grep), and mitmproxy event model would be relevant if proxy-level failures were in scope. Three 3rd-party resources glossed over by "im Code". After enumeration: tmux source + JSONL grep gave concrete evidence for both fixes (proxy log: 36 `is_error` occurrences confirmed the field shape). "Im Code" ≠ gap closed.
+
+Concrete failure (2026-03-31): Identified 3 knowledge gaps. All sources were indexed in RAG. Said "alles im RAG verfuegbar, kein Research noetig" without querying RAG. User had to push 3 times. Rule: "indexed" ≠ "answered". Query the source, extract the answer, cite file:line or doc quote.
+
+**Worker can close gaps during Phase A investigation:**
+- Worker has github-search skill, web search, file reading in the worktree
+- If a gap needs 3rd-party source reading, include it in the worker prompt's Phase A with a specific citation request ("cite tmux source file:line for button 64/65 semantics")
+- Do NOT hand off a gap as "figure it out" — specify WHICH resource the worker should consult and WHAT answer to return
 
 **Part B — Mental Model Milestone (MANDATORY):**
 
