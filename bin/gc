@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# gc — git commit shortcut with implicit staging
+# Usage: gc "<msg>"           → stages tracked modifications, commits
+#        gc "<msg>" file...   → stages listed files, commits
+
+set -e
+
+if [ $# -lt 1 ]; then
+  echo "Usage: gc \"<msg>\" [files...]" >&2
+  exit 1
+fi
+
+msg="$1"
+shift
+
+if [ $# -eq 0 ]; then
+  git commit -am "$msg"
+else
+  git add "$@" && git commit -m "$msg"
+fi
