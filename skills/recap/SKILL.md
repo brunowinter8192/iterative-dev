@@ -232,30 +232,63 @@ Before routing a process improvement to a global rule file (`~/.claude/shared-ru
 
 ##### 3.3 Documentation Check (MANDATORY)
 
-**ALWAYS actively verify — not from memory:**
+**ALWAYS actively verify — not from memory. DOCS drift compounds — every skipped check makes the next exploration worse.**
 
-1. Read ALL DOCS.md, README.md, and decisions/ files in directories touched this cycle
-2. Compare directory trees in docs vs actual files on disk (`ls`)
-3. Check for drift:
+DOCS format reference: `~/.claude/shared-rules/global/documentation.md`. Required fields per module: LOC, Purpose, Reads, Writes, Called-by, Calls-out. Per package: Role, Public Interface, Flow (where relevant), Modules, State (where applicable), Gotchas (where applicable).
 
-| Check | How |
-|-------|-----|
-| Files listed in tree | `ls` actual dir, compare to doc tree |
-| Function tables | Read source, compare to doc tables |
-| Variables/constants | Read source, compare to doc tables |
-| Architecture decisions | Compare doc claims to actual code |
-| Entry points / CLI args | Read argparse, compare |
-| decisions/ files | Do they reflect current implementation? |
+**Step 1 — Enumerate touched files.**
 
-4. Report per file in RECAP report:
+Run `git diff main..dev --name-only` (or against the branch point) to get the full list of files modified this cycle. Every `.py`/`.sh` under `src/` hits the docs pipeline.
+
+**Step 2 — Per-module drift checks (concrete, scriptable).**
+
+For each modified module:
+
+| Check | Command | What counts as DRIFT |
+|-------|---------|----------------------|
+| LOC | `wc -l <file>` vs `### <module> (<LOC> LOC)` header in DOCS | Actual LOC differs by ≥5 from doc value |
+| Called-by | `grep -rn "from \\.\\.<package>\\.<module>\\|from src\\.<package>\\.<module>" src/ workflow.py dev/` | Caller list in DOCS missing a caller or lists a removed one |
+| Calls-out | Read the module's import block | External packages in imports not mentioned in Calls-out line |
+| Public Interface | Read `<package>/__init__.py` | Re-exports changed but DOCS "Public Interface" not updated |
+| State | Grep module-level mutable vars | New state surface added but not in State section |
+| Gotchas | Same-session discovery of landmines | New gotcha found this session and not added |
+
+**Step 3 — Per-package drift checks.**
+
+| Check | How | Drift |
+|-------|-----|-------|
+| Directory Map (`src/DOCS.md`) | `ls src/<subdir>/*.py` count vs "Modules" column; `wc -l src/<subdir>/*.py` sum vs "LOC" column | Any delta |
+| Root-Level Files table (`src/DOCS.md`) | `ls src/*.py` | New/removed root file not reflected |
+| Subdir DOCS links (`src/DOCS.md`) | One link per subdir with DOCS.md | Missing link or stale link |
+
+**Step 4 — decisions/ and CLAUDE.md drift.**
+
+- For each file changed in `src/`: is a `decisions/` file covering that component? Does IST still match the code?
+- `CLAUDE.md` (root): still short + link-based, no stale file-list?
+
+**Step 5 — Report per file in RECAP report:**
+
 ```
 DOCS DRIFT CHECK:
-- src/features/DOCS.md: OK / DRIFT (details)
-- decisions/: OK / DRIFT (details)
-- DOCS.md (root): OK / DRIFT (details)
+
+Per-module:
+- src/<package>/<module>.py: LOC OK / DRIFT (DOCS says N, actual M)
+- src/<package>/<module>.py: Called-by OK / DRIFT (<details>)
+
+Per-package:
+- src/<package>/DOCS.md: OK / DRIFT (<details>)
+- src/DOCS.md Directory Map: OK / DRIFT (<subdir> count N → M)
+- CLAUDE.md: OK / DRIFT (<details>)
+- decisions/: OK / DRIFT (<details>)
 ```
 
-5. Every DRIFT item → Content Improvement (3.1)
+**Step 6 — Every DRIFT item → Content Improvement (3.1).**
+
+DOCS drift is never deferred to the next session. If the DOCS went stale THIS cycle, the fix belongs in the SAME cycle's IMPROVE phase. A worker can batch-update DOCS if the drift is broad (multi-file LOC/caller shifts).
+
+**Anti-pattern — prescriptive "if LOC grows, extract …" comments.**
+
+Gotchas document landmines that exist NOW. They are NOT the place for future-refactor suggestions. If a module is already over the refactor threshold, that's a Bead, not a Gotcha. Gotchas that prescribe a future action based on a threshold the module has already crossed get DELETED on sight — they are noise.
 
 **DOCS/README updates are NEVER optional, NEVER skippable.**
 
