@@ -8,6 +8,7 @@ description: (project)
 ### Session Start (MANDATORY)
 
 → read beads.
+→ activate the `tool-use` skill (parallel to the proxy-injected rules — enforces call-hygiene for all Bash tool calls).
 
 ---
 

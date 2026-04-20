@@ -56,6 +56,7 @@ See [sources/sources.md](sources/sources.md).
 | `mcp-start.sh` | MCP Server startup |
 | `plugin-sync.sh` | Plugin deployment |
 | `.claude-plugin/plugin.json` | Plugin manifest |
+| `bin/` | Bash convenience wrappers, symlinked to `~/.local/bin/` (e.g. `gc` = short git commit) |
 
 ## Project Structure
 
@@ -69,6 +70,8 @@ See [sources/sources.md](sources/sources.md).
 ├── .claude-plugin/
 │   ├── plugin.json
 │   └── marketplace.json
+├── bin/
+│   └── gc                          → git commit shortcut (symlink target: ~/.local/bin/gc)
 ├── agents/
 │   ├── code-investigate-specialist.md
 │   └── git-committer.md
