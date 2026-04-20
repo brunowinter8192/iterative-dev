@@ -44,9 +44,10 @@ This is Opus's OWN preparation investigation — NOT to be confused with the wor
 Delegating the Phase 1 prep to an "Investigation Worker" collapses the two sides into one — you lose the independent second model, and with it the verification power.
 
 **Opus reads:**
-1. **Decisions Check** — Read relevant `decisions/` files. IST-Stand vs SOLL? OPEN items? Drift between docs and code?
-2. **Code Check** — Read actual implementation files. Flag Reference Files (existing patterns for new code to follow).
-3. **Dev Scripts Check** — Scan `dev/` for scripts affected by the change, scripts that inform the task (reproduction, validation), existing fixes/workarounds.
+1. **DOCS.md Check (FIRST)** — Read the DOCS.md of the affected subdir(s) BEFORE any source code. DOCS.md is the map (Role, Flow, Modules with LOC + Called-by + Calls-out, State, Gotchas); source is the chapter. Start with `src/DOCS.md` for the big picture, then the subdir's DOCS.md. If DOCS.md is missing, stale, or doesn't match reality: FIX that first — stale DOCS wastes every future exploration. A worker can be dispatched for the DOCS update while Opus continues reading code.
+2. **Decisions Check** — Read relevant `decisions/` files. IST-Stand vs SOLL? OPEN items? Drift between docs and code?
+3. **Code Check** — Read actual implementation files. Flag Reference Files (existing patterns for new code to follow). Use DOCS.md's Called-by + Calls-out to pick the minimum set of files to read.
+4. **Dev Scripts Check** — Scan `dev/` for scripts affected by the change, scripts that inform the task (reproduction, validation), existing fixes/workarounds.
 
 **Present status quo to user:**
 - Which files/components are affected
