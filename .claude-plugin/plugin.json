@@ -25,11 +25,5 @@
     "./commands/eval-spawn.md",
     "./commands/docs-spawn.md",
     "./commands/rules-check-spawn.md"
-  ],
-  "mcpServers": {
-    "iterative-dev": {
-      "command": "${CLAUDE_PLUGIN_ROOT}/mcp-start.sh",
-      "args": []
-    }
-  }
+  ]
 }
