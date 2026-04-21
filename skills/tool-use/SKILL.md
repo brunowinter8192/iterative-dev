@@ -149,6 +149,46 @@ Zero-results live in the warnings_pane (Monitor Window 4 left). Two zero-results
 ### Bash
 - **Timeout:** default 120000ms (2 min), max 600000ms (10 min). Use the `timeout` parameter when running long builds, crawls, or test suites to avoid silent termination.
 
+#### Worker CLI
+
+All worker lifecycle operations via `~/.local/bin/worker-cli`.
+
+| Operation | CLI |
+|---|---|
+| List active workers | `worker-cli list <project_path>` |
+| Check worker status | `worker-cli status <name> <project_path>` |
+| Capture pane to file | `worker-cli capture <name> <project_path>` |
+| Read last N lines | `tail -n <N> <output_file_from_capture>` |
+| Merge worker branch | `worker-cli merge <name> <project_path>` |
+| Kill worker | `worker-cli kill <name> <project_path>` |
+
+The wrapper internally sources `$PLUGIN/src/spawn/tmux_spawn.sh`. Override plugin location via `CLAUDE_PLUGIN_ROOT` env var.
+
+**Session name pattern:** `worker-<basename(project_path)>-<name>`. Example: project `/Users/x/Monitor_CC` + worker `inject-fixes` → session `worker-Monitor_CC-inject-fixes`.
+
+**NEVER kill without checking status first.** If status is `working` → do NOT kill.
+
+**Fallback** (wrapper unavailable):
+
+```bash
+PLUGIN=~/.claude/plugins/cache/brunowinter-plugins/iterative-dev/1.0.0
+SPAWN="$PLUGIN/src/spawn/tmux_spawn.sh"
+bash -c "source \"$SPAWN\" && worker_status \"<name>\" \"<project_path>\""
+```
+
+**Examples:**
+
+```bash
+PROJECT=~/Documents/ai/Monitor_CC
+worker-cli list "$PROJECT"
+worker-cli status inject-fixes "$PROJECT"
+worker-cli capture inject-fixes "$PROJECT"
+# → prints path like /tmp/worker_capture_inject-fixes_123456.txt
+tail -n 50 /tmp/worker_capture_inject-fixes_123456.txt
+worker-cli merge inject-fixes "$PROJECT"
+worker-cli kill inject-fixes "$PROJECT"  # only after status is idle/done
+```
+
 ### Grep
 - **Brace escaping:** literal braces must be escaped — use `interface\{\}` to find `interface{}` in Go code. Without escaping, the pattern silently matches nothing.
 - **Multiline:** by default patterns match within single lines only. For cross-line patterns (e.g. `struct \{[\s\S]*?field`), pass `multiline: true`.
