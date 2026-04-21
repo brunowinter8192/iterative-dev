@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# worker-cli: worker lifecycle operations via iterative-dev plugin
+# Source: Meta/blank/bin/worker-cli — symlinked to ~/.local/bin/worker-cli
+
+set -e
+
+PLUGIN="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/cache/brunowinter-plugins/iterative-dev/1.0.0}"
+SPAWN="$PLUGIN/src/spawn/tmux_spawn.sh"
+
+usage() {
+    cat <<'EOF'
+usage: worker-cli <cmd> [args]
+
+  list <project_path>                                        — list active workers
+  status <name> <project_path>                               — idle / working / exited
+  capture <name> <project_path>                              — write pane to file, print path
+  merge <name> <project_path>                                — log + merge branch into current
+  kill <name> <project_path>                                 — tmux + worktree + branch cleanup
+  send <name> <message> [project_path]                       — send message to running worker
+  spawn <name> <prompt_file> <project_path> [model] [--no-worktree]
+                                                             — spawn worker in git worktree
+
+model: sonnet (default) | opus
+Project path: absolute or ~/ — passed verbatim to tmux_spawn.sh.
+EOF
+}
+
+if [ $# -eq 0 ]; then
+    usage
+    exit 2
+fi
+
+CMD="$1"
+shift
+
+case "$CMD" in
+    list)
+        [ $# -lt 1 ] && { echo "worker-cli list: missing project_path" >&2; exit 2; }
+        bash -c "source \"$SPAWN\" && worker_list \"\$1\"" _ "$1"
+        ;;
+    status)
+        [ $# -lt 2 ] && { echo "worker-cli status: need <name> <project_path>" >&2; exit 2; }
+        bash -c "source \"$SPAWN\" && worker_status \"\$1\" \"\$2\"" _ "$1" "$2"
+        ;;
+    capture)
+        [ $# -lt 2 ] && { echo "worker-cli capture: need <name> <project_path>" >&2; exit 2; }
+        bash -c "source \"$SPAWN\" && worker_capture \"\$1\" \"\" \"\$2\"" _ "$1" "$2"
+        ;;
+    merge)
+        [ $# -lt 2 ] && { echo "worker-cli merge: need <name> <project_path>" >&2; exit 2; }
+        NAME="$1"
+        PROJECT="$2"
+        echo "=== Commits on branch $NAME not in dev ==="
+        git -C "$PROJECT" log dev.."$NAME" --oneline || true
+        echo
+        echo "=== Merging $NAME into $(git -C "$PROJECT" branch --show-current) ==="
+        git -C "$PROJECT" merge "$NAME" --no-ff -m "merge: worker $NAME"
+        ;;
+    kill)
+        [ $# -lt 2 ] && { echo "worker-cli kill: need <name> <project_path>" >&2; exit 2; }
+        NAME="$1"
+        PROJECT="$2"
+        SESSION="worker-$(basename "$PROJECT")-$NAME"
+        echo "Killing worker: $SESSION"
+        tmux kill-session -t "$SESSION" 2>/dev/null && echo "  tmux session: killed" || echo "  tmux session: not found"
+        git -C "$PROJECT" worktree remove --force ".claude/worktrees/$NAME" 2>/dev/null && echo "  worktree: removed" || echo "  worktree: not found"
+        git -C "$PROJECT" branch -D "$NAME" 2>/dev/null && echo "  branch: deleted" || echo "  branch: not found"
+        ;;
+    send)
+        [ $# -lt 2 ] && { echo "worker-cli send: need <name> <message> [project_path]" >&2; exit 2; }
+        NAME="$1"
+        MESSAGE="$2"
+        PROJECT="${3:-$(pwd)}"
+        _WORKER_MSG="$MESSAGE" bash -c 'source "$1" && worker_send "$2" "$_WORKER_MSG" "$3"' _ "$SPAWN" "$NAME" "$PROJECT"
+        ;;
+    spawn)
+        [ $# -lt 3 ] && { echo "worker-cli spawn: need <name> <prompt_file> <project_path> [model] [--no-worktree]" >&2; exit 2; }
+        NAME="$1"
+        PROMPT_FILE="$2"; [[ "$PROMPT_FILE" != /* ]] && PROMPT_FILE="$(pwd)/$PROMPT_FILE"
+        PROJECT="$3"; [[ "$PROJECT" != /* ]] && PROJECT="$(pwd)/$PROJECT"
+        MODEL="${4:-sonnet}"
+        WORKTREE_FLAG=""
+        [ "${5:-}" = "--no-worktree" ] && WORKTREE_FLAG="--no-worktree"
+        cd "$PLUGIN" && python3 -m src.spawn.spawn "$NAME" "$PROMPT_FILE" "$PROJECT" "$MODEL" $WORKTREE_FLAG
+        ;;
+    -h|--help|help)
+        usage
+        ;;
+    *)
+        echo "worker-cli: unknown subcommand '$CMD'" >&2
+        usage >&2
+        exit 2
+        ;;
+esac

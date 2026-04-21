@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# git-check: pre-commit check + auto-staging via src/git/check.py
+# Source: Meta/blank/bin/git-check — symlinked to ~/.local/bin/git-check
+# Usage: git-check [repo_path]
+
+REPO="${1:-$(pwd)}"
+PLUGIN="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/cache/brunowinter-plugins/iterative-dev/1.0.0}"
+cd "$PLUGIN" && python3 -m src.git.check "$REPO" --auto-stage

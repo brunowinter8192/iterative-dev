@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# dev-sync: fast-forward main/master to dev HEAD without checkout
+# Source: Meta/blank/bin/dev-sync — symlinked to ~/.local/bin/dev-sync
+# Usage: dev-sync [project_path]
+
+set -e
+
+PROJECT="${1:-$(pwd)}"
+
+CURRENT=$(git -C "$PROJECT" rev-parse --abbrev-ref HEAD)
+if [ "$CURRENT" != "dev" ]; then
+    echo "ERROR: Not on dev branch (on '$CURRENT'). Switch to dev first." >&2
+    exit 1
+fi
+
+if git -C "$PROJECT" rev-parse --verify main >/dev/null 2>&1; then
+    MAIN_BRANCH="main"
+elif git -C "$PROJECT" rev-parse --verify master >/dev/null 2>&1; then
+    MAIN_BRANCH="master"
+else
+    echo "ERROR: Neither 'main' nor 'master' branch found." >&2
+    exit 1
+fi
+
+if ! git -C "$PROJECT" merge-base --is-ancestor "$MAIN_BRANCH" dev; then
+    echo "ERROR: $MAIN_BRANCH is not an ancestor of dev. Cannot fast-forward. Manual merge needed." >&2
+    exit 1
+fi
+
+LOG=$(git -C "$PROJECT" log "$MAIN_BRANCH..dev" --oneline)
+if [ -z "$LOG" ]; then
+    echo "Nothing to sync — $MAIN_BRANCH is already up to date with dev."
+    exit 0
+fi
+
+echo "Commits to sync:"
+echo "$LOG"
+echo
+
+DEV_HASH=$(git -C "$PROJECT" rev-parse dev)
+git -C "$PROJECT" update-ref "refs/heads/$MAIN_BRANCH" "$DEV_HASH"
+echo "Synced: $MAIN_BRANCH → ${DEV_HASH:0:8}"
+echo "Stay on dev. $MAIN_BRANCH updated via ref update (no checkout needed)."
