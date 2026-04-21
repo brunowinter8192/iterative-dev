@@ -1,6 +1,6 @@
 # iterative-dev Plugin
 
-Source repo for the `iterative-dev` plugin. Development workflow engine for Claude Code — structured development cycle, worker spawning, git automation, session analysis.
+Source repo for the `iterative-dev` plugin. Development workflow engine for Claude Code — structured development cycle, worker spawning via CLI, git automation via CLI, session analysis.
 
 ## Sources
 
@@ -15,14 +15,16 @@ See [sources/sources.md](sources/sources.md).
 | **Session Management** | tmux new-session with direct command arg | remain-on-exit on |
 | **Viewer** | Ghostty AppleScript (1.3+) / open -na (1.2.x) | — |
 | **Orchestration** | worker_list, worker_status, worker_capture, worker_send | status via #{pane_dead} |
+| **CLI** | `worker-cli spawn/send/list/status/capture/merge/kill` | `~/.local/bin/worker-cli` → `bin/worker-cli` |
 
 ### Git Automation
 
 | Component | Implementation | Config |
 |-----------|---------------|--------|
 | **Pre-Commit + Stage** | check.py --auto-stage | SKIP: .beads/, .DS_Store, .env, credentials, .claude/worktrees/ |
-| **Staging Verification** | staged.py (fallback) | same SKIP_PATTERNS |
+| **Staging Verification** | staged.py | same SKIP_PATTERNS |
 | **Post-Commit** | post.py | same SKIP_PATTERNS |
+| **CLI** | `git-check`, `dev-sync`, `gc` | `~/.local/bin/` → `bin/` |
 
 ### Session Pipeline
 
@@ -31,32 +33,25 @@ See [sources/sources.md](sources/sources.md).
 | **JSONL to Markdown** | jsonl_to_md.py | --dispatch for main session context |
 | **Subagent Listing** | list_agents.py | --session latest filter |
 | **Tool Call Extraction** | extract_calls.py | --calls N,M selection |
-| **Eval MCP Wrappers** | eval_list_agents, eval_extract in server.py | project_path, session, jsonl_path, calls |
-
-### LLM Proxy
-
-| Component | Implementation | Config |
-|-----------|---------------|--------|
-| **prompt Tool** | httpx POST to NVIDIA NIM API | Default model: mistral-large-3-675b-instruct-2512 |
-| **Authentication** | NVIDIA_API_KEY from .env | 40 req/min free tier |
 
 ### Key Files
 
 | File | Component |
 |------|-----------|
-| `src/spawn/tmux_spawn.sh` | Worker Spawning |
-| `src/git/check.py` | Git Automation (pre-commit + auto-stage) |
-| `src/git/staged.py` | Git Automation (staging verification, fallback) |
-| `src/git/post.py` | Git Automation (post-commit) |
-| `src/pipeline/jsonl_to_md.py` | Session Pipeline (shared dependency) |
+| `src/spawn/tmux_spawn.sh` | Worker Spawning — bash library |
+| `src/spawn/spawn.py` | Worker Spawning — worktree setup + launch |
+| `src/git/check.py` | Git Automation — pre-commit + auto-stage |
+| `src/git/staged.py` | Git Automation — staging verification |
+| `src/git/post.py` | Git Automation — post-commit |
+| `src/pipeline/jsonl_to_md.py` | Session Pipeline |
 | `src/pipeline/list_agents.py` | Session Pipeline |
 | `src/pipeline/extract_calls.py` | Session Pipeline |
-| `server.py` | MCP Server (Bead + Worker + LLM Proxy tools) |
-| `.env` | API Keys (NVIDIA_API_KEY, GITHUB_TOKEN) |
-| `mcp-start.sh` | MCP Server startup |
-| `plugin-sync.sh` | Plugin deployment |
+| `bin/worker-cli` | Worker CLI wrapper (symlinked to `~/.local/bin/`) |
+| `bin/dev-sync` | Dev→main fast-forward CLI (symlinked to `~/.local/bin/`) |
+| `bin/git-check` | Pre-commit check CLI (symlinked to `~/.local/bin/`) |
+| `bin/gc` | Git commit shortcut (symlinked to `~/.local/bin/`) |
+| `plugin-sync.sh` | Plugin cache deployment |
 | `.claude-plugin/plugin.json` | Plugin manifest |
-| `bin/` | Bash convenience wrappers, symlinked to `~/.local/bin/` (e.g. `gc` = short git commit) |
 
 ## Project Structure
 
@@ -64,14 +59,15 @@ See [sources/sources.md](sources/sources.md).
 .
 ├── CLAUDE.md
 ├── README.md
-├── server.py
-├── mcp-start.sh
 ├── plugin-sync.sh
 ├── .claude-plugin/
 │   ├── plugin.json
 │   └── marketplace.json
 ├── bin/
-│   └── gc                          → git commit shortcut (symlink target: ~/.local/bin/gc)
+│   ├── gc                          → ~/.local/bin/gc
+│   ├── worker-cli                  → ~/.local/bin/worker-cli
+│   ├── dev-sync                    → ~/.local/bin/dev-sync
+│   └── git-check                   → ~/.local/bin/git-check
 ├── agents/
 │   ├── code-investigate-specialist.md
 │   └── git-committer.md
@@ -82,15 +78,12 @@ See [sources/sources.md](sources/sources.md).
 ├── skills/
 │   ├── iterative-dev/
 │   ├── recap/
-│   ├── plugin-dev/
-│   ├── worker-rules/
-│   ├── eval-agent/
-│   ├── doc-review/
-│   ├── rules-check/
-│   └── agent-code-investigate/
+│   ├── rule-consolidation/
+│   └── tool-use/
 ├── src/                            → [DOCS.md](src/DOCS.md)
-│   ├── spawn/
-│   │   └── tmux_spawn.sh
+│   ├── spawn/                      → [DOCS.md](src/spawn/DOCS.md)
+│   │   ├── tmux_spawn.sh
+│   │   └── spawn.py
 │   ├── git/                        → [DOCS.md](src/git/DOCS.md)
 │   │   ├── check.py
 │   │   ├── staged.py
@@ -105,13 +98,12 @@ See [sources/sources.md](sources/sources.md).
 │   └── pipeline.md
 ├── sources/
 │   └── sources.md
-├── dev/                            → [DOCS.md](dev/DOCS.md)
-│   ├── debug/
-│   │   └── log_permission_request.sh
-│   ├── pipeline/                   → [DOCS.md](dev/pipeline/DOCS.md)
-│   │   └── audit_error_patterns.py
-│   └── spawn/
-│       ├── test_direct_command.sh
-│       └── test_status_detection.sh
-└── Hooks_Reference/                # External reference repos (Q1, Q2)
+└── dev/                            → [DOCS.md](dev/DOCS.md)
+    ├── debug/
+    │   └── log_permission_request.sh
+    ├── pipeline/                   → [DOCS.md](dev/pipeline/DOCS.md)
+    │   └── audit_error_patterns.py
+    └── spawn/
+        ├── test_direct_command.sh
+        └── test_status_detection.sh
 ```
