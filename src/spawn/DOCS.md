@@ -1,6 +1,8 @@
 # src/spawn/
 
-Worker spawning and orchestration — tmux sessions, git worktrees, Ghostty viewers, proxy injection.
+## Role
+
+Worker spawning and orchestration — tmux sessions, git worktrees, Ghostty viewers, proxy injection. Touch this package when changing how workers are spawned, how worktrees are set up, or how the proxy is injected into worker environments.
 
 ## Public Interface
 

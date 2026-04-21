@@ -1,24 +1,44 @@
 # src/pipeline/
 
-Session JSONL analysis utilities. Used for eval workflows and subagent debugging.
+## Role
 
-## jsonl_to_md.py
+Session JSONL analysis utilities for eval workflows and subagent debugging. Touch this package when changing how agent sessions are converted to Markdown, how subagent lists are derived from project directories, or how individual tool calls are extracted. No active external callers in the current codebase — the eval-agent skill that previously invoked these modules has been removed. Modules remain available for ad-hoc eval work via direct `python3 -m` invocation.
 
-**Purpose:** Converts Claude Code subagent JSONL session logs to Markdown summary (tool call table + task prompt + final response). Optionally includes dispatch context from main session.
-**Input:** JSONL file path, output path, optional `--dispatch` flag.
-**Output:** Markdown file with tool call summary (one line per call: timestamp, tool, params, output size or error/suspicious marker). Error detection: `is_error` results marked as `[✗ error text]`. MCP tool calls with output < 500 chars marked `[suspicious: N chars]` (signal for eval reviewer, not error classification). Input params truncated to 100 chars with newlines replaced by spaces. File-content params (`content`, `file_content`, `new_string`, bash heredoc) show `[N chars]` instead of content.
+## Public Interface
 
-## list_agents.py
+`__init__.py` is empty. Modules invoked as `python3 -m src.pipeline.<module>`. Inter-module dependency: `list_agents` and `extract_calls` import from `jsonl_to_md` for JSONL parsing, session derivation, and formatting. Breaking changes in `jsonl_to_md` propagate to both.
+
+## Modules
+
+### jsonl_to_md.py (437 LOC) ⚠️ refactor candidate
+
+**Purpose:** Converts Claude Code subagent JSONL session logs to Markdown summary — tool call table, task prompt, final response. Optionally includes dispatch context from the main session via `--dispatch`.
+**Reads:** Claude Code session JSONL files.
+**Writes:** Markdown file via `--output` flag.
+**Called by:** `src/pipeline/list_agents.py`, `src/pipeline/extract_calls.py` (both import from it). No external caller.
+**Calls out:** stdlib json, argparse, pathlib.
+
+---
+
+### list_agents.py (189 LOC)
 
 **Purpose:** Lists subagent sessions for a project with agent type, timestamp, and size. Resolves agent type from main session (sync and async dispatch patterns).
-**Input:** Project path, optional `--session latest` filter.
-**Output:** Aligned table of subagent sessions.
+**Reads:** `~/.claude/projects/<encoded_path>/*.jsonl` directory.
+**Writes:** stdout (aligned table).
+**Called by:** No active external caller.
+**Calls out:** `jsonl_to_md` (JSONL parsing and session derivation).
 
-## extract_calls.py
+---
+
+### extract_calls.py (56 LOC)
 
 **Purpose:** Extracts specific tool calls by number from a session JSONL. Supports listing all calls or extracting full input/output for selected calls.
-**Input:** JSONL path, `--calls 1,3,7` or `--list` mode.
-**Output:** Full tool call details (input + output) as Markdown, or summary table.
+**Reads:** Session JSONL path.
+**Writes:** stdout or Markdown via `--output` flag.
+**Called by:** No active external caller.
+**Calls out:** `jsonl_to_md` (JSONL parsing and formatting).
+
+---
 
 ## Usage
 
@@ -28,6 +48,7 @@ python3 -m src.pipeline.list_agents --project <path> [--session latest]
 python3 -m src.pipeline.extract_calls --input <path> --calls 1,3 [--output <path>]
 ```
 
-## Dependencies
+## Gotchas
 
-list_agents.py and extract_calls.py import from jsonl_to_md.py (JSONL parsing, session derivation, formatting). Breaking changes in jsonl_to_md affect both.
+- `jsonl_to_md.py` at 437 LOC is a refactor candidate (>300 LOC threshold). Extract helpers: tool call row formatting and truncation logic belong in a separate module.
+- No active external callers — these modules were invoked via the eval-agent skill which has been removed. Re-wire via a new skill or command if eval workflows are reactivated.

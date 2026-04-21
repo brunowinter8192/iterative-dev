@@ -14,7 +14,6 @@ See [sources/sources.md](sources/sources.md).
 |-----------|---------------|--------|
 | **Session Management** | tmux new-session with direct command arg | remain-on-exit on |
 | **Viewer** | Ghostty AppleScript (1.3+) / open -na (1.2.x) | — |
-| **Orchestration** | worker_list, worker_status, worker_capture, worker_send | status via #{pane_dead} |
 | **CLI** | `worker-cli spawn/send/list/status/capture/merge/kill` | `~/.local/bin/worker-cli` → `bin/worker-cli` |
 
 ### Git Automation
