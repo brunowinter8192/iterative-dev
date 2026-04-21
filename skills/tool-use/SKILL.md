@@ -161,6 +161,8 @@ All worker lifecycle operations via `~/.local/bin/worker-cli`.
 | Read last N lines | `tail -n <N> <output_file_from_capture>` |
 | Merge worker branch | `worker-cli merge <name> <project_path>` |
 | Kill worker | `worker-cli kill <name> <project_path>` |
+| Send message to worker | `worker-cli send <name> <message> [project_path]` |
+| Spawn worker in worktree | `worker-cli spawn <name> <prompt_file> <project_path> [model]` |
 
 The wrapper internally sources `$PLUGIN/src/spawn/tmux_spawn.sh`. Override plugin location via `CLAUDE_PLUGIN_ROOT` env var.
 
@@ -187,15 +189,17 @@ worker-cli capture inject-fixes "$PROJECT"
 tail -n 50 /tmp/worker_capture_inject-fixes_123456.txt
 worker-cli merge inject-fixes "$PROJECT"
 worker-cli kill inject-fixes "$PROJECT"  # only after status is idle/done
+worker-cli send inject-fixes "Go for step 2" "$PROJECT"
+worker-cli spawn new-feature /tmp/prompt.md "$PROJECT" sonnet
 ```
 
 #### Git CLI
 
-Pre-commit check via MCP tool, everything else via CLI.
+Pre-commit check via `git-check` CLI, everything else via CLI.
 
-##### Pre-Commit (MCP)
+##### Pre-Commit
 
-`git_check(repo_path)` — auto-stages files (with skip patterns: venv/, node_modules/) and returns a status report:
+`git-check [repo_path]` — auto-stages files (with skip patterns: venv/, node_modules/) and returns a status report:
 - `STAGED` / `UNSTAGED` / `UNTRACKED` sections
 - `HOOK STATUS` (WARNING → run `bd export` via Bash before committing)
 - `DIFF SUMMARY` → use for commit message
@@ -211,13 +215,13 @@ If all sections are `(none)` → nothing to commit, skip.
 | Push | `git -C <repo_path> push` | Falls back to `-u origin <branch>` if no upstream |
 | Push with upstream | `git -C <repo_path> push -u origin $(git -C <repo_path> branch --show-current)` | For first push on new branch |
 | Post-commit check | `git -C <repo_path> status --short` | Empty output = clean working tree. `.beads/` entries can be treated as clean. |
-| Plugin sync | `~/.claude/plugins/cache/brunowinter-plugins/iterative-dev/1.0.0/plugin-sync.sh <name> <repo_path>` | Plugin repos only (`.claude-plugin/plugin.json` must exist). Kill old server + `/mcp` after sync. |
+| Plugin sync | `~/.claude/plugins/cache/brunowinter-plugins/iterative-dev/1.0.0/plugin-sync.sh <name> <repo_path>` | Plugin repos only (`.claude-plugin/plugin.json` must exist). Restart session after sync. |
 
 ##### Commit Flow
 
 When user asks to commit:
 
-1. **Check + Stage** — `git_check(repo_path)` (MCP)
+1. **Check + Stage** — `git-check [repo_path]`
 2. **Commit** — `gc "<message>"` (if cwd inside repo) OR `git -C <repo> commit -am "<message>"` (explicit path)
 3. **Post-check** — `git -C <repo> status --short` → empty = proceed; non-empty with non-`.beads/` paths → stage + commit again
 4. **Push** — `git -C <repo> push` (retry with `-u origin <branch>` on first push)
@@ -296,12 +300,6 @@ When committing multiple repos (e.g., project + plugin source):
 - **Existing file:** MUST call Read first. Tool fails without it.
 - **Edit over Write:** for existing files, prefer Edit (sends only the diff). Write sends the full content every time.
 - **No docs:** NEVER create `*.md` or README files unless explicitly requested by the User.
-
-### MCP Tools (iterative-dev)
-- **dev_sync:** sync dev branch to main via git update-ref (no checkout needed)
-- **git_check:** pre-commit check + auto-staging
-- **worker_send:** send message to running worker
-- **worker_spawn:** spawn worker with optional worktree isolation
 
 ---
 
