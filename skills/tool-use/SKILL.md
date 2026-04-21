@@ -189,6 +189,87 @@ worker-cli merge inject-fixes "$PROJECT"
 worker-cli kill inject-fixes "$PROJECT"  # only after status is idle/done
 ```
 
+#### Git CLI
+
+Pre-commit check via MCP tool, everything else via CLI.
+
+##### Pre-Commit (MCP)
+
+`git_check(repo_path)` — auto-stages files (with skip patterns: venv/, node_modules/) and returns a status report:
+- `STAGED` / `UNSTAGED` / `UNTRACKED` sections
+- `HOOK STATUS` (WARNING → run `bd export` via Bash before committing)
+- `DIFF SUMMARY` → use for commit message
+
+If all sections are `(none)` → nothing to commit, skip.
+
+##### CLI Commands
+
+| Operation | CLI | Notes |
+|---|---|---|
+| Commit (inside repo/worktree cwd) | `gc "<message>"` | Wrapper: stages tracked modifications + commits. Add filenames as extra args to stage specific files. |
+| Commit (explicit path) | `git -C <repo_path> commit -am "<message>"` | Use when cwd is outside target repo. `-am` stages tracked mods. For untracked: `git -C <path> add <files> && git -C <path> commit -m "<msg>"`. |
+| Push | `git -C <repo_path> push` | Falls back to `-u origin <branch>` if no upstream |
+| Push with upstream | `git -C <repo_path> push -u origin $(git -C <repo_path> branch --show-current)` | For first push on new branch |
+| Post-commit check | `git -C <repo_path> status --short` | Empty output = clean working tree. `.beads/` entries can be treated as clean. |
+| Plugin sync | `~/.claude/plugins/cache/brunowinter-plugins/iterative-dev/1.0.0/plugin-sync.sh <name> <repo_path>` | Plugin repos only (`.claude-plugin/plugin.json` must exist). Kill old server + `/mcp` after sync. |
+
+##### Commit Flow
+
+When user asks to commit:
+
+1. **Check + Stage** — `git_check(repo_path)` (MCP)
+2. **Commit** — `gc "<message>"` (if cwd inside repo) OR `git -C <repo> commit -am "<message>"` (explicit path)
+3. **Post-check** — `git -C <repo> status --short` → empty = proceed; non-empty with non-`.beads/` paths → stage + commit again
+4. **Push** — `git -C <repo> push` (retry with `-u origin <branch>` on first push)
+5. **Plugin-sync** (if plugin repo) — run AFTER push
+
+##### Commit Message Format
+
+**Default: single-line `-m`, one concern per commit, ≤72 chars.**
+
+```bash
+gc "fix: reset warnings pane on proxy log path change"
+# or
+git -C <repo> commit -am "fix: reset warnings pane on proxy log path change"
+```
+
+- Types: `feat` / `fix` / `refactor` / `docs` / `chore`
+- Max 72 chars
+- Pick dominant concern if mixed
+- No Co-Author footer for routine commits
+
+**Multi-line HEREDOC ONLY when ALL are true:**
+- Breaking change, migration, or architecturally significant refactor
+- Body genuinely adds information beyond the subject line
+- The reader of `git log` will benefit from the extra context
+
+```bash
+git -C <repo> commit -am "$(cat <<'EOF'
+refactor: migrate X from Y to Z
+
+Breaking: consumers of Y must update to new signature (see MIGRATION.md).
+EOF
+)"
+```
+
+HEREDOC for routine fixes is waste. Single-line `-m` is the default.
+
+##### Multi-Repo Commits
+
+When committing multiple repos (e.g., project + plugin source):
+- Run the full flow for each repo sequentially
+- Plugin-sync the plugin repo AFTER its push
+
+##### Rules (Safety Protocol)
+
+- NEVER amend existing commits
+- NEVER force push
+- NEVER skip hooks (`--no-verify`)
+- NEVER modify git config
+- NEVER create empty commits
+- If push fails → report error, do NOT retry
+- Commit only when user explicitly asks
+
 ### Grep
 - **Brace escaping:** literal braces must be escaped — use `interface\{\}` to find `interface{}` in Go code. Without escaping, the pattern silently matches nothing.
 - **Multiline:** by default patterns match within single lines only. For cross-line patterns (e.g. `struct \{[\s\S]*?field`), pass `multiline: true`.
