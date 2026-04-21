@@ -1,44 +1,126 @@
 ---
 name: tool-use
-description: Tool-call hygiene. Reduces call-waste (large Bash commands for tiny outputs) through concrete anti-patterns and preferred alternatives. Runs in parallel with the proxy-injected rules. Live feedback via Monitor_CC waste_pane.
+description: Tool-call hygiene. Reduces call-waste through concrete anti-patterns and preferred alternatives. Covers token efficiency, verbose output, tool selection, and per-tool behavior reference. Live feedback via Monitor_CC waste_pane.
 ---
 
 # Tool-Use Skill
 
-Goal: no large Bash-call where a small one works. Every call's input counts — tool_use JSON inflates with escaped newlines and quotes. Live feedback in Monitor_CC waste_pane (Window 4 right) shows current-session ratios ≥3.
+Goal: no large Bash-call where a small one works. Every tool_use input counts — tool_use JSON inflates with escaped newlines and quotes. Live feedback in Monitor_CC waste_pane (Window 4 right) shows current-session ratios ≥3.
 
-## Hard rules
+## Hard Rules — Token Efficiency
 
-### 1. NEVER inline Python heredoc for analysis
+### 1. NEVER inline Python heredoc; `python3 -c` hard cap at 300 chars
 
 `python3 << 'EOF' ... EOF` is the #1 waster. Tool-input balloons to 1-4KB through escaped newlines/quotes. Output is typically <100 chars. Observed ratios: 50-190.
 
-**Instead:**
-- Write tool → `/tmp/analyze.py` (flat content, ONE Write call) → `./venv/bin/python3 /tmp/analyze.py`
-- For true one-liners: `python3 -c "..."` hard-capped at ≤300 chars including escaping. Above → Write tool.
+**Rule:** For any JSON/log analysis beyond a one-liner:
 
-### 2. `python3 -c "..."` > 300 chars → Write-then-run
+1. **Prefer jq/grep/awk** — purpose-built. `jq -c 'select(.type=="error")' file.jsonl` beats 15 lines of Python.
+2. **Write script to file** — `Write /tmp/investigate.py` once, then `python3 /tmp/investigate.py`. Iterate via Edit tool, never re-write the full script.
+3. **Shell variables for repeated paths** — `LOG=/path/foo.jsonl && jq '.type' $LOG` instead of inlining the path in every call.
+4. **Pipeline chains** — `head -100 file | jq .type | sort -u` over monolithic Python.
 
-Same escape-inflation problem. When the `-c` string exceeds 300 chars, stop typing it inline. Write a script file.
+**The test:** Bash tool_use contains >15 lines of Python → STOP. Rewrite as jq / script-file / pipeline.
 
-### 3. Don't chain greps/cats over the same pattern
+**`python3 -c`:** when the `-c` string exceeds 300 chars including escaping — stop, write a script file instead. Same escape-inflation problem.
+
+**Concrete failure (2026-04-19):** context-hygiene worker inspected session JSONL with 5+ inline python heredocs (500-2000 chars each). Context dropped from 40%+ to 18% in Phase 1 alone. A `jq '[.[] | select(.type=="attachment")] | length' file` one-liner would have answered the same question in ~80 chars.
+
+### 2. No Bash for file creation → Write tool
+
+**Rule:** NEVER use `cat > file << 'EOF'` or `echo >` to create files. Always use the Write tool.
+
+**Why:** Bash heredocs can leak shell context into file content (e.g., `EOF 2>&1 | head -10` appended to a .gitignore). The Write tool is atomic and safe.
+
+**Exception:** Single-line echo append to an existing file is fine: `echo "entry" >> config.log`.
+
+### 3. Grep scope hygiene — always restrict when searching source
+
+`grep -rn <pattern> <dir>` without type/include restriction matches inside JSONL, log files, vendored content, and node_modules. Output can explode into 10+ MB of irrelevant matches, poisoning context.
+
+**Rule:**
+- When searching for Python imports, function refs, or code-level patterns: always pass `--include='*.py'` to bash grep OR use the Grep tool with `type: "py"` / `glob: "*.py"`.
+- Prefer the Grep tool over bash `grep -rn` for code search — safer defaults, structured results.
+- For one-off bash grep: add explicit file scope (`grep -n <pattern> <specific_file>`) rather than `-r` over a whole tree.
+
+Concrete failure (2026-04-19): `grep -rn "from queries import\|import queries" src/ dev/ workflow.py` without `--include` — `src/logs/` contained proxy JSONL with "queries" thousands of times. Output hit 75 MB. The Grep tool with `glob: "*.py"` returned the same information in milliseconds.
+
+### 4. Context window hygiene — verbose output to file, not context (CRITICAL)
+
+Large tool outputs (build output, test runners, dev scripts, background tasks) flood the context window. One verbose dump can burn 10k+ tokens of irrelevant noise.
+
+**Rule: ALL potentially large output goes through files, NEVER directly into context.**
+
+**Workflow:**
+1. **Run command** → redirect: `command > /tmp/output.md 2>&1`
+2. **Read result** → `grep`, `tail`, `head` on the file — extract ONLY what you need
+3. **Present** → concise summary to user, not raw output
+
+**The test:** Before ANY tool call that might produce >50 lines of output — redirect to file first. No exceptions.
+
+```bash
+# WRONG — dumps everything into context
+./venv/bin/python dev/crawling_suite/03_test.py
+
+# RIGHT — output to file, then extract what matters
+./venv/bin/python dev/crawling_suite/03_test.py > /tmp/03_test_output.md 2>&1
+tail -20 /tmp/03_test_output.md
+```
+
+- NEVER run `./venv/bin/python script.py` without `> /tmp/file.md 2>&1`
+- NEVER run `cat` on a file that might be large — use `head`, `tail`, `grep`
+
+### 5. Stop after 2 failed tool calls
+
+When 2 tool calls in a row fail or don't deliver the desired result: **STOP IMMEDIATELY**.
+- Clearly explain the problem to the user
+- Ask: "How should I solve this?" or "Where can I find X?"
+- NO further trial and error without user input
+
+**"Quellen" = External Research, NOT More Bash:**
+- After 2 failures: the answer is RESEARCH (Web/GitHub search, read source code, read docs), not RETRY
+- Same error in a different wrapper = same bug. After 2nd failure: analyze the error pattern, ask what the common denominator is.
+
+Concrete failure (2026-03-26): User asked 3× for needed sources. Response was more bash commands instead of naming concrete GitHub issues, tmux docs, or web searches to consult.
+
+### 6. Tool failure → immediate action (CRITICAL)
+
+Tool call fails silently → do NOT continue with workaround or fallback without reporting.
+
+**Rule:**
+- Tool fails → report to user IMMEDIATELY in the same response
+- Then: (a) fix the prerequisite yourself (start server, install dep, fix config) and retry, OR (b) stop and wait for user input if fix is outside your control
+- NEVER silently fall back to a different approach without disclosing plan A failed
+- NEVER ask "should I start X or work around it?" — if you CAN fix it, fix it
+
+**Decision tree:**
+1. Tool fails → report error to user in same message
+2. Can I fix it? (start process, install dep, create dir) → fix it NOW, retry
+3. Can't fix it? (needs user credentials, hardware, manual step) → stop, explain what's needed
+4. NEVER: silently switch to plan B without disclosing plan A failed
+
+Concrete failure (2026-03-28): RAG `search` failed with "llama-server not found". Claude fell back to `read_document` silently and only mentioned the issue in results. User had to say "starte den server wenn er nicht läuft".
+
+---
+
+## Soft Rules
+
+### Repeated absolute paths → env var or single `cd`
+
+When a path appears in 3+ consecutive commands: use `$MONITOR_CC_ROOT` (or equivalent) or `cd` once at the start of a planned block. Do NOT drift `cd` silently across interactive steps — only within a contained sequence.
+
+### Don't chain greps/cats over the same pattern
 
 ```
 WRONG: grep X a.log && grep X b.log && grep X c.log
 RIGHT: grep X a.log b.log c.log
 ```
 
-### 4. Don't re-issue near-identical commands
+### Don't re-issue near-identical commands
 
-If you've run a command in this session and the output wasn't what you needed, do NOT retry the same command with a minor variation. Change approach: different tool (Grep/Glob), different scope, or read source.
+If you've run a command in this session and the output wasn't what you needed, do NOT retry with a minor variation. Change approach: different tool (Grep/Glob), different scope, or read source.
 
-## Soft rules
-
-### 5. Repeated absolute paths → env var or single `cd`
-
-When a path appears in 3+ consecutive commands: use `$MONITOR_CC_ROOT` (or equivalent) or `cd` once at the start of a planned block. Do NOT drift `cd` silently across interactive steps — only within a contained sequence.
-
-### 6. Grep/Glob gunshot
+### Grep/Glob gunshot
 
 Multiple Grep/Glob calls with varied patterns that all return zero results = guessing. Pattern:
 1. `Glob` first: find files matching a broad path pattern.
@@ -46,26 +128,66 @@ Multiple Grep/Glob calls with varied patterns that all return zero results = gue
 
 Zero-results live in the warnings_pane (Monitor Window 4 left). Two zero-results in a row on the same topic = stop, rethink.
 
-### 7. Multi-line echo → Write
+---
 
-`echo "..." >> file` or `cat << 'EOF' >> file ... EOF` multi-line = use the Write tool. Single-line echo append for config/log is fine.
+## Large Artifacts
 
-## Large artifacts
-
-### 8. Bead descriptions
+### Bead descriptions
 
 `bd create --description "..."` is a top-3 waster at >1KB descriptions. Two options:
 - Accept: bead quality > tokens. Rich descriptions are the point of beads.
 - If `bd` supports `--description-file` (check): write to `/tmp/bead-desc.md`, then `bd ... --description-file /tmp/bead-desc.md`.
 
-### 9. Git commit messages
+### Git commit messages
 
 `git commit -m "$(cat <<'EOF' ... EOF)"` is acceptable for ≤500 chars. For longer multi-line commits: write message to a file, then `git commit -F /tmp/commit-msg.md`.
 
-## Monitoring self-audit
+---
+
+## Tool-Specific Reference
+
+### Bash
+- **Timeout:** default 120000ms (2 min), max 600000ms (10 min). Use the `timeout` parameter when running long builds, crawls, or test suites to avoid silent termination.
+
+### Grep
+- **Brace escaping:** literal braces must be escaped — use `interface\{\}` to find `interface{}` in Go code. Without escaping, the pattern silently matches nothing.
+- **Multiline:** by default patterns match within single lines only. For cross-line patterns (e.g. `struct \{[\s\S]*?field`), pass `multiline: true`.
+
+### Glob
+- **Sort order:** returns paths sorted by **modification time** (newest first), NOT alphabetical. First result = most recently modified file.
+
+### Read
+- **Line limit:** reads up to 2000 lines by default. Use `offset` + `limit` parameters for larger files.
+- **Output format:** `cat -n` format — `line_number\tcontent`. NEVER include the `line_number\t` prefix in Edit's `old_string` or `new_string`.
+- **Images:** can read PNG, JPG, etc. — presented visually as a multimodal model.
+- **PDF:** files with >10 pages MUST include a `pages` parameter (e.g. `"1-5"`). Omitting it on large PDFs causes a tool failure. Max 20 pages per request.
+- **Jupyter:** can read `.ipynb` notebooks — returns all cells with their outputs.
+- **Directories:** Read cannot read directories. Use `ls` via Bash.
+- **Empty file:** returns a system-reminder warning in place of content — do NOT interpret the warning as actual file content.
+
+### Edit
+- **Read first:** MUST call Read at least once before Edit. Tool errors if not.
+- **Indentation:** preserve EXACT indentation as it appears AFTER the line-number prefix. Prefix format is `line_number\t` — NEVER include it in `old_string` or `new_string`.
+- **Uniqueness:** FAIL if `old_string` is not unique in the file. Remedy: expand the match string with more surrounding context, or use `replace_all`.
+- **replace_all:** use for rename-across-file operations (variable rename, import path change, etc.).
+
+### Write
+- **Existing file:** MUST call Read first. Tool fails without it.
+- **Edit over Write:** for existing files, prefer Edit (sends only the diff). Write sends the full content every time.
+- **No docs:** NEVER create `*.md` or README files unless explicitly requested by the User.
+
+### MCP Tools (iterative-dev)
+- **dev_sync:** sync dev branch to main via git update-ref (no checkout needed)
+- **git_check:** pre-commit check + auto-staging
+- **worker_send:** send message to running worker
+- **worker_spawn:** spawn worker with optional worktree isolation
+
+---
+
+## Monitoring Self-Audit
 
 - **waste_pane** (Monitor Window 4 right): check 1-2× per session. Expand top offenders. If the same command-prefix keeps appearing: that's a rule violation, stop and rethink.
-- **warnings_pane zero-results**: repeated zero results on the same topic = rule 6 violation.
+- **warnings_pane zero-results**: repeated zero results on the same topic = Grep/Glob gunshot violation (Rule 6).
 - **Per-session reports**: `dev/tool_use_analysis/YYYYMMDD_*.md` in Monitor_CC. Generated per session via ad-hoc scripts (one script per analysis, no shared library).
 
 ## What this skill does NOT do
