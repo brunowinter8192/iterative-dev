@@ -163,6 +163,8 @@ Zero-results live in the warnings_pane (Monitor Window 4 left). Two zero-results
 
 #### Worker CLI
 
+**`c` is the canonical `project_path` argument.** Pass `c` instead of the full absolute path — resolves to the current project root from any directory including worktrees. Use absolute paths only when `c` cannot resolve (rare — only from a non-git directory). `worker-cli status --all c` snapshots all active workers in one call.
+
 All worker lifecycle operations via `~/.local/bin/worker-cli`.
 
 | Operation | CLI |
@@ -176,9 +178,9 @@ All worker lifecycle operations via `~/.local/bin/worker-cli`.
 | Send message to worker | `worker-cli send <name> <message> [project_path]` |
 | Spawn worker in worktree | `worker-cli spawn <name> <prompt_file> <project_path> [model]` |
 
-The wrapper internally sources `$PLUGIN/src/spawn/tmux_spawn.sh`. Override plugin location via `CLAUDE_PLUGIN_ROOT` env var.
+> `<project_path>` = `c` in the vast majority of cases.
 
-**`c` shorthand:** pass `c` as `project_path` instead of the full absolute path — resolves to the current project root from any directory including worktrees. `worker-cli status --all c` snapshots all active workers in one call (replaces N separate status calls).
+The wrapper internally sources `$PLUGIN/src/spawn/tmux_spawn.sh`. Override plugin location via `CLAUDE_PLUGIN_ROOT` env var.
 
 **Session name pattern:** `worker-<basename(project_path)>-<name>`. Example: project `/Users/x/Monitor_CC` + worker `inject-fixes` → session `worker-Monitor_CC-inject-fixes`.
 
@@ -195,16 +197,15 @@ bash -c "source \"$SPAWN\" && worker_status \"<name>\" \"<project_path>\""
 **Examples:**
 
 ```bash
-PROJECT=~/Documents/ai/Monitor_CC
-worker-cli list "$PROJECT"
-worker-cli status inject-fixes "$PROJECT"
-worker-cli capture inject-fixes "$PROJECT"
+worker-cli list c
+worker-cli status inject-fixes c
+worker-cli capture inject-fixes c
 # → prints path like /tmp/worker_capture_inject-fixes_123456.txt
 tail -n 50 /tmp/worker_capture_inject-fixes_123456.txt
-worker-cli merge inject-fixes "$PROJECT"
-worker-cli kill inject-fixes "$PROJECT"  # only after status is idle/done
-worker-cli send inject-fixes "Go for step 2" "$PROJECT"
-worker-cli spawn new-feature /tmp/prompt.md "$PROJECT" sonnet
+worker-cli merge inject-fixes c
+worker-cli kill inject-fixes c   # only after status is idle/done
+worker-cli send inject-fixes "Go for step 2" c
+worker-cli spawn new-feature /tmp/prompt.md c sonnet
 ```
 
 #### Git CLI
@@ -213,7 +214,7 @@ Pre-commit check via `git-check` CLI, everything else via CLI.
 
 ##### Pre-Commit
 
-`git-check [repo_path]` — auto-stages files (with skip patterns: venv/, node_modules/) and returns a status report:
+`git-check [repo_path]` — `repo_path` accepts `c` (same resolver logic as worker-cli). Auto-stages files (with skip patterns: venv/, node_modules/) and returns a status report:
 - `STAGED` / `UNSTAGED` / `UNTRACKED` sections
 - `HOOK STATUS` (WARNING → run `bd export` via Bash before committing)
 - `DIFF SUMMARY` → use for commit message
@@ -236,7 +237,7 @@ If all sections are `(none)` → nothing to commit, skip.
 When user asks to commit:
 
 1. **Check + Stage** — `git-check [repo_path]`
-2. **Commit** — `gc "<message>"` (if cwd inside repo) OR `git -C <repo> commit -am "<message>"` (explicit path)
+2. **Commit** — `gc "<message>"` (if cwd inside repo) OR `git -C c commit -am "<message>"` (explicit path; `c` resolves to project root)
 3. **Post-check** — `git -C <repo> status --short` → empty = proceed; non-empty with non-`.beads/` paths → stage + commit again
 4. **Push** — `git -C <repo> push` (retry with `-u origin <branch>` on first push)
 5. **Plugin-sync** (if plugin repo) — run AFTER push
@@ -248,7 +249,7 @@ When user asks to commit:
 ```bash
 gc "fix: reset warnings pane on proxy log path change"
 # or
-git -C <repo> commit -am "fix: reset warnings pane on proxy log path change"
+git -C c commit -am "fix: reset warnings pane on proxy log path change"
 ```
 
 - Types: `feat` / `fix` / `refactor` / `docs` / `chore`
@@ -262,7 +263,7 @@ git -C <repo> commit -am "fix: reset warnings pane on proxy log path change"
 - The reader of `git log` will benefit from the extra context
 
 ```bash
-git -C <repo> commit -am "$(cat <<'EOF'
+git -C c commit -am "$(cat <<'EOF'
 refactor: migrate X from Y to Z
 
 Breaking: consumers of Y must update to new signature (see MIGRATION.md).
