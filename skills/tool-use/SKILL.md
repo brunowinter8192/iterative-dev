@@ -237,7 +237,7 @@ If all sections are `(none)` → nothing to commit, skip.
 When user asks to commit:
 
 1. **Check + Stage** — `git-check [repo_path]`
-2. **Commit** — `gc "<message>"` (if cwd inside repo) OR `git -C c commit -am "<message>"` (explicit path; `c` resolves to project root)
+2. **Commit** — `gc "<message>"` (if cwd inside repo) OR `git -C <repo> commit -am "<message>"` (explicit path)
 3. **Post-check** — `git -C <repo> status --short` → empty = proceed; non-empty with non-`.beads/` paths → stage + commit again
 4. **Push** — `git -C <repo> push` (retry with `-u origin <branch>` on first push)
 5. **Plugin-sync** (if plugin repo) — run AFTER push
@@ -249,7 +249,7 @@ When user asks to commit:
 ```bash
 gc "fix: reset warnings pane on proxy log path change"
 # or
-git -C c commit -am "fix: reset warnings pane on proxy log path change"
+git -C <repo> commit -am "fix: reset warnings pane on proxy log path change"
 ```
 
 - Types: `feat` / `fix` / `refactor` / `docs` / `chore`
@@ -263,7 +263,7 @@ git -C c commit -am "fix: reset warnings pane on proxy log path change"
 - The reader of `git log` will benefit from the extra context
 
 ```bash
-git -C c commit -am "$(cat <<'EOF'
+git -C <repo> commit -am "$(cat <<'EOF'
 refactor: migrate X from Y to Z
 
 Breaking: consumers of Y must update to new signature (see MIGRATION.md).
