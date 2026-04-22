@@ -138,6 +138,10 @@ Define task-level deliverables with measurable completion criteria — NOT per w
 
 Workers, lifecycle, background timer, merging: see workers rules (opus-workers-1/2/3).
 
+**Background Timer Discipline:** ONE timer at a time. Start a background timer → WAIT for it to fire → THEN check status → THEN decide whether to set another. NEVER stack multiple timers in rapid succession. If you set `sleep 120` and it hasn't fired yet, do independent work (DOCS, bead updates, rule edits) — do NOT set a second timer "just in case".
+
+Concrete failure (2026-04-22): Started sleep 45, sleep 30, sleep 30 within seconds of each other without waiting for any to complete. Each timer wake-up triggered another status check + another timer, creating a polling loop that wasted context and confused the user.
+
 **Opus↔Worker Iteration (the core loop):**
 All iteration happens between Opus and workers. Opus does NOT escalate to user for debugging, research, or implementation questions — Opus drives workers through these. This loop IS Phase 2 Cross-Model Comparison in action (see workers-2).
 
