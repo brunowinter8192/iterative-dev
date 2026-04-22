@@ -2,10 +2,26 @@
 # dev-sync: fast-forward main/master to dev HEAD without checkout
 # Source: Meta/blank/bin/dev-sync — symlinked to ~/.local/bin/dev-sync
 # Usage: dev-sync [project_path]
+# project_path: absolute path, or 'c' to resolve current git project root (worktree-aware).
 
 set -e
 
-PROJECT="${1:-$(pwd)}"
+resolve_project_path() {
+    local dir="${1:-$(pwd)}"
+    case "$dir" in c|.|'') dir="$(pwd)" ;; esac
+    [[ "$dir" != /* ]] && dir="$(pwd)/$dir"
+    if [[ "$dir" == */.claude/worktrees/* ]]; then
+        dir="${dir%%/.claude/worktrees/*}"
+    fi
+    local d="$dir"
+    while [[ "$d" != "/" && -n "$d" ]]; do
+        [[ -e "$d/.git" ]] && { echo "$d"; return 0; }
+        d="$(dirname "$d")"
+    done
+    echo "$dir"
+}
+
+PROJECT=$(resolve_project_path "${1:-}")
 
 CURRENT=$(git -C "$PROJECT" rev-parse --abbrev-ref HEAD)
 if [ "$CURRENT" != "dev" ]; then

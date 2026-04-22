@@ -83,7 +83,19 @@ When 2 tool calls in a row fail or don't deliver the desired result: **STOP IMME
 
 Concrete failure (2026-03-26): User asked 3× for needed sources. Response was more bash commands instead of naming concrete GitHub issues, tmux docs, or web searches to consult.
 
-### 6. Tool failure → immediate action (CRITICAL)
+### 6. Never dispatch parallel Bash calls
+
+Multiple Bash tool_use blocks in the same turn get serialized by the runtime — one wins, the others come back as `<tool_use_error>Cancelled: parallel tool call Bash(...)</tool_use_error>`. The cancelled calls still cost input tokens, produce zero useful output, and force a retry. Pure waste.
+
+**Rule:** one Bash call per turn. If you need multiple bash operations:
+- Chain them in a single command with `&&` or `;` (when outputs can be combined)
+- Or run sequentially across turns (when each result informs the next)
+
+Applies to ALL Bash invocations, not just `ls` — git, grep, cat, worker-cli, anything. Other tools (Read, Write, Edit, Grep, Glob) can be dispatched in parallel safely; only Bash has this cancel behavior.
+
+Concrete failure (2026-04-22): worker proxy-strip-full dispatched 4 parallel `ls <path>` calls to probe the gitignored MCP schema directory. All but one were cancelled with `Cancelled: parallel tool call Bash(ls ...)`. Cost: 4× Bash input chars for 1 useful result.
+
+### 7. Tool failure → immediate action (CRITICAL)
 
 Tool call fails silently → do NOT continue with workaround or fallback without reporting.
 
@@ -165,6 +177,8 @@ All worker lifecycle operations via `~/.local/bin/worker-cli`.
 | Spawn worker in worktree | `worker-cli spawn <name> <prompt_file> <project_path> [model]` |
 
 The wrapper internally sources `$PLUGIN/src/spawn/tmux_spawn.sh`. Override plugin location via `CLAUDE_PLUGIN_ROOT` env var.
+
+**`c` shorthand:** pass `c` as `project_path` instead of the full absolute path — resolves to the current project root from any directory including worktrees. `worker-cli status --all c` snapshots all active workers in one call (replaces N separate status calls).
 
 **Session name pattern:** `worker-<basename(project_path)>-<name>`. Example: project `/Users/x/Monitor_CC` + worker `inject-fixes` → session `worker-Monitor_CC-inject-fixes`.
 

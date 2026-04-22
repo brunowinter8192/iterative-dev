@@ -2,7 +2,24 @@
 # git-check: pre-commit check + auto-staging via src/git/check.py
 # Source: Meta/blank/bin/git-check — symlinked to ~/.local/bin/git-check
 # Usage: git-check [repo_path]
+# repo_path: absolute path, or 'c' to resolve current git project root (worktree-aware).
 
-REPO="${1:-$(pwd)}"
 PLUGIN="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/cache/brunowinter-plugins/iterative-dev/1.0.0}"
+
+resolve_project_path() {
+    local dir="${1:-$(pwd)}"
+    case "$dir" in c|.|'') dir="$(pwd)" ;; esac
+    [[ "$dir" != /* ]] && dir="$(pwd)/$dir"
+    if [[ "$dir" == */.claude/worktrees/* ]]; then
+        dir="${dir%%/.claude/worktrees/*}"
+    fi
+    local d="$dir"
+    while [[ "$d" != "/" && -n "$d" ]]; do
+        [[ -e "$d/.git" ]] && { echo "$d"; return 0; }
+        d="$(dirname "$d")"
+    done
+    echo "$dir"
+}
+
+REPO=$(resolve_project_path "${1:-}")
 cd "$PLUGIN" && python3 -m src.git.check "$REPO" --auto-stage

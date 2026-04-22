@@ -13,6 +13,7 @@ usage: worker-cli <cmd> [args]
 
   list <project_path>                                        — list active workers
   status <name> <project_path>                               — idle / working / exited
+  status --all <project_path>                                — snapshot all workers in one call
   capture <name> <project_path>                              — write pane to file, print path
   merge <name> <project_path>                                — log + merge branch into current
   kill <name> <project_path>                                 — tmux + worktree + branch cleanup
@@ -21,8 +22,30 @@ usage: worker-cli <cmd> [args]
                                                              — spawn worker in git worktree
 
 model: sonnet (default) | opus
-Project path: absolute or ~/ — passed verbatim to tmux_spawn.sh.
+Project path: absolute, ~/, or 'c' (resolves to current git project root, worktree-aware).
+  'c' works from any directory: project root, subdirectory, or inside a worktree.
 EOF
+}
+
+# Resolve project path — accepts absolute path, relative path, or 'c' / '.' / empty.
+# Strips /.claude/worktrees/<name> suffix if present, then walks up to nearest .git root.
+# NOTE: stops at first .git found — does not traverse into submodules.
+resolve_project_path() {
+    local dir="${1:-$(pwd)}"
+    case "$dir" in c|.|'') dir="$(pwd)" ;; esac
+    # Relative path → make absolute
+    [[ "$dir" != /* ]] && dir="$(pwd)/$dir"
+    # Strip worktree suffix to land at project root directly
+    if [[ "$dir" == */.claude/worktrees/* ]]; then
+        dir="${dir%%/.claude/worktrees/*}"
+    fi
+    # Walk up to nearest .git (covers both git dirs and worktree .git files)
+    local d="$dir"
+    while [[ "$d" != "/" && -n "$d" ]]; do
+        [[ -e "$d/.git" ]] && { echo "$d"; return 0; }
+        d="$(dirname "$d")"
+    done
+    echo "$dir"
 }
 
 if [ $# -eq 0 ]; then
@@ -36,20 +59,39 @@ shift
 case "$CMD" in
     list)
         [ $# -lt 1 ] && { echo "worker-cli list: missing project_path" >&2; exit 2; }
-        bash -c "source \"$SPAWN\" && worker_list \"\$1\"" _ "$1"
+        PROJECT=$(resolve_project_path "$1")
+        bash -c "source \"$SPAWN\" && worker_list \"\$1\"" _ "$PROJECT"
         ;;
     status)
-        [ $# -lt 2 ] && { echo "worker-cli status: need <name> <project_path>" >&2; exit 2; }
-        bash -c "source \"$SPAWN\" && worker_status \"\$1\" \"\$2\"" _ "$1" "$2"
+        if [ "${1:-}" = "--all" ]; then
+            [ $# -lt 2 ] && { echo "worker-cli status --all: missing project_path" >&2; exit 2; }
+            PROJECT=$(resolve_project_path "$2")
+            NAMES=$(bash -c "source \"$SPAWN\" && worker_list \"\$1\"" _ "$PROJECT" 2>/dev/null \
+                | awk '{print $1}')
+            if [ -z "$NAMES" ]; then
+                echo "(no active workers)"
+            else
+                while IFS= read -r wname; do
+                    STATUS=$(bash -c "source \"$SPAWN\" && worker_status \"\$1\" \"\$2\"" \
+                        _ "$wname" "$PROJECT" 2>/dev/null || echo "unknown")
+                    echo "${wname}: ${STATUS}"
+                done <<< "$NAMES"
+            fi
+        else
+            [ $# -lt 2 ] && { echo "worker-cli status: need <name> <project_path>" >&2; exit 2; }
+            bash -c "source \"$SPAWN\" && worker_status \"\$1\" \"\$2\"" \
+                _ "$1" "$(resolve_project_path "$2")"
+        fi
         ;;
     capture)
         [ $# -lt 2 ] && { echo "worker-cli capture: need <name> <project_path>" >&2; exit 2; }
-        bash -c "source \"$SPAWN\" && worker_capture \"\$1\" \"\" \"\$2\"" _ "$1" "$2"
+        bash -c "source \"$SPAWN\" && worker_capture \"\$1\" \"\" \"\$2\"" \
+            _ "$1" "$(resolve_project_path "$2")"
         ;;
     merge)
         [ $# -lt 2 ] && { echo "worker-cli merge: need <name> <project_path>" >&2; exit 2; }
         NAME="$1"
-        PROJECT="$2"
+        PROJECT=$(resolve_project_path "$2")
         echo "=== Commits on branch $NAME not in dev ==="
         git -C "$PROJECT" log dev.."$NAME" --oneline || true
         echo
@@ -59,7 +101,7 @@ case "$CMD" in
     kill)
         [ $# -lt 2 ] && { echo "worker-cli kill: need <name> <project_path>" >&2; exit 2; }
         NAME="$1"
-        PROJECT="$2"
+        PROJECT=$(resolve_project_path "$2")
         SESSION="worker-$(basename "$PROJECT")-$NAME"
         echo "Killing worker: $SESSION"
         tmux kill-session -t "$SESSION" 2>/dev/null && echo "  tmux session: killed" || echo "  tmux session: not found"
@@ -70,14 +112,15 @@ case "$CMD" in
         [ $# -lt 2 ] && { echo "worker-cli send: need <name> <message> [project_path]" >&2; exit 2; }
         NAME="$1"
         MESSAGE="$2"
-        PROJECT="${3:-$(pwd)}"
-        _WORKER_MSG="$MESSAGE" bash -c 'source "$1" && worker_send "$2" "$_WORKER_MSG" "$3"' _ "$SPAWN" "$NAME" "$PROJECT"
+        PROJECT=$(resolve_project_path "${3:-}")
+        _WORKER_MSG="$MESSAGE" bash -c 'source "$1" && worker_send "$2" "$_WORKER_MSG" "$3"' \
+            _ "$SPAWN" "$NAME" "$PROJECT"
         ;;
     spawn)
         [ $# -lt 3 ] && { echo "worker-cli spawn: need <name> <prompt_file> <project_path> [model] [--no-worktree]" >&2; exit 2; }
         NAME="$1"
         PROMPT_FILE="$2"; [[ "$PROMPT_FILE" != /* ]] && PROMPT_FILE="$(pwd)/$PROMPT_FILE"
-        PROJECT="$3"; [[ "$PROJECT" != /* ]] && PROJECT="$(pwd)/$PROJECT"
+        PROJECT=$(resolve_project_path "$3")
         MODEL="${4:-sonnet}"
         WORKTREE_FLAG=""
         [ "${5:-}" = "--no-worktree" ] && WORKTREE_FLAG="--no-worktree"
