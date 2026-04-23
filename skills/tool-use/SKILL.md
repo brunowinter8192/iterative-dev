@@ -9,22 +9,19 @@ Goal: no large Bash-call where a small one works. Every tool_use input counts �
 
 ## Hard Rules — Token Efficiency
 
-### 1. NEVER inline Python heredoc; `python3 -c` hard cap at 300 chars
+### 1. Python: heredoc default for one-shot, Write + Exec only for iteration
 
-`python3 << 'EOF' ... EOF` is the #1 waster. Tool-input balloons to 1-4KB through escaped newlines/quotes. Output is typically <100 chars. Observed ratios: 50-190.
+**Preference order for JSON/log analysis:**
 
-**Rule:** For any JSON/log analysis beyond a one-liner:
+1. **jq/grep/awk first** — purpose-built, shortest form. `jq -c 'select(.type=="error")' file.jsonl` beats 15 lines of Python every time. When the data shape fits a one-liner, use the one-liner.
+2. **Python heredoc when Python is actually needed** — multi-field comparisons, nested dict walks, anything awk/jq struggles to express cleanly. `python3 << 'EOF' ... EOF` is the normal form. One tool call, no temp file, no plugin-cache footprint.
+3. **Write + Exec only for iteration or size** — use Write tool + `python3 /tmp/script.py` when (a) you already know you will refine the script across 3+ runs, OR (b) the script is >100 LOC, OR (c) the script is a reusable utility you want to keep on disk. Default case — single run, throw-away probe — stays heredoc.
 
-1. **Prefer jq/grep/awk** — purpose-built. `jq -c 'select(.type=="error")' file.jsonl` beats 15 lines of Python.
-2. **Write script to file** — `Write /tmp/investigate.py` once, then `python3 /tmp/investigate.py`. Iterate via Edit tool, never re-write the full script.
-3. **Shell variables for repeated paths** — `LOG=/path/foo.jsonl && jq '.type' $LOG` instead of inlining the path in every call.
-4. **Pipeline chains** — `head -100 file | jq .type | sort -u` over monolithic Python.
+**Rationale:** one-shot probe → heredoc = 1 tool call; Write + Exec = 2 tool calls. The iteration-discount of Write + Edit only applies if iteration actually happens. When it doesn't, Write + Exec is pure overhead.
 
-**The test:** Bash tool_use contains >15 lines of Python → STOP. Rewrite as jq / script-file / pipeline.
+**`python3 -c`:** when the `-c` string exceeds 300 chars including escaping — switch to heredoc (or Write for iteration). Argument-level quote escaping in `-c` is worse than heredoc quoting for medium scripts.
 
-**`python3 -c`:** when the `-c` string exceeds 300 chars including escaping — stop, write a script file instead. Same escape-inflation problem.
-
-**Concrete failure (2026-04-19):** context-hygiene worker inspected session JSONL with 5+ inline python heredocs (500-2000 chars each). Context dropped from 40%+ to 18% in Phase 1 alone. A `jq '[.[] | select(.type=="attachment")] | length' file` one-liner would have answered the same question in ~80 chars.
+**The test for heredoc size:** if the heredoc would exceed ~4KB of Python OR you expect to refine it across multiple runs, switch to Write + Exec. Otherwise heredoc.
 
 ### 2. No Bash for file creation → Write tool
 
@@ -148,18 +145,17 @@ Zero-results live in the warnings_pane (Monitor Window 4 left). Two zero-results
 
 Not every heredoc is the same problem. Three classes, three different answers.
 
-**Case 1 — Python or analysis heredoc (Rule 1 above): NEVER.**
+**Case 1 — Python or analysis heredoc: OK for one-shot, switch to Write for iteration.**
 
-`python3 << 'EOF' ... EOF` is always wrong, iteration or not:
+`python3 << 'EOF' ... EOF` is the default when Python is needed and jq/awk don't fit cleanly. Heredoc = 1 tool call; Write + Exec = 2 tool calls. For a throw-away probe that runs once, heredoc wins on tool-call count.
 
-- Compared to a `jq`/`grep`/`awk` pipeline: pipelines are shorter and purpose-built for data wrangling. A single-line `jq 'select(.x > 100)' file.jsonl` beats 20 lines of Python that does the same thing, with a far better ratio of input-chars to output-chars.
-- Compared to Write + Exec for a one-shot analysis: same content bytes, but the Write approach leaves the script on disk the moment a second iteration is needed. Heredoc has to rewrite the full script every time.
-- Per-iteration math, 50-line script, 3 runs:
-  - Heredoc: 3 × ~5KB = ~15KB Bash input total.
-  - Write + 2× Edit: ~3KB Write + 2× ~500B Edit = ~4KB total.
-  - Roughly 4× savings after just two iterations; the gap widens linearly.
+Per-run math, 50-line script:
+- 1 run (probe): heredoc 1 call, Write + Exec 2 calls — heredoc wins.
+- 3 runs (iteration): heredoc 3 calls × full script, Write + 2 Edit + 3 Exec = ~5 calls with smaller diffs — Write + Edit wins on total bytes and call count.
 
-At zero iterations (pure one-shot Python) the two tie on bytes — but then jq/awk usually applies anyway. Python heredoc never wins.
+Threshold: if you expect more than 1-2 runs, or the script exceeds ~4KB / 100 LOC, switch to Write + Exec. Otherwise heredoc is the clean form.
+
+Still: prefer jq/awk/sed pipelines when the question fits them. Python is for shapes those don't express well.
 
 **Case 2 — File creation heredoc (Rule 2 above): NEVER.**
 
@@ -181,7 +177,7 @@ Case 3 applies specifically to multi-line shell-command arguments that the user 
 
 **Decision flow:**
 
-1. Is the content Python / analysis code? → never heredoc. Prefer jq/awk/sed or pipe chains. If Python is unavoidable, Write + Exec (then Edit across iterations).
+1. Is the content Python / analysis code? → try jq/awk/sed first. If Python is needed: one-shot probe → heredoc. 3+ runs expected or >100 LOC → Write + Exec.
 2. Is the goal to create a file? → never heredoc. Write tool.
 3. Is it a multi-line argument to a one-shot shell command (bd create, git commit -m body, curl -d payload)? → heredoc inline is the clean form. One tool call, no temp file.
 4. Will the same multi-line content be reused, revised, or referenced across multiple calls? → treat as iterated. Write + Edit.
