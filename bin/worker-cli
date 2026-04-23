@@ -15,6 +15,7 @@ usage: worker-cli <cmd> [args]
   status <name> <project_path>                               — idle / working / exited
   status --all <project_path>                                — snapshot all workers in one call
   capture <name> <project_path>                              — write pane to file, print path
+  response <name> [project_path]                             — clean last assistant turn from session JSONL
   merge <name> <project_path>                                — log + merge branch into current
   kill <name> <project_path>                                 — tmux + worktree + branch cleanup
   send <name> <message> [project_path]                       — send message to running worker
@@ -87,6 +88,36 @@ case "$CMD" in
         [ $# -lt 2 ] && { echo "worker-cli capture: need <name> <project_path>" >&2; exit 2; }
         bash -c "source \"$SPAWN\" && worker_capture \"\$1\" \"\" \"\$2\"" \
             _ "$1" "$(resolve_project_path "$2")"
+        ;;
+    response)
+        [ $# -lt 1 ] && { echo "worker-cli response: need <name> [project_path]" >&2; exit 2; }
+        NAME="$1"
+        PROJECT=$(resolve_project_path "${2:-}")
+        WORKTREE="$PROJECT/.claude/worktrees/$NAME"
+        if [ ! -d "$WORKTREE" ]; then
+            echo "worker-cli response: no worktree for $NAME at $WORKTREE" >&2
+            exit 2
+        fi
+        PROJECTS_DIR="$HOME/.claude/projects"
+        if [ ! -d "$PROJECTS_DIR" ]; then
+            echo "worker-cli response: ~/.claude/projects not found" >&2
+            exit 3
+        fi
+        ENCODED="${WORKTREE//\//-}"; ENCODED="${ENCODED//\./-}"
+        ENCODED_DIR="$PROJECTS_DIR/$ENCODED"
+        JSONL=$(ls -t "$ENCODED_DIR"/*.jsonl 2>/dev/null | head -1)
+        if [ -z "$JSONL" ]; then
+            echo "worker-cli response: no session JSONL found for $NAME at $ENCODED_DIR" >&2
+            exit 4
+        fi
+        TEXT=$(jq -rs '[.[] | select(.type == "assistant" and (.message.content // [] | map(select(.type == "text")) | length > 0))] | last | if . == null then "" else (.message.content | map(select(.type == "text")) | map(.text) | join("\n\n")) end' "$JSONL" 2>/dev/null || true)
+        if [ -z "$TEXT" ]; then
+            echo "worker-cli response: no assistant text message found in $JSONL" >&2
+            exit 5
+        fi
+        CHARS=${#TEXT}
+        echo "=== response from $NAME ($CHARS chars) ==="
+        echo "$TEXT"
         ;;
     merge)
         [ $# -lt 2 ] && { echo "worker-cli merge: need <name> <project_path>" >&2; exit 2; }

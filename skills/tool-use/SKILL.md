@@ -227,12 +227,15 @@ All worker lifecycle operations via `~/.local/bin/worker-cli`.
 | Check worker status | `worker-cli status <name> <project_path>` |
 | Capture pane to file | `worker-cli capture <name> <project_path>` |
 | Read last N lines | `tail -n <N> <output_file_from_capture>` |
+| Get clean last response | `worker-cli response <name> [project_path]` |
 | Merge worker branch | `worker-cli merge <name> <project_path>` |
 | Kill worker | `worker-cli kill <name> <project_path>` |
 | Send message to worker | `worker-cli send <name> <message> [project_path]` |
 | Spawn worker in worktree | `worker-cli spawn <name> <prompt_file> <project_path> [model]` |
 
 > `<project_path>` = `c` in the vast majority of cases.
+
+For idle workers, prefer `worker-cli response <name>` over `capture + tail` — returns clean text-only output from session JSONL, no UI trailers or prompt echo.
 
 The wrapper internally sources `$PLUGIN/src/spawn/tmux_spawn.sh`. Override plugin location via `CLAUDE_PLUGIN_ROOT` env var.
 
