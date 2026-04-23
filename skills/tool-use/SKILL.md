@@ -15,9 +15,9 @@ Goal: no large Bash-call where a small one works. Every tool_use input counts �
 
 1. **jq/grep/awk first** — purpose-built, shortest form. `jq -c 'select(.type=="error")' file.jsonl` beats 15 lines of Python every time. When the data shape fits a one-liner, use the one-liner.
 2. **Python heredoc when Python is actually needed** — multi-field comparisons, nested dict walks, anything awk/jq struggles to express cleanly. `python3 << 'EOF' ... EOF` is the normal form. One tool call, no temp file, no plugin-cache footprint.
-3. **Write + Exec only when iteration actually starts** — switch to `Write /tmp/script.py` + `python3 /tmp/script.py` once you're on the second run with substantial changes and plan to refine further. At that point Edit-tool diffs save meaningful bytes versus re-transmitting the full heredoc each run. For one-shot probes that get thrown away: heredoc. For reusable utilities you want on disk regardless: Write.
+3. **Write + Edit for iteration of the same script** — if you're going to run the SAME script a second time after edits, switch to `Write /tmp/script.py` + Edit + `python3 /tmp/script.py` from the first refinement. Edit-tool diffs are far smaller than re-transmitting the full heredoc. For one-shot probes that get thrown away after one run: heredoc. Different script for a different question is still a new one-shot — heredoc again, not Write.
 
-**Rationale:** one-shot probe → heredoc = 1 tool call; Write + Exec = 2 tool calls. The iteration-discount of Write + Edit only applies if iteration actually happens. When it doesn't, Write + Exec is pure overhead. No hard LOC threshold — judge by whether you're about to iterate, not by line count.
+**Rationale:** one-shot probe → heredoc = 1 tool call; Write + Exec = 2 tool calls. The iteration-discount of Write + Edit only applies when the SAME script gets refined and re-run. A session of 5 different probes, each answering a different question, is 5 one-shots — 5 heredocs, not 5 Writes. No hard LOC threshold — the signal is "will this exact script run again with changes", not line count.
 
 **`python3 -c`:** when the `-c` string exceeds 300 chars including escaping — switch to heredoc (or Write once iteration starts). Argument-level quote escaping in `-c` is worse than heredoc quoting for medium scripts.
 
@@ -145,9 +145,11 @@ Not every heredoc is the same problem. Three classes, three different answers.
 
 **Case 1 — Python or analysis heredoc: OK for one-shot, switch to Write for iteration.**
 
-`python3 << 'EOF' ... EOF` is the default when Python is needed and jq/awk don't fit cleanly. Heredoc = 1 tool call; Write + Exec = 2 tool calls. For a throw-away probe that runs once, heredoc wins.
+`python3 << 'EOF' ... EOF` is the default when Python is needed and jq/awk don't fit cleanly. One run → one heredoc, done.
 
-Decision point: you just ran the script and you're about to run it again with changes. Is the change substantial enough that you'd re-send most of the body anyway? → heredoc again is fine. Is the change a small tweak (a few lines) and you expect another round after that? → switch to Write + Exec from here on; Edit-tool diffs are smaller than re-heredoc'ing.
+Decision point: you're about to run the SAME script a second time after editing it. Switch to Write + Edit now. Edit-tool diffs are smaller than re-sending the full heredoc, and further iterations are cheap. Don't wait for a third or fourth run — the switch pays from run #2.
+
+Different script for a different question is a new one-shot, not iteration — heredoc again.
 
 Still: prefer jq/awk/sed pipelines when the question fits them. Python is for shapes those don't express well.
 
@@ -171,7 +173,7 @@ Case 3 applies specifically to multi-line shell-command arguments that the user 
 
 **Decision flow:**
 
-1. Is the content Python / analysis code? → try jq/awk/sed first. If Python is needed: one-shot probe → heredoc. Already iterating with small tweaks per run → Write + Exec.
+1. Is the content Python / analysis code? → try jq/awk/sed first. If Python is needed: one-shot (one run, throw away) → heredoc. Same script will run a second time after edits → Write + Edit from run #2.
 2. Is the goal to create a file? → never heredoc. Write tool.
 3. Is it a multi-line argument to a one-shot shell command (bd create, git commit -m body, curl -d payload)? → heredoc inline is the clean form. One tool call, no temp file.
 4. Will the same multi-line content be reused, revised, or referenced across multiple calls? → treat as iterated. Write + Edit.
