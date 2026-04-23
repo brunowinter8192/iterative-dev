@@ -12,7 +12,7 @@ usage() {
 usage: worker-cli <cmd> [args]
 
   list <project_path>                                        — list active workers
-  status <name> <project_path>                               — idle / working / exited
+  status <name> <project_path>                               — idle / working / exited + context remaining %
   status --all <project_path>                                — snapshot all workers in one call
   capture <name> <project_path>                              — write pane to file, print path
   response <name> [project_path]                             — clean last assistant turn from session JSONL
@@ -49,6 +49,30 @@ resolve_project_path() {
     echo "$dir"
 }
 
+# Encode an absolute path to the ~/.claude/projects/ dir name: replace /, ., _ with -.
+encode_worktree_path() {
+    local p="$1"
+    p="${p//\//-}"; p="${p//\./-}"; p="${p//_/-}"
+    echo "$p"
+}
+
+# Print context-remaining % for a worker based on its latest session JSONL.
+# Outputs "N%" or "—%" if no usage data found; never fails with non-zero exit.
+context_pct() {
+    local name="$1" project="$2"
+    local worktree="$project/.claude/worktrees/$name"
+    local encoded_dir="$HOME/.claude/projects/$(encode_worktree_path "$worktree")"
+    local jsonl cr
+    jsonl=$(ls -t "$encoded_dir"/*.jsonl 2>/dev/null | head -1)
+    [ -z "$jsonl" ] && { echo "—%"; return; }
+    cr=$(jq -rs '[.[] | select(.message.usage.cache_read_input_tokens? != null)] | last | .message.usage.cache_read_input_tokens // empty' "$jsonl" 2>/dev/null || true)
+    if [ -z "$cr" ] || [ "$cr" = "null" ]; then
+        echo "—%"
+    else
+        echo "$(( 100 * (200000 - cr) / 200000 ))%"
+    fi
+}
+
 if [ $# -eq 0 ]; then
     usage
     exit 2
@@ -75,13 +99,17 @@ case "$CMD" in
                 while IFS= read -r wname; do
                     STATUS=$(bash -c "source \"$SPAWN\" && worker_status \"\$1\" \"\$2\"" \
                         _ "$wname" "$PROJECT" 2>/dev/null || echo "unknown")
-                    echo "${wname}: ${STATUS}"
+                    PCT=$(context_pct "$wname" "$PROJECT")
+                    echo "${wname}: ${STATUS} ${PCT}"
                 done <<< "$NAMES"
             fi
         else
             [ $# -lt 2 ] && { echo "worker-cli status: need <name> <project_path>" >&2; exit 2; }
-            bash -c "source \"$SPAWN\" && worker_status \"\$1\" \"\$2\"" \
-                _ "$1" "$(resolve_project_path "$2")"
+            PROJECT=$(resolve_project_path "$2")
+            STATUS=$(bash -c "source \"$SPAWN\" && worker_status \"\$1\" \"\$2\"" \
+                _ "$1" "$PROJECT" 2>/dev/null || echo "unknown")
+            PCT=$(context_pct "$1" "$PROJECT")
+            echo "${STATUS} ${PCT}"
         fi
         ;;
     capture)
@@ -103,8 +131,7 @@ case "$CMD" in
             echo "worker-cli response: ~/.claude/projects not found" >&2
             exit 3
         fi
-        ENCODED="${WORKTREE//\//-}"; ENCODED="${ENCODED//\./-}"
-        ENCODED_DIR="$PROJECTS_DIR/$ENCODED"
+        ENCODED_DIR="$PROJECTS_DIR/$(encode_worktree_path "$WORKTREE")"
         JSONL=$(ls -t "$ENCODED_DIR"/*.jsonl 2>/dev/null | head -1)
         if [ -z "$JSONL" ]; then
             echo "worker-cli response: no session JSONL found for $NAME at $ENCODED_DIR" >&2
