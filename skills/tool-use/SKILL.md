@@ -144,15 +144,77 @@ Zero-results live in the warnings_pane (Monitor Window 4 left). Two zero-results
 
 ## Large Artifacts
 
+### Heredoc — three distinct cases
+
+Not every heredoc is the same problem. Three classes, three different answers.
+
+**Case 1 — Python or analysis heredoc (Rule 1 above): NEVER.**
+
+`python3 << 'EOF' ... EOF` is always wrong, iteration or not:
+
+- Compared to a `jq`/`grep`/`awk` pipeline: pipelines are shorter and purpose-built for data wrangling. A single-line `jq 'select(.x > 100)' file.jsonl` beats 20 lines of Python that does the same thing, with a far better ratio of input-chars to output-chars.
+- Compared to Write + Exec for a one-shot analysis: same content bytes, but the Write approach leaves the script on disk the moment a second iteration is needed. Heredoc has to rewrite the full script every time.
+- Per-iteration math, 50-line script, 3 runs:
+  - Heredoc: 3 × ~5KB = ~15KB Bash input total.
+  - Write + 2× Edit: ~3KB Write + 2× ~500B Edit = ~4KB total.
+  - Roughly 4× savings after just two iterations; the gap widens linearly.
+
+At zero iterations (pure one-shot Python) the two tie on bytes — but then jq/awk usually applies anyway. Python heredoc never wins.
+
+**Case 2 — File creation heredoc (Rule 2 above): NEVER.**
+
+`cat > file << 'EOF'` and `echo >` can leak shell context into the file content (e.g. `EOF 2>&1 | head -10` accidentally appended). Write tool is atomic and safe. Zero exceptions except the narrow single-line-append pattern noted in Rule 2.
+
+**Case 3 — Shell-argument heredoc for a one-shot command: OK.**
+
+Bead description, multi-line git commit body, one-off `curl -d`-style payload. The content is a single argument to a single command, never executed again, never edited. The alternatives (Write tool + `Bash` with `$(cat /tmp/file)`) and heredoc inline carry the **same content bytes** in tool_use JSON — the only difference is the heredoc version skips one tool-call overhead and does not leave a temp file behind.
+
+```bash
+# OK — one-shot shell argument
+bd --repo <path> create --title "..." --type task --description "$(cat <<'EOF'
+<full markdown description>
+EOF
+)"
+```
+
+Case 3 applies specifically to multi-line shell-command arguments that the user will never iterate on. For anything that might be re-run, re-shaped, or debugged later, fall back to Write + `$(cat ...)` so the content is editable via the Edit tool.
+
+**Decision flow:**
+
+1. Is the content Python / analysis code? → never heredoc. Prefer jq/awk/sed or pipe chains. If Python is unavoidable, Write + Exec (then Edit across iterations).
+2. Is the goal to create a file? → never heredoc. Write tool.
+3. Is it a multi-line argument to a one-shot shell command (bd create, git commit -m body, curl -d payload)? → heredoc inline is the clean form. One tool call, no temp file.
+4. Will the same multi-line content be reused, revised, or referenced across multiple calls? → treat as iterated. Write + Edit.
+
 ### Bead descriptions
 
-`bd create --description "..."` is a top-3 waster at >1KB descriptions. Two options:
-- Accept: bead quality > tokens. Rich descriptions are the point of beads.
-- If `bd` supports `--description-file` (check): write to `/tmp/bead-desc.md`, then `bd ... --description-file /tmp/bead-desc.md`.
+Case 3. Bead descriptions are written once and not iterated.
+
+```bash
+bd --repo <path> create --title "..." --type task --description "$(cat <<'EOF'
+<full markdown description>
+EOF
+)"
+```
+
+If `bd` later grows a `--description-file` flag, Write + flag is equivalent.
 
 ### Git commit messages
 
-`git commit -m "$(cat <<'EOF' ... EOF)"` is acceptable for ≤500 chars. For longer multi-line commits: write message to a file, then `git commit -F /tmp/commit-msg.md`.
+Single-line `-m` is the default for routine commits (see `Commit Message Format` below).
+
+Multi-line body only when it genuinely adds information for `git log` readers — and when it does, Case 3 applies: heredoc inline, no temp file.
+
+```bash
+git -C <repo> commit -am "$(cat <<'EOF'
+refactor: migrate X from Y to Z
+
+Breaking: consumers of Y must update to new signature (see MIGRATION.md).
+EOF
+)"
+```
+
+Multi-line body is justified when all three hold: breaking or architecturally significant change, body adds real information beyond the subject, `git log` readers benefit from the extra context. Otherwise single-line `-m` — heredoc for routine fixes is waste.
 
 ---
 
