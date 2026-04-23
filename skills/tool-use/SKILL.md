@@ -224,7 +224,7 @@ All worker lifecycle operations via `~/.local/bin/worker-cli`.
 | Operation | CLI |
 |---|---|
 | List active workers | `worker-cli list <project_path>` |
-| Check worker status | `worker-cli status <name> <project_path>` |
+| Check worker status | `worker-cli status <name> <project_path>` — outputs `idle 72%` / `working 28%` / `exited` |
 | Capture pane to file | `worker-cli capture <name> <project_path>` |
 | Read last N lines | `tail -n <N> <output_file_from_capture>` |
 | Get clean last response | `worker-cli response <name> [project_path]` |
