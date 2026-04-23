@@ -9,17 +9,26 @@ Goal: no large Bash-call where a small one works. Every tool_use input counts �
 
 ## Hard Rules — Token Efficiency
 
-### 1. Python: heredoc default for one-shot, Write + Exec only for iteration
+### 1. Python: heredoc for one-shot, Write + Exec ONLY for iteration (binary rule)
 
-**Preference order for JSON/log analysis:**
+**This is not a style preference. It is a measurable cost difference per probe:**
 
-1. **jq/grep/awk first** — purpose-built, shortest form. `jq -c 'select(.type=="error")' file.jsonl` beats 15 lines of Python every time. When the data shape fits a one-liner, use the one-liner.
-2. **Python heredoc when Python is actually needed** — multi-field comparisons, nested dict walks, anything awk/jq struggles to express cleanly. `python3 << 'EOF' ... EOF` is the normal form. One tool call, no temp file, no plugin-cache footprint.
-3. **Write + Edit for iteration of the same script** — if you're going to run the SAME script a second time after edits, switch to `Write /tmp/script.py` + Edit + `python3 /tmp/script.py` from the first refinement. Edit-tool diffs are far smaller than re-transmitting the full heredoc. For one-shot probes that get thrown away after one run: heredoc. Different script for a different question is still a new one-shot — heredoc again, not Write.
+- One-shot probe via **heredoc** = **1 tool call** (`python3 << 'EOF' ... EOF`)
+- Same one-shot via **Write + Exec** = **2 tool calls** (Write the file, then Bash to run it)
 
-**Rationale:** one-shot probe → heredoc = 1 tool call; Write + Exec = 2 tool calls. The iteration-discount of Write + Edit only applies when the SAME script gets refined and re-run. A session of 5 different probes, each answering a different question, is 5 one-shots — 5 heredocs, not 5 Writes. No hard LOC threshold — the signal is "will this exact script run again with changes", not line count.
+Write + Exec on a one-shot probe is pure waste — one extra tool call, one extra `tool_use` JSON payload, one extra `tool_result`, and a temp file left behind. The iteration-discount of Write + Edit **only** pays from run #2 onward, when Edit diffs replace full-heredoc re-transmission. There is no third option and no "Faulheit" / "cleaner / easier" justification — the call-count delta is the rule.
+
+**Decision is binary, by reuse:**
+
+1. **jq / grep / awk first** — purpose-built, shortest form. `jq -c 'select(.type=="error")' file.jsonl` beats 15 lines of Python every time. Use a one-liner when the data shape fits.
+2. **Python heredoc** when Python is actually needed (multi-field comparisons, nested dict walks, shapes awk/jq struggle to express). One run, one heredoc, done.
+3. **Write + Edit** ONLY when the SAME script will run a second time after edits. Switch from run #2, not before.
+
+**Different script for a different question is a NEW one-shot.** Five probes answering five questions in one session = five heredocs, not five Writes. The signal is "will this exact script run again with changes" — not line count, not "it looks substantial", not "a file feels cleaner".
 
 **`python3 -c`:** when the `-c` string exceeds 300 chars including escaping — switch to heredoc (or Write once iteration starts). Argument-level quote escaping in `-c` is worse than heredoc quoting for medium scripts.
+
+Concrete failure (2026-04-23): `sidecar_inspect.py` was a one-shot probe (one question: "which entries have `stripped_sidecar_content` in modifications?"). Created via Write, run via Bash, result read once, thrown away. Two tool calls for what a heredoc would have done in one. No iteration followed. Pure call-count waste. Justification at the time was "Faulheit" — 2 calls instead of 1 is not laziness, it is a concrete cost.
 
 ### 2. No Bash for file creation → Write tool
 
@@ -143,15 +152,15 @@ Zero-results live in the warnings_pane (Monitor Window 4 left). Two zero-results
 
 Not every heredoc is the same problem. Three classes, three different answers.
 
-**Case 1 — Python or analysis heredoc: OK for one-shot, switch to Write for iteration.**
+**Case 1 — Python / analysis: one-shot = heredoc. Iteration = Write + Edit. Binary.**
 
-`python3 << 'EOF' ... EOF` is the default when Python is needed and jq/awk don't fit cleanly. One run → one heredoc, done.
+`python3 << 'EOF' ... EOF` is the form for a one-shot probe — 1 tool call, no temp file.
 
-Decision point: you're about to run the SAME script a second time after editing it. Switch to Write + Edit now. Edit-tool diffs are smaller than re-sending the full heredoc, and further iterations are cheap. Don't wait for a third or fourth run — the switch pays from run #2.
+Switch to Write + Edit the moment you're about to run the SAME script a second time after editing it. Not third run, not fourth — from run #2. The switch pays because Edit diffs are smaller than re-transmitting the full script.
 
-Different script for a different question is a new one-shot, not iteration — heredoc again.
+Different script for a different question is NOT iteration. It is a new one-shot → new heredoc. Running five distinct probes in one session means five heredocs, not five Writes.
 
-Still: prefer jq/awk/sed pipelines when the question fits them. Python is for shapes those don't express well.
+Still: jq / awk / sed first when the question fits a one-liner. Python (via heredoc) is for shapes those don't express cleanly.
 
 **Case 2 — File creation heredoc (Rule 2 above): NEVER.**
 
