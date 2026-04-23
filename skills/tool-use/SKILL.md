@@ -15,13 +15,11 @@ Goal: no large Bash-call where a small one works. Every tool_use input counts �
 
 1. **jq/grep/awk first** — purpose-built, shortest form. `jq -c 'select(.type=="error")' file.jsonl` beats 15 lines of Python every time. When the data shape fits a one-liner, use the one-liner.
 2. **Python heredoc when Python is actually needed** — multi-field comparisons, nested dict walks, anything awk/jq struggles to express cleanly. `python3 << 'EOF' ... EOF` is the normal form. One tool call, no temp file, no plugin-cache footprint.
-3. **Write + Exec only for iteration or size** — use Write tool + `python3 /tmp/script.py` when (a) you already know you will refine the script across 3+ runs, OR (b) the script is >100 LOC, OR (c) the script is a reusable utility you want to keep on disk. Default case — single run, throw-away probe — stays heredoc.
+3. **Write + Exec only when iteration actually starts** — switch to `Write /tmp/script.py` + `python3 /tmp/script.py` once you're on the second run with substantial changes and plan to refine further. At that point Edit-tool diffs save meaningful bytes versus re-transmitting the full heredoc each run. For one-shot probes that get thrown away: heredoc. For reusable utilities you want on disk regardless: Write.
 
-**Rationale:** one-shot probe → heredoc = 1 tool call; Write + Exec = 2 tool calls. The iteration-discount of Write + Edit only applies if iteration actually happens. When it doesn't, Write + Exec is pure overhead.
+**Rationale:** one-shot probe → heredoc = 1 tool call; Write + Exec = 2 tool calls. The iteration-discount of Write + Edit only applies if iteration actually happens. When it doesn't, Write + Exec is pure overhead. No hard LOC threshold — judge by whether you're about to iterate, not by line count.
 
-**`python3 -c`:** when the `-c` string exceeds 300 chars including escaping — switch to heredoc (or Write for iteration). Argument-level quote escaping in `-c` is worse than heredoc quoting for medium scripts.
-
-**The test for heredoc size:** if the heredoc would exceed ~4KB of Python OR you expect to refine it across multiple runs, switch to Write + Exec. Otherwise heredoc.
+**`python3 -c`:** when the `-c` string exceeds 300 chars including escaping — switch to heredoc (or Write once iteration starts). Argument-level quote escaping in `-c` is worse than heredoc quoting for medium scripts.
 
 ### 2. No Bash for file creation → Write tool
 
@@ -147,13 +145,9 @@ Not every heredoc is the same problem. Three classes, three different answers.
 
 **Case 1 — Python or analysis heredoc: OK for one-shot, switch to Write for iteration.**
 
-`python3 << 'EOF' ... EOF` is the default when Python is needed and jq/awk don't fit cleanly. Heredoc = 1 tool call; Write + Exec = 2 tool calls. For a throw-away probe that runs once, heredoc wins on tool-call count.
+`python3 << 'EOF' ... EOF` is the default when Python is needed and jq/awk don't fit cleanly. Heredoc = 1 tool call; Write + Exec = 2 tool calls. For a throw-away probe that runs once, heredoc wins.
 
-Per-run math, 50-line script:
-- 1 run (probe): heredoc 1 call, Write + Exec 2 calls — heredoc wins.
-- 3 runs (iteration): heredoc 3 calls × full script, Write + 2 Edit + 3 Exec = ~5 calls with smaller diffs — Write + Edit wins on total bytes and call count.
-
-Threshold: if you expect more than 1-2 runs, or the script exceeds ~4KB / 100 LOC, switch to Write + Exec. Otherwise heredoc is the clean form.
+Decision point: you just ran the script and you're about to run it again with changes. Is the change substantial enough that you'd re-send most of the body anyway? → heredoc again is fine. Is the change a small tweak (a few lines) and you expect another round after that? → switch to Write + Exec from here on; Edit-tool diffs are smaller than re-heredoc'ing.
 
 Still: prefer jq/awk/sed pipelines when the question fits them. Python is for shapes those don't express well.
 
@@ -177,7 +171,7 @@ Case 3 applies specifically to multi-line shell-command arguments that the user 
 
 **Decision flow:**
 
-1. Is the content Python / analysis code? → try jq/awk/sed first. If Python is needed: one-shot probe → heredoc. 3+ runs expected or >100 LOC → Write + Exec.
+1. Is the content Python / analysis code? → try jq/awk/sed first. If Python is needed: one-shot probe → heredoc. Already iterating with small tweaks per run → Write + Exec.
 2. Is the goal to create a file? → never heredoc. Write tool.
 3. Is it a multi-line argument to a one-shot shell command (bd create, git commit -m body, curl -d payload)? → heredoc inline is the clean form. One tool call, no temp file.
 4. Will the same multi-line content be reused, revised, or referenced across multiple calls? → treat as iterated. Write + Edit.
