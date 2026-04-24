@@ -138,9 +138,19 @@ Define task-level deliverables with measurable completion criteria — NOT per w
 
 Workers, lifecycle, background timer, merging: see workers rules (opus-workers-1/2/3).
 
-**Background Timer Discipline:** ONE timer at a time. Start a background timer → WAIT for it to fire → THEN check status → THEN decide whether to set another. NEVER stack multiple timers in rapid succession. If you set `sleep 120` and it hasn't fired yet, do independent work (DOCS, bead updates, rule edits) — do NOT set a second timer "just in case".
+**Background Timer / Task Discipline (NON-NEGOTIABLE):** Maximum ONE background task (sleep-timer, long-running Bash with `run_in_background=true`, anything that produces a completion notification) in flight at any moment. Start one → WAIT for it to fire → THEN check status → THEN decide whether to launch another. NEVER stack multiple background tasks in rapid succession. If a task is still running, do independent work (DOCS, bead updates, rule edits) — do NOT launch a second "just in case".
+
+The rule is not about context budget. It is about Claude Code's internal event-queue behavior: every background-task completion event arriving while an API REQ is streaming cancels the running REQ client-side and fires a new one with the updated message payload. Two background tasks finishing back-to-back during a stream produce a 2-fold abort cascade; three produce 3-fold. Each aborted REQ is billed for input + cache-read (server-side prefill is complete before the first stream delta) plus partial output tokens. Wall-clock latency compounds too.
+
+Same rule applies to user-typed messages mid-stream — each keystroke-submitted message triggers a cancel-and-refire. But the user typing is under human control; background-task cascades are the orchestrator's responsibility to prevent.
+
+When orchestrating multiple workers: serialize any poll-timers or background waits. If parallel timing is genuinely needed, batch behind a single orchestrator that emits ONE completion event at the end. Idle state is safe — background completions when no REQ is streaming just queue for the next turn without aborting anything.
+
+Full forensic + billing analysis: `Monitor_CC/decisions/OldThemes/background_task_abort_cascade.md`.
 
 Concrete failure (2026-04-22): Started sleep 45, sleep 30, sleep 30 within seconds of each other without waiting for any to complete. Each timer wake-up triggered another status check + another timer, creating a polling loop that wasted context and confused the user.
+
+Concrete failure (2026-04-23, session 1776977437): `sleep 120 && echo "timer fired"` background task fired during an active Opus REQ stream. Combined with a manual user interrupt seconds later, this produced a 4-REQ cascade (REQ#115 fired 4 times in 59 seconds, 3 aborted with CR:0 CC:0, 1 completed). Only the final REQ produced a recorded assistant response; the three aborted streams were billed for cache-read (~277k tokens each × Opus rate) for zero useful output. See bead Monitor_CC-2lm + `decisions/OldThemes/background_task_abort_cascade.md` for the full forensic.
 
 **Opus↔Worker Iteration (the core loop):**
 All iteration happens between Opus and workers. Opus does NOT escalate to user for debugging, research, or implementation questions — Opus drives workers through these. This loop IS Phase 2 Cross-Model Comparison in action (see workers-2).
