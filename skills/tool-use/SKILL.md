@@ -246,6 +246,35 @@ All worker lifecycle operations via `~/.local/bin/worker-cli`.
 
 For idle workers, prefer `worker-cli response <name>` over `capture + tail` — returns clean text-only output from session JSONL, no UI trailers or prompt echo.
 
+##### Canonical polling flow (MANDATORY)
+
+The only correct sequence from spawn to read. Full flow lives in opus-workers-2 "Timer & Polling Flow" — this is the CLI-side summary:
+
+```bash
+# 1. spawn
+worker-cli spawn <name> /tmp/prompt.md c sonnet
+
+# 2. ONE background timer — estimated work duration, default ~180s
+#    (in Claude Code Bash: run_in_background=true)
+sleep 180 && echo done
+
+# 3. timer fires → ONE status check
+worker-cli status <name> c
+
+# 4a. if "working N%" → set NEXT background timer, go to 3
+# 4b. if "idle N%"   → read clean response
+worker-cli response <name> c
+```
+
+**Invariants that are violated by the common anti-patterns:**
+
+- **One timer at a time.** Never chain a foreground `sleep`/`until` loop next to an already-running background timer. The blocking tool-use message "sleep X followed by: ..." means switch to `run_in_background=true`, not "use a shorter sleep chain to work around the block."
+- **No manual `cat` on timer output files.** `/private/tmp/claude-501/.../tasks/*.output` is monitored by the until-loop's wait-condition OR by the worker-done hook. Reading it manually between polls returns zero new info and burns a Bash call.
+- **No repeated status checks in the same response turn.** If you just called `worker-cli status` and got `working`, the next step is setting the next timer, not a second status check 2 lines later.
+- **`worker-cli response` is the default for idle.** `worker-cli capture` + `tail` + `sed`-filter is the expensive fallback for cases where `response` misses context (rare — mostly Phase-A partial-report situations). Response returns ~200-2000 clean chars; capture dumps 2-5k chars of CC UI + prompt echo.
+
+Anti-pattern example (failure from 2026-04-24 session): background `sleep 120 && echo done` running, immediately followed in the same response block by foreground `until [ -s <output_file> ]; do sleep 5; done` waiting on the SAME file. Two wait-mechanisms on one completion, both blocking the turn, both redundant. Correct: start the background timer, do unrelated work, wait for the done-notification or check the status in a later turn.
+
 The wrapper internally sources `$PLUGIN/src/spawn/tmux_spawn.sh`. Override plugin location via `CLAUDE_PLUGIN_ROOT` env var.
 
 **Session name pattern:** `worker-<basename(project_path)>-<name>`. Example: project `/Users/x/Monitor_CC` + worker `inject-fixes` → session `worker-Monitor_CC-inject-fixes`.
