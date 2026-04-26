@@ -158,6 +158,21 @@ Before spawning any workers:
 3. Opus reviews on `dev` — execution rules do NOT trigger (worktree-only paths)
 4. At session end: use `dev_sync` MCP tool to sync dev→main
 
+### File-Move Task Checklist
+
+When a worker task involves moving files to a new subdirectory, the worker must verify EACH of the following AFTER completing the move. Add this checklist explicitly to the worker prompt:
+
+> **File-Move Checklist** — verify EACH point after completing the move:
+> 1. **Imports inside moved file:** `.` / `..` prefix depth changed (e.g. `from . import x` → `from .. import x` if now one level deeper). Fix all.
+> 2. **Imports outside referencing the moved file:** every caller that imports the old path must be updated.
+> 3. **Lazy imports inside functions:** `from . import x` written INSIDE a function body is still a relative import and follows the same rule. Easy to miss — grep explicitly.
+> 4. **Grep verification:** `grep -rn 'from \.\|from \.\.' <affected_subdirs> | grep <moved_module_name>` — confirms all references are updated.
+> 5. **Smoke test:** run the entry-point or a targeted import check (`python -c "import <top_level_package>"`) to confirm no ModuleNotFoundError.
+
+The checklist is mirrored on the worker side in `~/.claude/shared-rules/worker/worker-rules.md` Section 3 (File-Move Checklist subsection) — so it fires via proxy-injected rules even if Opus forgets to echo it in the prompt. Add it to BOTH places when this skill is updated.
+
+Concrete failure (2026-04-20, panes-refactor worker): moved 4 pane files → src/panes/. Smoke-test crashed: `ModuleNotFoundError: No module named 'src.token_pane'`. Lazy `from . import monitor as _monitor` inside run functions was not updated — `.` resolved to `src.panes` after the move instead of `src`. Worker missed it; Opus had to send a correction (2nd commit). Identical pattern repeated for each follow-up Group (core/, format/, input/) until the prompt-template was patched.
+
 ### Scope Extension During IMPLEMENT
 
 When the user introduces a new scope during IMPLEMENT:
