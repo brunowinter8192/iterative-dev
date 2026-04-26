@@ -278,8 +278,9 @@ spawn_claude_worker() {
         while lsof -iTCP:${worker_port} -sTCP:LISTEN >/dev/null 2>&1; do
             worker_port=$((worker_port + 1))
         done
-        # Generate human-readable log id: worker_{name}_{timestamp}
-        local worker_log_id="worker_${name}_$(date +%s)"
+        # Generate human-readable log id: worker_{project_session_id}_{name}_{timestamp}
+        # project_session_id scopes this log to the active project (mirrors _proxy_session_id_for_project in parser.py)
+        local worker_log_id="worker_${proxy_session_id}_${name}_$(date +%s)"
         # Start worker-specific mitmproxy in background (live-copy to prevent hot-reload)
         local log_dir="${monitor_cc_root}/src/logs"
         mkdir -p "$log_dir"
