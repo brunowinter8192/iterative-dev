@@ -117,6 +117,34 @@ Tool call fails silently → do NOT continue with workaround or fallback without
 
 Concrete failure (2026-03-28): RAG `search` failed with "llama-server not found". Claude fell back to `read_document` silently and only mentioned the issue in results. User had to say "starte den server wenn er nicht läuft".
 
+### 8. `<persisted-output>` blocks: grep the full file, never settle for the preview
+
+**Rule:** When a tool_result contains a `<persisted-output>` block (CC's truncation feature for large Bash outputs), use Grep / Read / cat on the persisted file path. NEVER stop at the `Preview (first NKB)` content.
+
+CC injects this format when a Bash output exceeds its inline limit:
+
+```
+<persisted-output>
+Output too large (NMB). Full output saved to: /Users/.../tool-results/<id>.txt
+
+Preview (first 2KB):
+... 2KB snippet ...
+...
+</persisted-output>
+```
+
+The preview is bait. It suggests "this is everything you can see" and the natural read is to draw conclusions from those 2KB alone. That is almost always wrong — the full data lives at the path and is one Grep / Read call away. Preview content is redundant the moment you grep the persisted file.
+
+**Workflow:**
+1. Extract the absolute path from `Full output saved to: <path>`.
+2. **Grep first** — `grep <pattern> <path>` for targeted lookups (lowest context cost).
+3. **Read with offset/limit** for ranges — `Read(file_path=<path>, offset=N, limit=M)`. CC's "too large" warning is conservative; direct Read on the persisted file works for files much larger than the inline tool-output limit.
+4. **cat / head / tail** only when the file is small and you genuinely need contiguous content.
+
+**The mistake to avoid:** answering questions, drawing conclusions, or planning next steps from preview content alone. If preview content looks like it answers the question, that is coincidence — the full file may contain the actual answer or a different signal entirely.
+
+Concrete failure (2026-04-27): During the ham-bead audit review on Monitor_CC, three REQs (#66, #137, #145 of `api_requests_opus_monitor_cc_1777294641.jsonl`) contained `<persisted-output>` blocks. The preview was treated as the full output; the persisted files at `~/.claude/projects/.../tool-results/*.txt` were never grepped. User flagged: "anstatt dann alle infos zu holen die du brauchst stoppst du belässt es bei den preview infos. das entspricht aber nicht der wahrheit."
+
 ---
 
 ## Soft Rules
