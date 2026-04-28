@@ -145,6 +145,81 @@ The preview is bait. It suggests "this is everything you can see" and the natura
 
 Concrete failure (2026-04-27): During the ham-bead audit review on Monitor_CC, three REQs (#66, #137, #145 of `api_requests_opus_monitor_cc_1777294641.jsonl`) contained `<persisted-output>` blocks. The preview was treated as the full output; the persisted files at `~/.claude/projects/.../tool-results/*.txt` were never grepped. User flagged: "anstatt dann alle infos zu holen die du brauchst stoppst du belässt es bei den preview infos. das entspricht aber nicht der wahrheit."
 
+### 9. Read before Edit/Write — non-negotiable
+
+The Edit and Write tools fail on files that haven't been read in the current session with `<tool_use_error>File has not been read yet. Read it first before writing to it.` There is no workaround — the call must be re-issued after a Read.
+
+**Rule:** before any Edit or Write call on an existing file, call Read on the same path. ONE Read per file per session is enough — subsequent Edit/Write calls reuse the read state. Read followed by Edit in the same response is fine; both fire in order.
+
+**Forbidden shortcut:** "I know the content already" or "I just edited this in another session" does NOT satisfy the requirement. The Read-state is per-session, not persisted across sessions.
+
+The per-tool reference at the bottom of this file (Edit / Write sections) carries the same rule, but it gets overlooked because it lives in a reference table rather than the Hard Rules. This is a Hard Rule.
+
+Concrete failure (2026-04-28 aggregate of 10 sessions): 4 of 23 failures were Edit-without-Read on `DOCS.md` and `sources.md` files (sources.md once, DOCS.md three times across `src/proxy/`, `src/input/`, plus the same `src/proxy/DOCS.md` again in a later session).
+
+### 10. Branch-name ambiguity in repos with same-named directories
+
+`git diff <branch>` and `git log <branch>` fail with `fatal: ambiguous argument '<branch>': both revision and filename` when a directory of the same name exists at the repo root. The classic case: a `dev/` directory (for dev-scripts, evals, etc.) plus a `dev` branch. Git cannot tell which you meant.
+
+**Rule:** when the branch name collides with a directory in the repo, disambiguate with a trailing `--` to force the branch interpretation:
+
+```bash
+git -C <repo> diff dev --
+git -C <repo> log dev --oneline --
+```
+
+Alternatives that also work:
+- `git diff origin/dev` — remote-prefixed refs never collide with directory names
+- `git diff main` — compare against trunk instead, when that's what you actually want
+
+`workers-2` prescribes `git -C <project_root>/.claude/worktrees/<name> diff dev` for code review of worker branches. In a Monitor_CC-shaped repo (with `dev/` at root) this triggers the ambiguity error every time. Use `git -C <worktree> diff dev --` or `git -C <worktree> diff main` instead.
+
+Concrete failure (2026-04-28 aggregate): 4 of 23 failures were `git -C <worktree> diff dev` exiting 128 with the ambiguity error. Monitor_CC has a `dev/` directory at root.
+
+### 11. Diagnostic Bash chains: `;` not `&&`
+
+`grep` returns exit 1 when no match is found. `find` returns 1 when its base path is partially missing. `ls` returns 1 on empty or missing directories. None of those are bugs — they are normal results that signal "no rows matched". But they break `&&`-chained commands halfway through, truncating the rest of the diagnostic.
+
+**Rule:** for chains where each step produces independent output (status checks, multi-source probes, sanity diagnostics), separate with `;`. Reserve `&&` for cases where the next step genuinely depends on the previous one succeeding (commit before push, install before test, mkdir before write).
+
+```bash
+# WRONG — grep no-match aborts the rest
+echo "=== refs ===" && grep X file && ls dir/ && echo "=== done ==="
+
+# RIGHT — each step runs regardless
+echo "=== refs ==="; grep X file; ls dir/; echo "=== done ==="
+```
+
+Same principle: `2>/dev/null` swallows stderr but does NOT change exit codes — adding it does not save the chain.
+
+Concrete failure (2026-04-28 aggregate): ~4 of 23 failures were `&&`-chained diagnostic blocks (multi-`echo` headers around `grep` / `find` / `ls`) where a benign no-match exit-1 killed the chain. Output was half-rendered, the actual probe output never arrived.
+
+### 12. `sleep N && command` is runtime-blocked — use background timer
+
+CC's tool-use runtime blocks any Bash call of the form `sleep N && <command>` (or `sleep N; <command>`, or `sleep N && echo X && <command>`) and returns `<tool_use_error>Blocked: sleep N followed by: <command>`. The block fires before any sleep happens — there is no way around it inside a single Bash call.
+
+**Rule:** to wait and then act, split the wait from the action:
+
+1. Background timer: `Bash(command="sleep 120 && echo done", run_in_background=true)` — the bare `sleep N && echo done` form is allowed only as the entire backgrounded command, not chained with anything else.
+2. Wait for the completion message (the user's "Background command completed" notification arrives as a normal turn input).
+3. NEXT turn: run the actual check as a fresh foreground call (`worker-cli status <name> c`, `ps aux ...`, etc.).
+
+This is also the canonical worker-polling flow described in `opus-workers-2`. The block in tool-use exists to prevent foreground sleeps from stalling the API stream.
+
+**Forbidden:** chaining `sleep` with any other command in the same Bash call, foreground OR backgrounded (except the literal `sleep N && echo done` background-timer form). The runtime blocks both directions.
+
+Concrete failure (2026-04-28 aggregate): 2 of 23 failures were exactly this pattern (`sleep 60 && worker-cli status req-cascade-doc c`; `sleep 60 && echo "=== 60s post-restart ===" && ps aux | grep workflow ...`). The runtime block fires immediately, so the cost is the failed tool call plus a re-issue, but it pollutes the call history and breaks the polling flow.
+
+### 13. Worktree path is `.claude/worktrees/` — never `.claire/`
+
+The worktree directory in every project is `.claude/worktrees/<name>/`. There is no `.claire/` anywhere. But there is a recurring tokenizer-level typo where Edit, Write, Read, or Bash calls inside worker sessions land on `.claire/worktrees/...` paths and fail with `File does not exist` (or, for Bash `cd`, with a no-such-directory error).
+
+**Rule:** before any file operation that names a worktree path explicitly, verify the literal substring `.claude/worktrees/` (with a `u` and `d`, not an `i` and `r`). When working from cwd inside a worktree, prefer relative paths or the `c` shortcut for `worker-cli` rather than reconstructing the absolute path — the typo only happens when the model rebuilds the path string by hand.
+
+**Detection:** if a tool call returns `<tool_use_error>File does not exist. Note: your current working directory is /Users/.../.claude/worktrees/<name>.` — the cwd is correct but the path argument has the typo. The fix is rewriting the file_path with `.claude/`.
+
+Concrete failure (2026-04-28 aggregate of 44 sessions): 7 of 66 failures (16% of the new-batch cluster, largest new pattern) had `.claire/worktrees/` in the tool input. Same-session counts: ttfb-fix worker had 96 occurrences of `.claire` against 126 of `.claude` — the model writes both forms inside one session. Affected tools: Edit (5×), Read (1×), Write (1×). Path examples: `.claire/worktrees/ttfb-fix/src/proxy_display/pane.py`, `.claire/worktrees/ctrl-r-heal/src/tmux_launcher.py`, `.claire/worktrees/tag-3audits/dev/tool_use_analysis/tag_presence_audit.py`.
+
 ---
 
 ## Soft Rules
