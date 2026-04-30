@@ -235,7 +235,7 @@ spawn_claude_worker() {
     local project_path="$3"
     local model="${4:-sonnet}"
     local task_prompt="$5"
-    local extra_flags="${6:-}"
+    local extra_flags="${6:---dangerously-skip-permissions}"
 
     local session
     session=$(_worker_session_name "$project_path" "$name")
@@ -357,7 +357,7 @@ spawn_claude_worker_from_file() {
     local project_path="$3"
     local model="${4:-sonnet}"
     local prompt_file="$5"
-    local extra_flags="${6:-}"
+    local extra_flags="${6:---dangerously-skip-permissions}"
 
     if [ ! -f "$prompt_file" ]; then
         echo "ERROR: Prompt file not found: $prompt_file" >&2
