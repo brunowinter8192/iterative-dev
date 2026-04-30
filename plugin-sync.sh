@@ -33,14 +33,39 @@ if [ ! -f "$PLUGIN_JSON" ]; then
     exit 1
 fi
 
-# --- Read version from plugin.json ---
+# --- Resolve version: installed first, source as reference ---
 
-VERSION=$(python3 -c "import json; print(json.load(open('$PLUGIN_JSON'))['version'])")
+INSTALLED_VERSION=$(python3 -c "
+import json
+data = json.load(open('$INSTALLED_JSON'))
+key = '${PLUGIN_NAME}@${MARKETPLACE}'
+entries = data.get('plugins', {}).get(key, [])
+if entries:
+    print(entries[0].get('version', ''))
+")
+
+if [ -z "$INSTALLED_VERSION" ]; then
+    echo "ERROR: Plugin '$PLUGIN_NAME' not found in installed_plugins.json. Run /plugin install first."
+    exit 1
+fi
+
+SOURCE_VERSION=$(python3 -c "import json; print(json.load(open('$PLUGIN_JSON'))['version'])")
+
+if [ "$SOURCE_VERSION" != "$INSTALLED_VERSION" ]; then
+    echo "⚠️  VERSION DRIFT DETECTED"
+    echo "   Source plugin.json says: $SOURCE_VERSION"
+    echo "   Installed (cache):       $INSTALLED_VERSION"
+    echo "   → Syncing to INSTALLED version $INSTALLED_VERSION"
+    echo "   To upgrade installed version, run: /plugin install $PLUGIN_NAME"
+    echo ""
+fi
+
+VERSION="$INSTALLED_VERSION"
 CACHE_DIR="$CACHE_BASE/$PLUGIN_NAME/$VERSION"
 
 if [ ! -d "$CACHE_DIR" ]; then
     echo "ERROR: Cache directory does not exist: $CACHE_DIR"
-    echo "Plugin '$PLUGIN_NAME' v$VERSION not installed. Run /plugin install first."
+    echo "Plugin '$PLUGIN_NAME' v$VERSION installed in registry but cache missing. Run /plugin install."
     exit 1
 fi
 
