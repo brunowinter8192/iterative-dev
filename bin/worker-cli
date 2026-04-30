@@ -6,23 +6,26 @@ set -e
 
 PLUGIN="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/cache/brunowinter-plugins/iterative-dev/1.0.0}"
 SPAWN="$PLUGIN/src/spawn/tmux_spawn.sh"
+REGISTRY_DIR="$HOME/.claude/.worker-registry"
 
 usage() {
     cat <<'EOF'
 usage: worker-cli <cmd> [args]
 
-  list <project_path>                                        — list active workers
-  status <name> <project_path>                               — idle / working / exited + context remaining %
-  status --all <project_path>                                — snapshot all workers in one call
-  capture <name> <project_path>                              — write pane to file, print path
-  response <name> [project_path]                             — clean last assistant turn from session JSONL
-  merge <name> <project_path>                                — log + merge branch into current
-  kill <name> <project_path>                                 — tmux + worktree + branch cleanup
-  send <name> <message> [project_path]                       — send message to running worker
+  list [project_path]                                        — list active workers (all if no path)
+  status <name>                                              — idle / working / exited + context remaining %
+  status --all [project_path]                                — snapshot all workers in one call
+  capture <name>                                             — write pane to file, print path
+  response <name>                                            — clean last assistant turn from session JSONL
+  merge <name>                                               — log + merge branch into current
+  kill <name>                                                — tmux + worktree + branch cleanup
+  send <name> <message>                                      — send message to running worker
   spawn <name> <prompt_file> <project_path> [model] [--no-worktree]
                                                              — spawn worker in git worktree
 
 model: sonnet (default) | opus
+Worker names are globally unique (registry-tracked). Project path is required only for spawn;
+other commands auto-resolve via the registry.
 Project path: absolute, ~/, or 'c' (resolves to current git project root, worktree-aware).
   'c' works from any directory: project root, subdirectory, or inside a worktree.
 EOF
@@ -49,6 +52,88 @@ resolve_project_path() {
     echo "$dir"
 }
 
+# --- Registry helpers ---
+
+registry_write() {
+    local name="$1" project="$2"
+    mkdir -p "$REGISTRY_DIR"
+    echo "$project" > "$REGISTRY_DIR/$name"
+}
+
+registry_read() {
+    local name="$1"
+    local f="$REGISTRY_DIR/$name"
+    [ -f "$f" ] && cat "$f" || echo ""
+}
+
+registry_delete() {
+    local name="$1"
+    rm -f "$REGISTRY_DIR/$name"
+}
+
+# Tmux scan fallback: derive project_path from session name pattern worker-<basename>-<name>.
+# Searches ~/Documents/ai/ (3 levels deep) for dir named <basename> containing .git.
+# Writes result to registry and returns it. Returns 1 if not found.
+tmux_scan_project() {
+    local name="$1"
+    local count
+    count=$(tmux ls 2>/dev/null | grep -cE "^worker-[^:]+-${name}:" || echo 0)
+    if [ "$count" -eq 0 ]; then
+        return 1
+    fi
+    if [ "$count" -gt 1 ]; then
+        echo "worker-cli: multiple tmux sessions match worker name '$name':" >&2
+        tmux ls 2>/dev/null | grep -oE "^worker-[^:]*-${name}[^:]*" >&2
+        return 1
+    fi
+    local session
+    session=$(tmux ls 2>/dev/null | grep -oE "^worker-[^:]*-${name}:" | head -1)
+    session="${session%:}"
+    # Extract basename: strip "worker-" prefix and "-<name>" suffix
+    local middle="${session#worker-}"
+    local proj_basename="${middle%-${name}}"
+    # Scan ~/Documents/ai/ up to 3 levels for dir named proj_basename containing .git
+    local found=""
+    while IFS= read -r d; do
+        if [ -e "$d/.git" ]; then
+            found="$d"
+            break
+        fi
+    done < <(find ~/Documents/ai -maxdepth 3 -type d -name "$proj_basename" 2>/dev/null)
+    if [ -n "$found" ]; then
+        registry_write "$name" "$found"
+        echo "$found"
+        return 0
+    fi
+    return 1
+}
+
+# Resolve project path for a named worker.
+# Resolution order: explicit override → registry → tmux scan fallback → error.
+# If override is non-empty, treat it as the project_path (backwards compat).
+resolve_worker_project() {
+    local name="$1"
+    local override="${2:-}"
+    if [ -n "$override" ]; then
+        resolve_project_path "$override"
+        return 0
+    fi
+    local from_registry
+    from_registry=$(registry_read "$name")
+    if [ -n "$from_registry" ]; then
+        echo "$from_registry"
+        return 0
+    fi
+    local from_tmux
+    from_tmux=$(tmux_scan_project "$name" 2>&1) || true
+    if [ -n "$from_tmux" ] && [[ "$from_tmux" != *"worker-cli:"* ]]; then
+        echo "$from_tmux"
+        return 0
+    fi
+    echo "worker-cli: worker '$name' not found in registry or tmux" >&2
+    exit 1
+}
+
 # Encode an absolute path to the ~/.claude/projects/ dir name: replace /, ., _ with -.
 encode_worktree_path() {
     local p="$1"
@@ -57,9 +142,10 @@ encode_worktree_path() {
 }
 
 # Print context-remaining % for a worker based on its latest session JSONL.
-# Outputs "N%" or "—%" if no usage data found; never fails with non-zero exit.
+# Returns "—%" if project is empty or no usage data found; never fails with non-zero exit.
 context_pct() {
     local name="$1" project="$2"
+    if [ -z "$project" ]; then echo "—%"; return; fi
     local worktree="$project/.claude/worktrees/$name"
     local encoded_dir="$HOME/.claude/projects/$(encode_worktree_path "$worktree")"
     local jsonl cr
@@ -83,44 +169,84 @@ shift
 
 case "$CMD" in
     list)
-        [ $# -lt 1 ] && { echo "worker-cli list: missing project_path" >&2; exit 2; }
-        PROJECT=$(resolve_project_path "$1")
-        bash -c "source \"$SPAWN\" && worker_list \"\$1\"" _ "$PROJECT"
+        if [ $# -eq 0 ]; then
+            # No project_path — list all known workers from registry
+            if [ ! -d "$REGISTRY_DIR" ] || [ -z "$(ls -A "$REGISTRY_DIR" 2>/dev/null)" ]; then
+                echo "(no known workers in registry)"
+            else
+                for _f in "$REGISTRY_DIR"/*; do
+                    [ -f "$_f" ] || continue
+                    _wname=$(basename "$_f")
+                    _proj=$(cat "$_f")
+                    _status=$(bash -c "source \"$SPAWN\" && worker_status \"\$1\" \"\$2\"" \
+                        _ "$_wname" "$_proj" 2>/dev/null || echo "unknown")
+                    _pct=$(context_pct "$_wname" "$_proj")
+                    echo "${_wname}: ${_status} ${_pct}  (${_proj})"
+                done
+            fi
+        else
+            PROJECT=$(resolve_project_path "$1")
+            bash -c "source \"$SPAWN\" && worker_list \"\$1\"" _ "$PROJECT"
+        fi
         ;;
     status)
         if [ "${1:-}" = "--all" ]; then
-            [ $# -lt 2 ] && { echo "worker-cli status --all: missing project_path" >&2; exit 2; }
-            PROJECT=$(resolve_project_path "$2")
-            NAMES=$(bash -c "source \"$SPAWN\" && worker_list \"\$1\"" _ "$PROJECT" 2>/dev/null \
-                | awk '{print $1}')
-            if [ -z "$NAMES" ]; then
-                echo "(no active workers)"
+            shift
+            if [ $# -ge 1 ]; then
+                # Project-scoped
+                PROJECT=$(resolve_project_path "$1")
+                NAMES=$(bash -c "source \"$SPAWN\" && worker_list \"\$1\"" _ "$PROJECT" 2>/dev/null \
+                    | awk '{print $1}')
+                if [ -z "$NAMES" ]; then
+                    echo "(no active workers)"
+                else
+                    while IFS= read -r wname; do
+                        STATUS=$(bash -c "source \"$SPAWN\" && worker_status \"\$1\" \"\$2\"" \
+                            _ "$wname" "$PROJECT" 2>/dev/null || echo "unknown")
+                        PCT=$(context_pct "$wname" "$PROJECT")
+                        echo "${wname}: ${STATUS} ${PCT}"
+                    done <<< "$NAMES"
+                fi
             else
-                while IFS= read -r wname; do
-                    STATUS=$(bash -c "source \"$SPAWN\" && worker_status \"\$1\" \"\$2\"" \
-                        _ "$wname" "$PROJECT" 2>/dev/null || echo "unknown")
-                    PCT=$(context_pct "$wname" "$PROJECT")
-                    echo "${wname}: ${STATUS} ${PCT}"
-                done <<< "$NAMES"
+                # All from registry
+                if [ ! -d "$REGISTRY_DIR" ] || [ -z "$(ls -A "$REGISTRY_DIR" 2>/dev/null)" ]; then
+                    echo "(no active workers)"
+                else
+                    for _f in "$REGISTRY_DIR"/*; do
+                        [ -f "$_f" ] || continue
+                        _wname=$(basename "$_f")
+                        _proj=$(cat "$_f")
+                        _status=$(bash -c "source \"$SPAWN\" && worker_status \"\$1\" \"\$2\"" \
+                            _ "$_wname" "$_proj" 2>/dev/null || echo "unknown")
+                        _pct=$(context_pct "$_wname" "$_proj")
+                        echo "${_wname}: ${_status} ${_pct}"
+                    done
+                fi
             fi
         else
-            [ $# -lt 2 ] && { echo "worker-cli status: need <name> <project_path>" >&2; exit 2; }
-            PROJECT=$(resolve_project_path "$2")
+            [ $# -lt 1 ] && { echo "worker-cli status: need <name> [project_path]" >&2; exit 2; }
+            NAME="$1"
+            OVERRIDE="${2:-}"
+            PROJECT=$(resolve_worker_project "$NAME" "$OVERRIDE")
             STATUS=$(bash -c "source \"$SPAWN\" && worker_status \"\$1\" \"\$2\"" \
-                _ "$1" "$PROJECT" 2>/dev/null || echo "unknown")
-            PCT=$(context_pct "$1" "$PROJECT")
+                _ "$NAME" "$PROJECT" 2>/dev/null || echo "unknown")
+            PCT=$(context_pct "$NAME" "$PROJECT")
             echo "${STATUS} ${PCT}"
         fi
         ;;
     capture)
-        [ $# -lt 2 ] && { echo "worker-cli capture: need <name> <project_path>" >&2; exit 2; }
+        [ $# -lt 1 ] && { echo "worker-cli capture: need <name> [project_path]" >&2; exit 2; }
+        NAME="$1"
+        OVERRIDE="${2:-}"
+        PROJECT=$(resolve_worker_project "$NAME" "$OVERRIDE")
         bash -c "source \"$SPAWN\" && worker_capture \"\$1\" \"\" \"\$2\"" \
-            _ "$1" "$(resolve_project_path "$2")"
+            _ "$NAME" "$PROJECT"
         ;;
     response)
         [ $# -lt 1 ] && { echo "worker-cli response: need <name> [project_path]" >&2; exit 2; }
         NAME="$1"
-        PROJECT=$(resolve_project_path "${2:-}")
+        OVERRIDE="${2:-}"
+        PROJECT=$(resolve_worker_project "$NAME" "$OVERRIDE")
         WORKTREE="$PROJECT/.claude/worktrees/$NAME"
         if [ ! -d "$WORKTREE" ]; then
             echo "worker-cli response: no worktree for $NAME at $WORKTREE" >&2
@@ -147,30 +273,36 @@ case "$CMD" in
         echo "$TEXT"
         ;;
     merge)
-        [ $# -lt 2 ] && { echo "worker-cli merge: need <name> <project_path>" >&2; exit 2; }
+        [ $# -lt 1 ] && { echo "worker-cli merge: need <name> [project_path]" >&2; exit 2; }
         NAME="$1"
-        PROJECT=$(resolve_project_path "$2")
-        echo "=== Commits on branch $NAME not in dev ==="
-        git -C "$PROJECT" log dev.."$NAME" --oneline || true
+        OVERRIDE="${2:-}"
+        PROJECT=$(resolve_worker_project "$NAME" "$OVERRIDE")
+        CURRENT=$(git -C "$PROJECT" branch --show-current)
+        echo "=== Commits on branch $NAME not in $CURRENT ==="
+        git -C "$PROJECT" log "$CURRENT".."$NAME" --oneline -- || true
         echo
-        echo "=== Merging $NAME into $(git -C "$PROJECT" branch --show-current) ==="
+        echo "=== Merging $NAME into $CURRENT ==="
         git -C "$PROJECT" merge "$NAME" --no-ff -m "merge: worker $NAME"
         ;;
     kill)
-        [ $# -lt 2 ] && { echo "worker-cli kill: need <name> <project_path>" >&2; exit 2; }
+        [ $# -lt 1 ] && { echo "worker-cli kill: need <name> [project_path]" >&2; exit 2; }
         NAME="$1"
-        PROJECT=$(resolve_project_path "$2")
+        OVERRIDE="${2:-}"
+        PROJECT=$(resolve_worker_project "$NAME" "$OVERRIDE")
         SESSION="worker-$(basename "$PROJECT")-$NAME"
         echo "Killing worker: $SESSION"
         tmux kill-session -t "$SESSION" 2>/dev/null && echo "  tmux session: killed" || echo "  tmux session: not found"
         git -C "$PROJECT" worktree remove --force ".claude/worktrees/$NAME" 2>/dev/null && echo "  worktree: removed" || echo "  worktree: not found"
         git -C "$PROJECT" branch -D "$NAME" 2>/dev/null && echo "  branch: deleted" || echo "  branch: not found"
+        registry_delete "$NAME"
+        echo "  registry: removed"
         ;;
     send)
         [ $# -lt 2 ] && { echo "worker-cli send: need <name> <message> [project_path]" >&2; exit 2; }
         NAME="$1"
         MESSAGE="$2"
-        PROJECT=$(resolve_project_path "${3:-}")
+        OVERRIDE="${3:-}"
+        PROJECT=$(resolve_worker_project "$NAME" "$OVERRIDE")
         _WORKER_MSG="$MESSAGE" bash -c 'source "$1" && worker_send "$2" "$_WORKER_MSG" "$3"' \
             _ "$SPAWN" "$NAME" "$PROJECT"
         ;;
@@ -183,6 +315,7 @@ case "$CMD" in
         WORKTREE_FLAG=""
         [ "${5:-}" = "--no-worktree" ] && WORKTREE_FLAG="--no-worktree"
         cd "$PLUGIN" && python3 -m src.spawn.spawn "$NAME" "$PROMPT_FILE" "$PROJECT" "$MODEL" $WORKTREE_FLAG
+        registry_write "$NAME" "$PROJECT"
         ;;
     -h|--help|help)
         usage
