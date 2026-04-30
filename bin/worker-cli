@@ -92,14 +92,14 @@ tmux_scan_project() {
     # Extract basename: strip "worker-" prefix and "-<name>" suffix
     local middle="${session#worker-}"
     local proj_basename="${middle%-${name}}"
-    # Scan ~/Documents/ai/ up to 3 levels for dir named proj_basename containing .git
+    # Scan ~/Documents/ai/ up to 6 levels for dir named proj_basename containing .git
     local found=""
     while IFS= read -r d; do
         if [ -e "$d/.git" ]; then
             found="$d"
             break
         fi
-    done < <(find ~/Documents/ai -maxdepth 3 -type d -name "$proj_basename" 2>/dev/null)
+    done < <(find ~/Documents/ai -maxdepth 6 -type d -name "$proj_basename" 2>/dev/null)
     if [ -n "$found" ]; then
         registry_write "$name" "$found"
         echo "$found"
