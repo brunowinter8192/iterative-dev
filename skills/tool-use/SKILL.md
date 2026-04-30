@@ -178,9 +178,9 @@ Concrete failure (2026-04-28 aggregate): 4 of 23 failures were `git -C <worktree
 
 ### 11. Diagnostic Bash chains: `;` not `&&`
 
-`grep` returns exit 1 when no match is found. `find` returns 1 when its base path is partially missing. `ls` returns 1 on empty or missing directories. None of those are bugs — they are normal results that signal "no rows matched". But they break `&&`-chained commands halfway through, truncating the rest of the diagnostic.
+**Hard test before writing `cmd_a && cmd_b`:** ask whether `cmd_b` would exit non-zero in a normal correct case — e.g. `grep` no-match, `ls` on empty/missing directory, `test -f` on a path that may not exist, `wc` on missing file. If yes → use `;`.
 
-**Rule:** for chains where each step produces independent output (status checks, multi-source probes, sanity diagnostics), separate with `;`. Reserve `&&` for cases where the next step genuinely depends on the previous one succeeding (commit before push, install before test, mkdir before write).
+`&&` is reserved for sequences where step N's success is a *prerequisite* for step N+1: build before test, mkdir before write, commit before push, install before run. Diagnostic chains, verification probes, multi-source sanity-checks always use `;`.
 
 ```bash
 # WRONG — grep no-match aborts the rest
@@ -219,6 +219,10 @@ The worktree directory in every project is `.claude/worktrees/<name>/`. There is
 **Detection:** if a tool call returns `<tool_use_error>File does not exist. Note: your current working directory is /Users/.../.claude/worktrees/<name>.` — the cwd is correct but the path argument has the typo. The fix is rewriting the file_path with `.claude/`.
 
 Concrete failure (2026-04-28 aggregate of 44 sessions): 7 of 66 failures (16% of the new-batch cluster, largest new pattern) had `.claire/worktrees/` in the tool input. Same-session counts: ttfb-fix worker had 96 occurrences of `.claire` against 126 of `.claude` — the model writes both forms inside one session. Affected tools: Edit (5×), Read (1×), Write (1×). Path examples: `.claire/worktrees/ttfb-fix/src/proxy_display/pane.py`, `.claire/worktrees/ctrl-r-heal/src/tmux_launcher.py`, `.claire/worktrees/tag-3audits/dev/tool_use_analysis/tag_presence_audit.py`.
+
+**Same-class typo: `..claude/...`** (two dots, no slash). Real paths have `..` only as `../` (relative parent traversal). Any path matching `\.\.[a-z]` (two consecutive dots immediately followed by a lowercase letter) is a typo with overwhelming probability — it is virtually never a valid path component.
+
+Concrete failure (2026-04-30): `Read .../.claude/worktrees/cmd2skill/..claude-plugin/plugin.json` — should have been `.claude-plugin/plugin.json`. Tool returned "File does not exist" but cwd-hint correctly pointed to the worktree, confirming the path-arg typo.
 
 ---
 
@@ -329,23 +333,22 @@ Multi-line body is justified when all three hold: breaking or architecturally si
 
 #### Worker CLI
 
-**`c` is the canonical `project_path` argument.** Pass `c` instead of the full absolute path — resolves to the current project root from any directory including worktrees. Use absolute paths only when `c` cannot resolve (rare — only from a non-git directory). `worker-cli status --all c` snapshots all active workers in one call.
+Worker names are globally unique (registry-tracked). Project path is required only for `spawn`; other commands auto-resolve via the registry.
 
 All worker lifecycle operations via `~/.local/bin/worker-cli`.
 
 | Operation | CLI |
 |---|---|
-| List active workers | `worker-cli list <project_path>` |
-| Check worker status | `worker-cli status <name> <project_path>` — outputs `idle 72%` / `working 28%` / `exited` |
-| Capture pane to file | `worker-cli capture <name> <project_path>` |
+| List active workers (project) | `worker-cli list <project_path>` |
+| List active workers (all) | `worker-cli list` |
+| Check worker status | `worker-cli status <name>` |
+| Capture pane to file | `worker-cli capture <name>` |
 | Read last N lines | `tail -n <N> <output_file_from_capture>` |
-| Get clean last response | `worker-cli response <name> [project_path]` |
-| Merge worker branch | `worker-cli merge <name> <project_path>` |
-| Kill worker | `worker-cli kill <name> <project_path>` |
-| Send message to worker | `worker-cli send <name> <message> [project_path]` |
+| Get clean last response | `worker-cli response <name>` |
+| Send message to running worker | `worker-cli send <name> <message>` |
+| Merge worker branch | `worker-cli merge <name>` |
+| Kill worker | `worker-cli kill <name>` |
 | Spawn worker in worktree | `worker-cli spawn <name> <prompt_file> <project_path> [model]` |
-
-> `<project_path>` = `c` in the vast majority of cases.
 
 `worker-cli response <name>` is the default for reading idle workers — returns clean text from session JSONL (~200-2000 chars, no UI trailers or prompt echo). `worker-cli capture <name>` + `tail` + `sed`-filter is the fallback when `response` misses context (rare — Phase-A partial-report situations). Capture dumps 2-5k chars of CC UI + prompt echo.
 
@@ -368,14 +371,14 @@ bash -c "source \"$SPAWN\" && worker_status \"<name>\" \"<project_path>\""
 **Examples:**
 
 ```bash
-worker-cli list c
-worker-cli status inject-fixes c
-worker-cli capture inject-fixes c
+worker-cli list
+worker-cli status inject-fixes
+worker-cli capture inject-fixes
 # → prints path like /tmp/worker_capture_inject-fixes_123456.txt
 tail -n 50 /tmp/worker_capture_inject-fixes_123456.txt
-worker-cli merge inject-fixes c
-worker-cli kill inject-fixes c   # only after status is idle/done
-worker-cli send inject-fixes "Go for step 2" c
+worker-cli merge inject-fixes
+worker-cli kill inject-fixes   # only after status is idle/done
+worker-cli send inject-fixes "Go for step 2"
 worker-cli spawn new-feature /tmp/prompt.md c sonnet
 ```
 
