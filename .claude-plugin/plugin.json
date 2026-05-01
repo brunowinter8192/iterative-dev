@@ -14,6 +14,7 @@
   "skills": [
     "./skills/iterative-dev/",
     "./skills/recap/",
+    "./skills/refactor/",
     "./skills/rule-consolidation/",
     "./skills/tool-use/"
   ],
