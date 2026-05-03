@@ -16,7 +16,7 @@ usage: worker-cli <cmd> [args]
   status <name>                                              — idle / working / exited + context remaining %
   status --all [project_path]                                — snapshot all workers in one call
   capture <name>                                             — write pane to file, print path
-  response <name>                                            — clean last assistant turn from session JSONL
+  response <name> [N]                                        — clean last N assistant turns from session JSONL (default 1)
   merge <name>                                               — log + merge branch into current
   kill <name>                                                — tmux + worktree + branch cleanup
   send <name> <message>                                      — send message to running worker
@@ -243,9 +243,19 @@ case "$CMD" in
             _ "$NAME" "$PROJECT"
         ;;
     response)
-        [ $# -lt 1 ] && { echo "worker-cli response: need <name> [project_path]" >&2; exit 2; }
+        [ $# -lt 1 ] && { echo "worker-cli response: need <name> [count] [project_path]" >&2; exit 2; }
         NAME="$1"
-        OVERRIDE="${2:-}"
+        # Position 2: integer => count of last N assistant turns; else => project_path override
+        COUNT=1
+        OVERRIDE=""
+        if [ -n "${2:-}" ]; then
+            if [[ "$2" =~ ^[0-9]+$ ]]; then
+                COUNT="$2"
+                OVERRIDE="${3:-}"
+            else
+                OVERRIDE="$2"
+            fi
+        fi
         PROJECT=$(resolve_worker_project "$NAME" "$OVERRIDE")
         WORKTREE="$PROJECT/.claude/worktrees/$NAME"
         if [ ! -d "$WORKTREE" ]; then
@@ -263,13 +273,13 @@ case "$CMD" in
             echo "worker-cli response: no session JSONL found for $NAME at $ENCODED_DIR" >&2
             exit 4
         fi
-        TEXT=$(jq -rs '[.[] | select(.type == "assistant" and (.message.content // [] | map(select(.type == "text")) | length > 0))] | last | if . == null then "" else (.message.content | map(select(.type == "text")) | map(.text) | join("\n\n")) end' "$JSONL" 2>/dev/null || true)
+        TEXT=$(jq -rs --argjson n "$COUNT" '[.[] | select(.type == "assistant" and (.message.content // [] | map(select(.type == "text")) | length > 0))] | if length == 0 then "" else (.[-($n):] | length as $L | to_entries | map("=== msg \(.key + 1)/\($L) ===\n" + (.value.message.content | map(select(.type == "text")) | map(.text) | join("\n\n"))) | join("\n\n")) end' "$JSONL" 2>/dev/null || true)
         if [ -z "$TEXT" ]; then
             echo "worker-cli response: no assistant text message found in $JSONL" >&2
             exit 5
         fi
         CHARS=${#TEXT}
-        echo "=== response from $NAME ($CHARS chars) ==="
+        echo "=== response from $NAME (last $COUNT, $CHARS chars) ==="
         echo "$TEXT"
         ;;
     merge)
