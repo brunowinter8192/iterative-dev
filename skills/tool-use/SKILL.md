@@ -53,26 +53,43 @@ Concrete failure (2026-04-19): `grep -rn "from queries import\|import queries" s
 
 Large tool outputs (build output, test runners, dev scripts, background tasks) flood the context window. One verbose dump can burn 10k+ tokens of irrelevant noise.
 
-**Rule: ALL potentially large output goes through files, NEVER directly into context.**
+**Rule: noisy outputs go through files; signal outputs go directly into context.**
 
-**Workflow:**
-1. **Run command** → redirect: `command > /tmp/output.md 2>&1`
-2. **Read result** → `grep`, `tail`, `head` on the file — extract ONLY what you need
-3. **Present** → concise summary to user, not raw output
+The split:
 
-**The test:** Before ANY tool call that might produce >50 lines of output — redirect to file first. No exceptions.
+**File-redirect path (NOISY OUTPUT — most output is irrelevant):**
+- Build output (compiler errors mostly drowning in green-passes)
+- Test runners (mostly green dots, you grep for FAIL)
+- Dev scripts with debug logs you sample
+- Background workflows you tail-check
+- Anything where you want one specific signal out of a verbose dump
 
 ```bash
-# WRONG — dumps everything into context
-./venv/bin/python dev/crawling_suite/03_test.py
-
-# RIGHT — output to file, then extract what matters
+# RIGHT for noisy output — redirect, then extract
 ./venv/bin/python dev/crawling_suite/03_test.py > /tmp/03_test_output.md 2>&1
 tail -20 /tmp/03_test_output.md
 ```
 
-- NEVER run `./venv/bin/python script.py` without `> /tmp/file.md 2>&1`
+**Direct-to-context path (SIGNAL OUTPUT — the output IS the answer):**
+- Search-CLI results (searxng-cli search_web / search_batch — the URLs/snippets are the data you need to evaluate as a whole)
+- RAG retrieval / MCP tool results returning structured data
+- Single-file reads via `cat` / `head` / `tail` of bounded size
+- Git status, log, diff (when bounded)
+- Anything where you'd just re-read the file in chunks anyway, ending up with the same content in context
+
+```bash
+# RIGHT for signal output — direct call, full result lands in context
+searxng-cli search_batch "query 1" "query 2" "query 3" "query 4"
+# Up to 4 queries × 20 URLs = 80 results, ~20 KB / ~5K tokens. Fits in one tool result.
+```
+
+**The test before redirecting:** is the output mostly noise you'll grep through, or is it the data you'll evaluate as a whole? Noise → file. Data-as-whole → direct.
+
+**Anti-pattern observed (2026-05-06):** Ran `searxng-cli search_batch` with redirect to /tmp + 8 chunked sed/grep reads to inspect 60 URLs. Net cost: 9 tool calls, same total bytes ending up in context as one direct call would have produced. Plus tool-call orchestration overhead. The right move was foreground call (no `&`, no redirect) — search results are signal, not noise.
+
+- NEVER run `./venv/bin/python script.py` without `> /tmp/file.md 2>&1` (dev scripts are noisy)
 - NEVER run `cat` on a file that might be large — use `head`, `tail`, `grep`
+- DO run search/RAG/MCP-tool calls in the foreground — the result is what you came for
 
 ### 5. Stop after 2 failed tool calls
 
@@ -223,6 +240,21 @@ Concrete failure (2026-04-28 aggregate of 44 sessions): 7 of 66 failures (16% of
 **Same-class typo: `..claude/...`** (two dots, no slash). Real paths have `..` only as `../` (relative parent traversal). Any path matching `\.\.[a-z]` (two consecutive dots immediately followed by a lowercase letter) is a typo with overwhelming probability — it is virtually never a valid path component.
 
 Concrete failure (2026-04-30): `Read .../.claude/worktrees/cmd2skill/..claude-plugin/plugin.json` — should have been `.claude-plugin/plugin.json`. Tool returned "File does not exist" but cwd-hint correctly pointed to the worktree, confirming the path-arg typo.
+
+### 14. Background Bash is a deliberate choice, never a default
+
+Setting `run_in_background=true` on a Bash tool call MUST be a conscious decision — never typed by default for grep / cat / ls / read-only commands. Background mode triggers the persisted-output mechanism (Output too large notification + file path), spawns a `<task-notification>` injection on the next user turn, and creates orchestration complexity (the next turn's REQ may carry a TN block + a system-notification SR depending on CC version).
+
+**Use background ONLY for:**
+- Long-running commands the user explicitly wants to overlap with other work (build/test runs >30s, `sleep N && echo done` as orchestration timer)
+- Worker-spawn timer patterns documented in opus-workers-2
+
+**Never use background for:**
+- Quick grep / cat / ls / wc / git status / file inspection
+- Anything you'll read the output of within the same response
+- "Just to be safe" / "in case it takes long"
+
+Concrete failure (2026-04-28, Monitor_CC session): three accidental background-bash spawns within one session — `grep -lrn "automated background" /Users/...` (foreground intent, ran as bg by default mistake) created a 113KB persisted-output cascade. Output was needed inline. Result: 2 extra tool calls to retrieve the persisted file content + context pollution from `<persisted-output>` blocks in subsequent REQs.
 
 ---
 
