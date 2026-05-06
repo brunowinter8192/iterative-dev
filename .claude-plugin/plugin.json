@@ -18,8 +18,7 @@
     "./skills/rule-consolidation/"
   ],
   "agents": [
-    "./agents/code-investigate-specialist.md",
-    "./agents/git-committer.md"
+    "./agents/code-investigate-specialist.md"
   ],
   "commands": [
     "./commands/eval-spawn.md",
