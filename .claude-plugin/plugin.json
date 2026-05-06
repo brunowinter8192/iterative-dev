@@ -15,8 +15,7 @@
     "./skills/iterative-dev/",
     "./skills/recap/",
     "./skills/refactor/",
-    "./skills/rule-consolidation/",
-    "./skills/tool-use/"
+    "./skills/rule-consolidation/"
   ],
   "agents": [
     "./agents/code-investigate-specialist.md",
