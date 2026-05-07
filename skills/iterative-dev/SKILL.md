@@ -54,8 +54,6 @@ Delegating the Phase 1 prep to an "Investigation Worker" collapses the two sides
 - Reference Files identified
 - Relevant dev/ scripts
 
-Concrete failure (2026-04-05, Session 16): Investigation Worker reported "keine Datenquelle für monitor/shared Content". Opus accepted this without challenge. Reality: the Hook-Script reads the files directly and injects them. Opus had no mental model to recognize the contradiction — because Opus never read the code.
-
 🛑 STOP — Ask for remarks.
 
 **Step 3 — Gap Analysis + Mental Model Check**
@@ -81,10 +79,7 @@ For each resource: state WHICH question it answers. If no resource is listed for
 - Closed ✅ = "I have concrete evidence from resource X (file:line, grep count, doc quote, log entry) that answers question Y."
 - NOT closed ❌ = "The existing code looks like it probably does Z, so the fix is probably W."
 - Reading existing code is evidence about OUR code. It is NOT evidence about 3rd-party semantics (tmux button codes, mitmproxy hook order, Anthropic field shapes) — those need their own source.
-
-Concrete failure (2026-04-18): Gap analysis for Monitor_CC warnings-pane fix initially claimed "Alle Infos für die Fixes liegen im Code". User pushed back: the scroll-direction bug depends on tmux SGR button 64/65 semantics (tmux source `tty-keys.c`), the tool-error false-positive fix depends on Anthropic `is_error` field shape (Anthropic API docs + proxy JSONL live grep), and mitmproxy event model would be relevant if proxy-level failures were in scope. Three 3rd-party resources glossed over by "im Code". After enumeration: tmux source + JSONL grep gave concrete evidence for both fixes (proxy log: 36 `is_error` occurrences confirmed the field shape). "Im Code" ≠ gap closed.
-
-Concrete failure (2026-03-31): Identified 3 knowledge gaps. All sources were indexed in RAG. Said "alles im RAG verfuegbar, kein Research noetig" without querying RAG. User had to push 3 times. Rule: "indexed" ≠ "answered". Query the source, extract the answer, cite file:line or doc quote.
+- **"indexed" ≠ "answered":** Query the source, extract the answer, cite file:line or doc quote.
 
 **Worker can close gaps during Phase A investigation:**
 - Worker has github-search skill, web search, file reading in the worktree
@@ -99,8 +94,6 @@ Before proceeding to Phase 2, Opus must be able to answer:
 3. If a worker delivers "all done" — would I recognize whether the deliverables address the RIGHT problem?
 
 If NO → continue reading code. Do NOT proceed to worker scoping without this milestone. Root cause may be unclear — that's OK. But Opus must understand enough to EVALUATE worker output.
-
-Concrete failure (2026-04-05): Opus proceeded to worker scoping for hooks-redesign without understanding why `process_sessions_for_system_reminders()` wasn't showing results. Worker implemented noise-filter and persisted-file-loading (valid features, wrong problem). Opus couldn't recognize the misalignment because Opus had no mental model of the problem.
 
 🛑 STOP — Ask for remarks.
 
@@ -169,8 +162,6 @@ When a worker task involves moving files to a new subdirectory, the worker must 
 > 5. **Smoke test:** run the entry-point or a targeted import check (`python -c "import <top_level_package>"`) to confirm no ModuleNotFoundError.
 
 The checklist is mirrored on the worker side in `~/.claude/shared-rules/worker/worker-rules.md` Section 3 (File-Move Checklist subsection) — so it fires via proxy-injected rules even if Opus forgets to echo it in the prompt. Add it to BOTH places when this skill is updated.
-
-Concrete failure (2026-04-20, panes-refactor worker): moved 4 pane files → src/panes/. Smoke-test crashed: `ModuleNotFoundError: No module named 'src.token_pane'`. Lazy `from . import monitor as _monitor` inside run functions was not updated — `.` resolved to `src.panes` after the move instead of `src`. Worker missed it; Opus had to send a correction (2nd commit). Identical pattern repeated for each follow-up Group (core/, format/, input/) until the prompt-template was patched.
 
 ### Scope Extension During IMPLEMENT
 
