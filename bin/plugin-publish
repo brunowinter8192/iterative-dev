@@ -1,0 +1,269 @@
+#!/usr/bin/env bash
+# plugin-publish — push + cache-sync + version-bump in one step.
+#
+# Run from inside a plugin source repo (a directory tree containing
+# .claude-plugin/plugin.json). Performs:
+#
+#   1. Locate plugin source root (searches upward for .claude-plugin/plugin.json)
+#   2. Refuse to run if working tree is dirty (commit first via `gc`)
+#   3. git push (--no-push to skip)
+#   4. Compare source plugin.json version vs installed_plugins.json version
+#   5. mkdir new cache dir if version bumped
+#   6. rsync source -> cache (preserves runtime artifacts, honors .gitignore)
+#   7. Update installed_plugins.json (installPath, version, gitCommitSha, lastUpdated)
+#      Atomic write via temp file + mv. Backup written to /tmp/.
+#   8. Kill MCP server processes for this plugin (--no-restart to skip)
+#   9. Print restart hint
+#
+# Usage:
+#   cd <plugin-source-repo>
+#   plugin-publish [--no-push] [--no-restart] [--dry-run]
+#
+# Designed to be safe to invoke blindly: any failure aborts before mutating
+# state on disk; installed_plugins.json gets a backup on every successful run.
+
+set -euo pipefail
+
+MARKETPLACE="brunowinter-plugins"
+CACHE_BASE="$HOME/.claude/plugins/cache/$MARKETPLACE"
+INSTALLED_JSON="$HOME/.claude/plugins/installed_plugins.json"
+
+DO_PUSH=1
+DO_RESTART=1
+DRY_RUN=0
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --no-push)    DO_PUSH=0 ;;
+        --no-restart) DO_RESTART=0 ;;
+        --dry-run)    DRY_RUN=1 ;;
+        -h|--help)
+            sed -n '2,/^set -euo/p' "$0" | sed '/^set -euo/d' | sed 's/^# \{0,1\}//'
+            exit 0
+            ;;
+        *)
+            echo "ERROR: unknown arg: $1" >&2
+            echo "Run 'plugin-publish --help' for usage." >&2
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+# ---------- locate plugin source root ----------
+
+find_plugin_root() {
+    local d
+    d="$(pwd -P)"
+    while [ "$d" != "/" ] && [ -n "$d" ]; do
+        if [ -f "$d/.claude-plugin/plugin.json" ]; then
+            echo "$d"
+            return 0
+        fi
+        d="$(dirname "$d")"
+    done
+    return 1
+}
+
+REPO_PATH="$(find_plugin_root)" || {
+    echo "ERROR: not inside a plugin source repo." >&2
+    echo "       No .claude-plugin/plugin.json found upward from $(pwd)." >&2
+    exit 1
+}
+
+PLUGIN_JSON="$REPO_PATH/.claude-plugin/plugin.json"
+
+# ---------- read source plugin.json ----------
+
+PLUGIN_META=$(python3 - <<EOF
+import json, sys
+try:
+    d = json.load(open("$PLUGIN_JSON"))
+    print(d["name"])
+    print(d["version"])
+except Exception as e:
+    sys.stderr.write(f"ERROR: cannot parse $PLUGIN_JSON: {e}\n")
+    sys.exit(1)
+EOF
+)
+PLUGIN_NAME=$(echo "$PLUGIN_META" | sed -n '1p')
+SOURCE_VERSION=$(echo "$PLUGIN_META" | sed -n '2p')
+
+if [ -z "$PLUGIN_NAME" ] || [ -z "$SOURCE_VERSION" ]; then
+    echo "ERROR: failed to read plugin name/version from $PLUGIN_JSON" >&2
+    exit 1
+fi
+
+KEY="${PLUGIN_NAME}@${MARKETPLACE}"
+CACHE_DIR="$CACHE_BASE/$PLUGIN_NAME/$SOURCE_VERSION"
+
+echo "Plugin:         $PLUGIN_NAME"
+echo "Source repo:    $REPO_PATH"
+echo "Source version: $SOURCE_VERSION"
+echo "Target cache:   $CACHE_DIR"
+echo
+
+# ---------- git repo sanity ----------
+
+if ! git -C "$REPO_PATH" rev-parse --git-dir >/dev/null 2>&1; then
+    echo "ERROR: $REPO_PATH is not a git repo." >&2
+    exit 1
+fi
+
+# ---------- read installed_plugins.json ----------
+
+if [ ! -f "$INSTALLED_JSON" ]; then
+    echo "ERROR: $INSTALLED_JSON missing." >&2
+    exit 1
+fi
+
+INSTALLED_VERSION=$(python3 - <<EOF
+import json
+try:
+    data = json.load(open("$INSTALLED_JSON"))
+    entries = data.get("plugins", {}).get("$KEY", [])
+    print(entries[0]["version"] if entries else "")
+except Exception:
+    print("")
+EOF
+)
+
+if [ -z "$INSTALLED_VERSION" ]; then
+    echo "ERROR: '$KEY' not found in installed_plugins.json." >&2
+    echo "       Run '/plugin install' first to register the plugin." >&2
+    exit 1
+fi
+
+# ---------- DRY RUN summary ----------
+
+if [ "$DRY_RUN" = "1" ]; then
+    DIRTY=$(git -C "$REPO_PATH" status --porcelain | grep -v '^.. \.beads/' || true)
+    echo "[DRY RUN]"
+    if [ -n "$DIRTY" ]; then
+        echo "  Working tree dirty (real run would abort):"
+        echo "$DIRTY" | sed 's/^/    /'
+    else
+        echo "  Working tree clean."
+    fi
+    echo "  Would push:      $REPO_PATH"
+    echo "  Installed v:     $INSTALLED_VERSION"
+    if [ "$SOURCE_VERSION" != "$INSTALLED_VERSION" ]; then
+        echo "  Would mkdir:     $CACHE_DIR"
+        echo "  Would update:    installed_plugins.json -> v$SOURCE_VERSION, installPath=$CACHE_DIR"
+    else
+        echo "  Cache version:   unchanged ($SOURCE_VERSION)"
+    fi
+    echo "  Would rsync:     $REPO_PATH/  ->  $CACHE_DIR/"
+    if [ "$DO_RESTART" = "1" ]; then
+        echo "  Would kill MCP servers matching: ${PLUGIN_NAME}.*server\\.py"
+    fi
+    exit 0
+fi
+
+# ---------- working tree clean check (real run) ----------
+
+DIRTY=$(git -C "$REPO_PATH" status --porcelain | grep -v '^.. \.beads/' || true)
+if [ -n "$DIRTY" ]; then
+    echo "ERROR: working tree has uncommitted changes outside .beads/. Commit first:" >&2
+    echo "       gc \"<message>\"" >&2
+    echo >&2
+    echo "$DIRTY" >&2
+    exit 1
+fi
+
+# ---------- push ----------
+
+if [ "$DO_PUSH" = "1" ]; then
+    echo "→ git push"
+    PUSH_OUT=$(git -C "$REPO_PATH" push 2>&1) || {
+        # try first-time push with upstream
+        BRANCH=$(git -C "$REPO_PATH" branch --show-current)
+        echo "  initial push, retrying with -u origin $BRANCH"
+        if ! git -C "$REPO_PATH" push -u origin "$BRANCH" 2>&1; then
+            echo "ERROR: git push failed. Cache NOT modified." >&2
+            echo "$PUSH_OUT" >&2
+            exit 1
+        fi
+    }
+    [ -n "$PUSH_OUT" ] && echo "  $PUSH_OUT" | sed 's/^/  /'
+fi
+
+# ---------- ensure cache dir ----------
+
+if [ "$SOURCE_VERSION" != "$INSTALLED_VERSION" ]; then
+    echo "→ version bump: $INSTALLED_VERSION → $SOURCE_VERSION"
+    mkdir -p "$CACHE_DIR"
+elif [ ! -d "$CACHE_DIR" ]; then
+    # version unchanged but cache dir missing — recreate
+    echo "→ cache dir missing for current version, recreating"
+    mkdir -p "$CACHE_DIR"
+else
+    echo "→ version unchanged ($SOURCE_VERSION)"
+fi
+
+# ---------- rsync source -> cache ----------
+
+echo "→ rsync source -> cache"
+rsync -a \
+    --filter='P venv/' --filter='P .venv/' --filter='P node_modules/' --filter='P .env' \
+    --filter=':- .gitignore' \
+    --exclude='.git' \
+    --delete \
+    "$REPO_PATH/" "$CACHE_DIR/" \
+    | sed 's/^/  /' || {
+        echo "ERROR: rsync failed." >&2
+        exit 1
+    }
+
+# ---------- update installed_plugins.json (atomic + backup) ----------
+
+SHA=$(git -C "$REPO_PATH" rev-parse HEAD)
+TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+BACKUP="/tmp/installed_plugins.json.bak.$(date +%s)"
+TMP="$INSTALLED_JSON.tmp.$$"
+
+cp "$INSTALLED_JSON" "$BACKUP"
+
+python3 - <<EOF
+import json, sys
+
+with open("$INSTALLED_JSON") as f:
+    data = json.load(f)
+
+key = "$KEY"
+entries = data.get("plugins", {}).get(key, [])
+if not entries:
+    sys.stderr.write(f"ERROR: {key} disappeared from installed_plugins.json\n")
+    sys.exit(1)
+
+for entry in entries:
+    entry["installPath"] = "$CACHE_DIR"
+    entry["version"] = "$SOURCE_VERSION"
+    entry["gitCommitSha"] = "$SHA"
+    entry["lastUpdated"] = "$TIMESTAMP"
+
+with open("$TMP", "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+EOF
+
+mv "$TMP" "$INSTALLED_JSON"
+
+echo "→ installed_plugins.json updated (backup: $BACKUP)"
+echo "  version=$SOURCE_VERSION sha=${SHA:0:8} ts=$TIMESTAMP"
+
+# ---------- kill MCP servers ----------
+
+if [ "$DO_RESTART" = "1" ]; then
+    PIDS=$(ps aux | grep -E "${PLUGIN_NAME}.*server\.py" | grep -v grep | awk '{print $2}' || true)
+    if [ -n "$PIDS" ]; then
+        echo "→ killing MCP server PIDs: $(echo "$PIDS" | tr '\n' ' ')"
+        echo "$PIDS" | xargs kill 2>/dev/null || true
+    else
+        echo "→ no running MCP server matched ${PLUGIN_NAME}.*server.py"
+    fi
+fi
+
+echo
+echo "✓ Plugin $PLUGIN_NAME v$SOURCE_VERSION live."
+echo "  Restart Claude Code session (or run /mcp) to load the new code."

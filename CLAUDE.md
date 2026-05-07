@@ -49,7 +49,8 @@ See [sources/sources.md](sources/sources.md).
 | `bin/dev-sync` | Dev→main fast-forward CLI (symlinked to `~/.local/bin/`) |
 | `bin/git-check` | Pre-commit check CLI (symlinked to `~/.local/bin/`) |
 | `bin/gc` | Git commit shortcut (symlinked to `~/.local/bin/`) |
-| `plugin-sync.sh` | Plugin cache deployment |
+| `bin/plugin-publish` | One-step plugin push + cache-sync + version-bump (symlinked to `~/.local/bin/`) |
+| `plugin-sync.sh` | Low-level plugin cache rsync (used internally; prefer `plugin-publish`) |
 | `.claude-plugin/plugin.json` | Plugin manifest |
 
 ## Project Structure
@@ -66,7 +67,8 @@ See [sources/sources.md](sources/sources.md).
 │   ├── gc                          → ~/.local/bin/gc
 │   ├── worker-cli                  → ~/.local/bin/worker-cli
 │   ├── dev-sync                    → ~/.local/bin/dev-sync
-│   └── git-check                   → ~/.local/bin/git-check
+│   ├── git-check                   → ~/.local/bin/git-check
+│   └── plugin-publish              → ~/.local/bin/plugin-publish
 ├── agents/
 │   ├── code-investigate-specialist.md
 │   └── git-committer.md
