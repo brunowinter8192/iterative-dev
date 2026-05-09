@@ -1,7 +1,7 @@
 {
   "name": "iterative-dev",
   "version": "1.0.0",
-  "description": "Development workflow engine \u2014 5-phase cycle (PLAN-IMPLEMENT-RECAP-IMPROVE-CLOSING), plugin dev tooling, git automation, worker spawning",
+  "description": "Plugin dev tooling \u2014 worker spawning, git automation, plus refactor/recap/rule-consolidation/tool-use-additions skills",
   "author": {
     "name": "Bruno Winter"
   },
@@ -12,7 +12,6 @@
     "agent"
   ],
   "skills": [
-    "./skills/iterative-dev/",
     "./skills/recap/",
     "./skills/refactor/",
     "./skills/rule-consolidation/",
