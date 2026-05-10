@@ -19,6 +19,7 @@ Every entry below pairs a real failure mode with the literal error message and t
 | `git diff dev` / `git log dev` (any subcommand against `dev`) | `fatal: ambiguous argument 'dev': both revision and filename` | Repo has `dev/` directory at root → ALWAYS append trailing `--` to disambiguate: `git -C <repo> diff dev --` / `git -C <repo> log dev --oneline --`. Or compare against `main` / `origin/dev` instead. |
 | Multiple Bash calls in same response | `<tool_use_error>Cancelled: parallel tool call Bash(...)` | One Bash per turn. Multi-step ops: chain with `&&` or `;` in a single command, OR split across sequential turns. Other tools (Read, Edit, Grep, Glob) are parallel-safe; only Bash gets cancelled. |
 | `cmd_a && cmd_b` where `cmd_b` may exit non-zero on a normal correct case | `Exit code 1` (chain aborted on first non-fatal step) | Diagnostic chains (`grep` no-match, `ls` empty, `test -f` missing) use `;` not `&&`. `&&` only when N+1 truly depends on N's success: build before test, mkdir before write. Self-test: would step N+1 exit non-zero in a normal correct case? Yes → `;`. |
+| Multi-line Bash chain ending with `[ -f X ] && Y` (or any conditional that may exit 1) | `Exit code 1` even though every line printed correctly — Monitor TOOL ERRORS pane fires | The Bash call's exit code = the LAST command's exit code. A diagnostic dump where everything printed but the LAST step is `[ -f path ] && tail` will return 1 if `path` doesn't exist, even when all upstream lines succeeded. Self-test before issuing: read the LAST line of the chain — if it's `[ ... ] && X` or `grep ... && X` or any conditional-then-action, either (a) drop the `&&` guard and do `[ -f path ] || true; [ -f path ] && tail` style, (b) restructure as `if [ -f X ]; then Y; fi` (returns 0 when X missing), or (c) end the chain with `; true` to force exit 0. The Monitor catches all non-zero Bash exits as TOOL ERRORS regardless of stdout — clean diagnostic output is not enough. |
 | Verbose script outputs | (no error — context flooding) | Dev scripts / build / test runs: `> /tmp/<name>.log 2>&1` then `tail -20`. Direct-to-context only for signal output (search results, structured tool returns). |
 | Long-running command exceeds default 2 min | (timeout hang or aborted call) | Pass `timeout=600000` (10 min max) on the Bash call. Or restructure into shorter steps. |
 
@@ -71,6 +72,40 @@ Without sync, worker's branch tip is behind current `dev` and the merge will con
 ## Self-Audit
 
 When you hit any error in this list a second time within a session: STOP, re-read this skill, and verify the pre-check IS being applied before EVERY relevant call going forward. The point of the skill is forward-looking discipline, not retroactive understanding.
+
+## RAG: Multi-Model Awareness
+
+The RAG box exposes multiple model variants per class (embedding, reranker) plus splade. The full preset list is dynamic — never assume the three legacy names (`embedding`, `reranker`, `splade`) cover everything.
+
+**Discovery:**
+
+```bash
+rag-cli server presets             # human-readable list of all configured presets
+rag-cli server presets --json      # JSON for scripts
+rag-cli server status              # which preset(s) currently running + health
+rag-cli server list                # all running servers (presets + arbitrary) with idle countdown
+```
+
+`rag-cli server presets` shows: name, mode (embedding/rerank/splade), model_path, default_port, and a `default` flag (true = used by `rag-cli server start` without a name + by `ensure_ready` for search/index workflows).
+
+**Switching a variant:**
+
+```bash
+rag-cli server stop embedding-8b
+rag-cli server start embedding-0.6b
+```
+
+Client-side `find_server_url("embedding")` does a prefix-match across all running servers — `embedding-0.6b` will then serve search requests until you switch back. Same for `reranker`. Splade has only one variant.
+
+**Starting non-default variants:**
+
+`rag-cli server start` (no args) starts only the entries with `default=true` in `presets`. To run a non-default variant: `rag-cli server start <full-name>` (e.g. `start reranker-8b`). Single-instance enforcement is per-name, not per-class — both `embedding-8b` and `embedding-0.6b` can run in parallel if GPU memory allows, and `find_server_url("embedding")` will pick the FIRST one found in `SERVERS` insertion order (the marked default).
+
+**Anti-patterns:**
+
+- Assuming `embedding` / `reranker` / `splade` are the only valid preset names — they're not, they're prefixes. Use `rag-cli server presets` to see the full list.
+- Hardcoding preset names in Monitor display code or downstream scripts. Always pull from `rag-cli server presets --json`.
+- Calling `start_arbitrary` to launch a known model variant — that bypasses preset config. Use `rag-cli server start <name>` instead so the entry has `default_port`, `extra_flags`, and `timeout` from `SERVERS`.
 
 ## Backlog of Concrete Cases (project-specific)
 
