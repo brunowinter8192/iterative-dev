@@ -12,7 +12,6 @@
     "agent"
   ],
   "skills": [
-    "./skills/recap/",
     "./skills/refactor/",
     "./skills/rule-consolidation/",
     "./skills/tool-use-additions/"
