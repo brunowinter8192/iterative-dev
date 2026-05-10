@@ -47,7 +47,6 @@ Every entry below pairs a real failure mode with the literal error message and t
 | Wrong name | Correct name |
 |---|---|
 | `github-cli`, `gh-cli`, `github-research` | `github-search` |
-| `rag-cli`, `rag-search` | `agent-rag-search` |
 | `reddit-cli`, `reddit-search` | `agent-reddit-search` |
 | `cleanup-and-index-pdf` | `cleanup-and-index` (or check `available-skills` system-reminder) |
 
@@ -106,6 +105,44 @@ Client-side `find_server_url("embedding")` does a prefix-match across all runnin
 - Assuming `embedding` / `reranker` / `splade` are the only valid preset names — they're not, they're prefixes. Use `rag-cli server presets` to see the full list.
 - Hardcoding preset names in Monitor display code or downstream scripts. Always pull from `rag-cli server presets --json`.
 - Calling `start_arbitrary` to launch a known model variant — that bypasses preset config. Use `rag-cli server start <name>` instead so the entry has `default_port`, `extra_flags`, and `timeout` from `SERVERS`.
+
+## RAG-CLI — Tool Reference
+
+| Command | When |
+|---|---|
+| `rag-cli search_hybrid <query> <collection>` | Default for content search. Vector + BM25 + RRF + rerank in one call. |
+| `rag-cli search <query> <collection>` | Pure semantic (dense only). When BM25 stems hurt. |
+| `rag-cli search_keyword <query> <collection>` | Exact terms — function names, column names, parameter identifiers. AND across words, stems. |
+| `rag-cli read_document <coll> <doc> <chunk> --before N --after M` | Expand context around a search hit. Max 10 before / 10 after. |
+| `rag-cli list_collections` | Collections + chunk counts. |
+| `rag-cli list_documents <coll> [--document PATTERN]` | Document names in a collection. `%` wildcard. |
+
+Defaults: `--top-k 20` (10–50 valid). `--document` filter on any search command narrows to matching doc names.
+
+When a search hit's chunk doesn't contain the full answer, expand via `read_document` on the hit's `chunk_index` — that IS the way to handle decision files split across multiple chunks. Do not fall back to a raw direct-read on the source file.
+
+## RAG-meta: Status-Quo via RAG
+
+Trigger: project has `.rag-docs.json` at root → there is a `<Project>-meta` collection containing decisions/, DOCS.md, CLAUDE.md.
+
+Status-quo questions are answered by RAG, not by direct-read of `decisions/`:
+
+- "What is the IST of X?"
+- "How does Y work / why is Y configured this way?"
+- "What was decided about Z?"
+- "Where is constraint W documented?"
+
+```bash
+rag-cli search_hybrid "<query>" <Project>-meta
+```
+
+The returned chunk IS the answer. No follow-up direct-read of the same file.
+
+Direct-read on the full decision file ONLY when:
+- the file is being EDITED (need all sections in view)
+- the file was edited THIS session and RAG hasn't been resynced (sync runs at recap)
+- RAG returned no usable hit AND the path is known anyway
+- the answer needs more than the chunk shows → expand via `read_document`, NOT raw direct-read
 
 ## Backlog of Concrete Cases (project-specific)
 

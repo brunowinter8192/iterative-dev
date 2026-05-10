@@ -209,7 +209,17 @@ One run through, no stops.
 - **Plugin file edits** — in SOURCE REPO (see `~/.claude/shared-rules/situational/plugins.md`, read on demand).
 - **Code issues** → `bd create` (no direct edits to source code in this phase).
 
-### 2. Beads
+### 2. Sync Docs to RAG (when applicable)
+
+Pattern is project-aware via `.rag-docs.json` at the project root. Projects with a manifest get a hash-based delta sync into their `<Project>-meta` collection; projects without are skipped silently.
+
+```bash
+[ -f .rag-docs.json ] && rag-cli update_docs .
+```
+
+Output reports added / updated / removed / unchanged counts.
+
+### 3. Beads
 
 All via `bd` CLI:
 - `bd --repo <project_path> create --title "..." --type task --description "..."`
@@ -218,14 +228,14 @@ All via `bd` CLI:
 
 ONE STAND comment per touched bead. The STAND must enable a fresh Claude with zero context to continue.
 
-### 3. Cross-Session Verification
+### 4. Cross-Session Verification
 
 When a change can't be tested in the current session (e.g., plugin needing CC restart):
 - Worker stays alive — do NOT kill until verification passes + user approval
 - Bead STAND documents: worker name, what it did, what to verify
 - Next session: test → if fail, `worker_send` with fix instructions (worker has full context)
 
-### 4. Git (CLOSING)
+### 5. Git (CLOSING)
 
 1. **Dev → Main sync:** `dev_sync` MCP tool. Optional `git branch -d dev` after.
 2. **Per repo:** `git_check` (pre-commit staging) → `git -C <repo> commit -m "<msg>"` (HEREDOC for multi-line per `git-commit-workflow.md`) → `git -C <repo> push`.
