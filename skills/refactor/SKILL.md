@@ -235,15 +235,11 @@ Implementation goes through workers per `~/.claude/shared-rules/opus/workers-1.m
 
 ## Output Format
 
-When the skill is invoked end-to-end, produce one MD report at `dev/refactor_<YYYYMMDD>_<HHMM>.md`:
+Findings are presented inline in chat — Opus runs the scans, synthesizes Phase 3 + Phase 4, and reports to the user. No file is written.
 
-1. Run timestamp + source-tree root
-2. Documented exceptions noted from Phase 1
-3. Five scan outputs (raw)
-4. Prioritized candidate table (Phase 3)
-5. Refactor plan with worker assignments (Phase 4)
+The session log already preserves the scan output; writing a separate `dev/refactor_<date>.md` adds a maintenance artifact without operational benefit (workers operate from the inline scope-up, not from a re-read of a saved file).
 
-For ad-hoc invocations (user asks for one specific dimension), skip the report and present findings inline.
+For ad-hoc invocations (user asks for one specific dimension only), present that dimension's findings; skip the full Phase 3/4 synthesis.
 
 ## Anti-Patterns
 
