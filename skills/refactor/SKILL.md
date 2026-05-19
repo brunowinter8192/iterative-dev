@@ -35,9 +35,17 @@ Confirm which standards apply BEFORE scanning, otherwise documented exceptions g
 2. Read the project's `CLAUDE.md` and `src/DOCS.md` — captures project-specific exceptions ("module-level state is documented and intended", "this entry-point lives at root by design").
 3. Note documented exceptions explicitly before Phase 2.
 
-### Phase 2 — Five-Dimensional Scan
+### Phase 2 — Multi-Dimensional Scan
 
-All five scans run on the same source tree. Each produces evidence; combined output drives Phase 3 prioritization.
+Scans run on the same source tree. Each produces evidence; combined output drives Phase 3 prioritization.
+
+Groups:
+- **Size** (2.1, 2.2): file and function bloat
+- **Immutability** (2.3): argument-mutation anti-pattern
+- **Placement** (2.4): root-module justification
+- **Cohesion** (2.5, 2.5b, 2.5c): too many concerns at one place — imports, instance attrs, constant clusters
+- **Operational Hygiene** (2.6): prototype-to-prod readiness — diagnostic gates, install friction, state-file scattering
+- **Refactor Residue** (2.7): accumulated drift — dead imports, scripts in library tree, dev-tooling gaps
 
 #### 2.1 File-LOC against Hard Ceiling
 
@@ -206,22 +214,266 @@ for count, p, mods in results:
         print(f"     {'.'.join(m)}")
 ```
 
+#### 2.5b Class State Sprawl
+
+Standard: a class with ≥10 instance attributes likely conflates concerns. Symptom: bug-fix in one concern requires reading the entire class because state ownership is unclear. Same dimensional axis as 2.5 coupling (too many things in one place) measured on the class level instead of the import level.
+
+```python
+# /tmp/refactor_state_sprawl.py
+import ast, os
+SKIP = ('__pycache__', '/logs/', '/worktrees/')
+results = []
+for root, _, files in os.walk('src'):
+    if any(x in root for x in SKIP):
+        continue
+    for fn in files:
+        if not fn.endswith('.py'):
+            continue
+        p = os.path.join(root, fn)
+        try:
+            tree = ast.parse(open(p).read())
+        except SyntaxError:
+            continue
+        for cls in ast.walk(tree):
+            if not isinstance(cls, ast.ClassDef):
+                continue
+            attrs = set()
+            for n in ast.walk(cls):
+                if isinstance(n, ast.Assign):
+                    for tgt in n.targets:
+                        if (isinstance(tgt, ast.Attribute) and
+                            isinstance(tgt.value, ast.Name) and tgt.value.id == 'self'):
+                            attrs.add(tgt.attr)
+                if isinstance(n, ast.AnnAssign):
+                    if (isinstance(n.target, ast.Attribute) and
+                        isinstance(n.target.value, ast.Name) and n.target.value.id == 'self'):
+                        attrs.add(n.target.attr)
+            if len(attrs) >= 10:
+                results.append((len(attrs), cls.name, p, cls.lineno, sorted(attrs)))
+results.sort(reverse=True)
+for n_attrs, cname, path, line, attrs in results:
+    print(f"{n_attrs:>3}  {cname:<30} {path}:{line}")
+    print(f"     attrs: {', '.join(attrs)}")
+```
+
+#### 2.5c Constant Concern-Clustering
+
+Standard: module-level UPPER_CASE constants split into ≥2 distinct prefix clusters (each ≥3 constants) suggest the file conflates concerns. Each prefix cluster names a concern that should live in its own module. Helps surface split candidates even when LOC and import counts are still under the hard ceilings.
+
+```python
+# /tmp/refactor_constclust.py
+import ast, os, re
+from collections import Counter
+SKIP = ('__pycache__', '/logs/', '/worktrees/')
+for root, _, files in os.walk('src'):
+    if any(x in root for x in SKIP):
+        continue
+    for fn in files:
+        if not fn.endswith('.py'):
+            continue
+        p = os.path.join(root, fn)
+        try:
+            tree = ast.parse(open(p).read())
+        except SyntaxError:
+            continue
+        prefixes = Counter()
+        for n in tree.body:
+            if not isinstance(n, ast.Assign):
+                continue
+            for tgt in n.targets:
+                if isinstance(tgt, ast.Name) and tgt.id.isupper():
+                    m = re.match(r'^_?([A-Z]+)_', tgt.id)
+                    if m:
+                        prefixes[m.group(1)] += 1
+        clusters = [(pref, n) for pref, n in prefixes.items() if n >= 3]
+        if len(clusters) >= 2:
+            print(f"{p}: {len(clusters)} prefix clusters")
+            for pref, n in sorted(clusters, key=lambda x: -x[1]):
+                print(f"     {pref}_*: {n}")
+```
+
+#### 2.6 Operational Hygiene
+
+Prototype-to-prod readiness. Three sub-checks for patterns that work fine in development but bite in production or new-developer onboarding.
+
+##### 2.6a Ungated Diagnostic Writes
+
+Standard: file-append calls (`open(path, "a").write(...)`) or stream-redirects to debug/log targets in production code paths MUST be gated by an env-var, debug flag, or log-level check. Ungated diagnostic writes accumulate unbounded log growth in prod and slow the runtime path. Common targets: `/tmp/*.log`, `~/*.log`, or any append-mode path with diagnostic naming (`debug`, `trace`, `diag`).
+
+```python
+# /tmp/refactor_ungated_diag.py
+import ast, os
+SKIP = ('__pycache__', '/logs/', '/worktrees/', '/tests/', '/dev/')
+DIAG_HINTS = ('/tmp/', '.log', 'debug', 'trace', 'diag')
+hits = []
+for root, _, files in os.walk('src'):
+    if any(x in root for x in SKIP):
+        continue
+    for fn in files:
+        if not fn.endswith('.py'):
+            continue
+        p = os.path.join(root, fn)
+        try:
+            tree = ast.parse(open(p).read())
+        except SyntaxError:
+            continue
+        for n in ast.walk(tree):
+            if not (isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                    and n.func.id == 'open'):
+                continue
+            if len(n.args) < 2:
+                continue
+            mode = n.args[1]
+            if not (isinstance(mode, ast.Constant) and mode.value in ('a', 'a+', 'w')):
+                continue
+            path_arg = n.args[0]
+            path_str = None
+            if isinstance(path_arg, ast.Constant):
+                path_str = str(path_arg.value)
+            elif isinstance(path_arg, ast.JoinedStr):
+                path_str = ''.join(c.value for c in path_arg.values
+                                   if isinstance(c, ast.Constant))
+            if path_str and any(h in path_str for h in DIAG_HINTS):
+                hits.append((p, n.lineno, path_str, mode.value))
+for p, ln, ps, m in hits:
+    print(f"  {p}:{ln}  open({ps!r}, {m!r})")
+# Note: this is a heuristic flag — verify each hit is actually ungated (no env-var
+# check up the call tree). AST-based gate detection is imprecise; manual review per hit.
+```
+
+##### 2.6b Installation Friction
+
+Standard: configuration files containing placeholder tokens (e.g. `<UPPER_CASE>`-style markers) MUST have an accompanying setup/install script that substitutes them. Without it, manual editing during install creates onboarding friction and version-skew bugs (repo-update overwrites the local substitution). Applies to plist, yaml, toml, json, conf, and similar config files outside Python code.
+
+```bash
+# find non-Python configs with <UPPER> placeholder tokens; flag those without setup_*.py in same dir
+for f in $(find . -type f \( -name "*.plist" -o -name "*.yaml" -o -name "*.yml" \
+    -o -name "*.toml" -o -name "*.json" -o -name "*.conf" -o -name "*.ini" \) \
+    -not -path "*/__pycache__/*" -not -path "*/worktrees/*" \
+    -not -path "*/node_modules/*" -not -path "*/venv/*" -not -path "*/.venv/*"); do
+  if grep -qE '<[A-Z_]+>' "$f" 2>/dev/null; then
+    dir=$(dirname "$f")
+    if ! ls "$dir"/setup_*.py "$dir"/install_*.py 2>/dev/null | head -1 > /dev/null; then
+      echo "  $f"
+      grep -nE '<[A-Z_]+>' "$f" | head -3 | sed 's/^/      /'
+    fi
+  fi
+done
+```
+
+##### 2.6c Scattered Application State
+
+Standard: ≥3 application-owned files in `$HOME` with the same project prefix → recommend grouping under XDG-style `~/.config/<project>/` (or platform equivalent). Reduces user-home clutter, eases backup/uninstall, and signals which files belong to which app.
+
+```bash
+# project-aware: pass project_prefix as $1, defaults to cwd basename
+PROJECT_PREFIX="${1:-$(basename $(pwd) | tr '[:upper:]' '[:lower:]')}"
+count=$(ls -d "$HOME"/.${PROJECT_PREFIX}* 2>/dev/null | wc -l | tr -d ' ')
+if [ "$count" -ge 3 ]; then
+  echo "  ${count} files in \$HOME match .${PROJECT_PREFIX}*:"
+  ls -d "$HOME"/.${PROJECT_PREFIX}* 2>/dev/null | sed 's/^/      /'
+  echo "  → recommend grouping under ~/.config/${PROJECT_PREFIX}/"
+fi
+```
+
+#### 2.7 Refactor Residue
+
+Artifacts from incremental development that accumulate silently. Catch with periodic scans, not on individual change reviews.
+
+##### 2.7a Dead Imports
+
+Standard: imports never referenced in the file. Common after function-extraction, feature-removal, or library-replacement commits. Each dead import is a small noise hit but they compound; also a hint that the relevant refactor wasn't fully completed.
+
+```bash
+# pyflakes-based; install with `pip install pyflakes` if missing
+pyflakes src/ 2>&1 | grep "imported but unused" || echo "(none)"
+```
+
+##### 2.7b Scripts in Library Tree
+
+Standard: source-tree files containing an `if __name__ == "__main__"` block AND not imported by any other module → they're scripts, not library code. Belong in `scripts/`, `dev/`, or a dedicated `bin/` directory. The library tree should be import-only so that the boundary between "loaded as library" and "executed as program" stays clear.
+
+```python
+# /tmp/refactor_scripts_in_lib.py
+import ast, os, subprocess
+SKIP = ('__pycache__', '/logs/', '/worktrees/')
+candidates = []
+for root, _, files in os.walk('src'):
+    if any(x in root for x in SKIP):
+        continue
+    for fn in files:
+        if not fn.endswith('.py') or fn == '__init__.py':
+            continue
+        p = os.path.join(root, fn)
+        try:
+            tree = ast.parse(open(p).read())
+        except SyntaxError:
+            continue
+        has_main = False
+        for n in tree.body:
+            if isinstance(n, ast.If):
+                t = n.test
+                if (isinstance(t, ast.Compare) and isinstance(t.left, ast.Name)
+                        and t.left.id == '__name__'):
+                    has_main = True
+                    break
+        if not has_main:
+            continue
+        mod_name = os.path.splitext(fn)[0]
+        # count grep hits for imports of this module across src/
+        r = subprocess.run(['grep', '-rln', '-E',
+                            f'(from .*{mod_name}|import.*\\b{mod_name}\\b)', 'src'],
+                           capture_output=True, text=True)
+        n_imports = len([ln for ln in r.stdout.splitlines() if ln != p])
+        if n_imports == 0:
+            candidates.append(p)
+for p in candidates:
+    print(f"  {p}  (has __main__, not imported elsewhere)")
+```
+
+##### 2.7c Dev-Tooling Gap
+
+Standard: actively-maintained `src/<module>/` directory without any `dev/<module>*` counterpart (script or subdir) suggests missing debug/probe infrastructure. Heuristic flag — not every module needs a dev counterpart, but actively-iterated UI/runtime modules benefit from a dedicated foreground/probe entry-point for fast iteration. Active = recent git commits on the module.
+
+```bash
+# for each src/<module>/, check dev/<module>* counterpart; flag if module touched <30d ago
+for mod in src/*/; do
+  mname=$(basename "$mod")
+  [ "$mname" = "__pycache__" ] && continue
+  if ls dev/${mname}*.py 2>/dev/null > /dev/null || ls -d dev/${mname} 2>/dev/null > /dev/null; then
+    continue
+  fi
+  last_commit=$(git log -1 --format=%ct -- "$mod" 2>/dev/null)
+  [ -z "$last_commit" ] && continue
+  now=$(date +%s)
+  age_days=$(( (now - last_commit) / 86400 ))
+  if [ "$age_days" -lt 30 ]; then
+    echo "  src/${mname}/ (no dev/${mname}*, last commit ${age_days}d ago)"
+  fi
+done
+```
+
 ### Phase 3 — Prioritization
 
-Combine the five scan outputs into a single ordered table.
+Combine the scan outputs into a single ordered table.
 
 **Severity tiers:**
-- **HARD** — file >400 LOC, function ≥100 LOC, argument-mutation cluster ≥4 hits in one function
-- **WATCH** — file 300-400 LOC, function 50-99 LOC, single-hit argument mutations
-- **STRUCT** — root-module relocations, files with >5 cross-module imports
+- **HARD** — file >400 LOC, function ≥100 LOC, argument-mutation cluster ≥4 hits in one function, class with ≥15 instance attributes, install-friction (placeholder config) with no setup script
+- **WATCH** — file 300-400 LOC, function 50-99 LOC, single-hit argument mutations, class with 10-14 instance attributes, ungated diagnostic writes, scattered application state, scripts in library tree, dead imports
+- **STRUCT** — root-module relocations, files with >5 cross-module imports, constant-clustering split candidates, dev-tooling gaps
 
 | Severity | File | Issue | Hits/LOC | Recommendation |
 |---|---|---|---|---|
 | HARD | path/to/file.py | LOC > 400 | 491 | Split by concern (name them) |
 | HARD | path/to/file.py :: func | func ≥100 LOC | 195 | Extract sub-concerns (name them) |
 | HARD | path/to/file.py :: func | arg-mutation cluster | 12 hits | Refactor to return new value |
+| HARD | path/to/file.py :: Cls | class state sprawl | 18 attrs | Split class by concern (name groups) |
+| HARD | path/to/config.plist | install friction | N tokens | Add setup_*.py for placeholder substitution |
 | WATCH | path/to/other.py | LOC 300-400 | 358 | Watch on next change |
+| WATCH | path/to/file.py | ungated diag write | — | Gate by env-var or remove |
 | STRUCT | src/foo.py | single-subdir use | — | Move into subdir/ |
+| STRUCT | path/to/file.py | constant prefix clusters | 3 clusters | Split file by prefix |
+| STRUCT | src/<mod>/ | no dev/ counterpart | — | Add dev/<mod>_debug.py |
 
 ### Phase 4 — Refactor Plan
 
