@@ -22,6 +22,7 @@ usage: worker-cli <cmd> [args]
   send <name> <message>                                      — send message to running worker
   spawn <name> <prompt_file> <project_path> [model] [--no-worktree]
                                                              — spawn worker in git worktree
+  revive <name>                                              — re-launch dead worker with --resume (full prior context)
 
 model: sonnet (default) | opus
 Worker names are globally unique (registry-tracked). Project path is required only for spawn;
@@ -326,6 +327,88 @@ case "$CMD" in
         [ "${5:-}" = "--no-worktree" ] && WORKTREE_FLAG="--no-worktree"
         cd "$PLUGIN" && python3 -m src.spawn.spawn "$NAME" "$PROMPT_FILE" "$PROJECT" "$MODEL" $WORKTREE_FLAG
         registry_write "$NAME" "$PROJECT"
+        _DEATH_LOG="$HOME/.claude/worker-deaths.log"
+        _SPAWN_SESSION="worker-$(basename "$PROJECT")-$NAME"
+        tmux set-hook -t "$_SPAWN_SESSION" pane-died \
+            "run-shell 'echo \"\$(date -Iseconds) worker=$NAME session=#{session_name} status=#{pane_dead_status} signal=#{pane_dead_signal}\" >> $_DEATH_LOG'" 2>/dev/null || true
+        ;;
+    revive)
+        [ $# -lt 1 ] && { echo "worker-cli revive: need <name> [project_path]" >&2; exit 2; }
+        NAME="$1"
+        OVERRIDE="${2:-}"
+        PROJECT=$(resolve_worker_project "$NAME" "$OVERRIDE")
+        SESSION="worker-$(basename "$PROJECT")-$NAME"
+
+        # Gate 1: tmux session must exist (otherwise worker was kill'd — use spawn)
+        if ! tmux has-session -t "$SESSION" 2>/dev/null; then
+            echo "worker-cli revive: session '$SESSION' not found — worker was fully killed; use 'spawn'" >&2
+            exit 2
+        fi
+
+        # Gate 2: pane must be dead (otherwise worker is alive — use send)
+        PANE_DEAD=$(tmux display-message -t "${SESSION}:^" -p "#{pane_dead}" 2>/dev/null || echo "?")
+        if [ "$PANE_DEAD" = "0" ]; then
+            echo "worker-cli revive: worker '$NAME' is still running — use 'send'" >&2
+            exit 2
+        elif [ "$PANE_DEAD" != "1" ]; then
+            echo "worker-cli revive: cannot determine pane state for '$SESSION' (got: $PANE_DEAD)" >&2
+            exit 2
+        fi
+
+        # Gate 3: worktree must exist
+        WORKTREE="$PROJECT/.claude/worktrees/$NAME"
+        if [ ! -d "$WORKTREE" ]; then
+            echo "worker-cli revive: worktree not found at $WORKTREE — revive not possible" >&2
+            exit 2
+        fi
+
+        # Gate 4: JSONL must exist
+        ENCODED_DIR="$HOME/.claude/projects/$(encode_worktree_path "$WORKTREE")"
+        JSONL=$(ls -t "$ENCODED_DIR"/*.jsonl 2>/dev/null | head -1)
+        if [ -z "$JSONL" ]; then
+            echo "worker-cli revive: no session JSONL found at $ENCODED_DIR — context lost; use 'spawn'" >&2
+            exit 2
+        fi
+
+        SESSION_ID=$(basename "$JSONL" .jsonl)
+        MODEL=$(tmux show-environment -t "$SESSION" WORKER_MODEL 2>/dev/null | cut -d= -f2)
+        MODEL="${MODEL:-sonnet}"
+        PURPOSE=$(tmux show-environment -t "$SESSION" WORKER_PURPOSE 2>/dev/null | cut -d= -f2)
+        PARENT=$(tmux show-environment -t "$SESSION" WORKER_PARENT 2>/dev/null | cut -d= -f2)
+
+        echo "Reviving $NAME (session-id $SESSION_ID, model $MODEL)"
+        tmux kill-session -t "$SESSION" 2>/dev/null || true
+
+        CLAUDE_BIN="${CLAUDE_BIN:-$HOME/.local/bin/claude-114}"
+        DEATH_LOG="$HOME/.claude/worker-deaths.log"
+        REVIVE_RUNNER=$(mktemp "/tmp/.worker_${NAME}_revive.XXXXXX")
+        cat > "$REVIVE_RUNNER" <<RUNSCRIPT
+#!/usr/bin/env bash
+_cleanup() {
+    local _s=\$?
+    echo "\$(date -Iseconds) worker=$NAME session=$SESSION status=\$_s signal=EXIT" >> "$DEATH_LOG"
+    touch "/tmp/worker-${NAME}.done"
+    rm -f "$REVIVE_RUNNER"
+}
+trap _cleanup EXIT
+cd '$WORKTREE'
+'$CLAUDE_BIN' --model '$MODEL' --dangerously-skip-permissions --resume '$SESSION_ID'
+RUNSCRIPT
+        chmod +x "$REVIVE_RUNNER"
+
+        tmux new-session -d -s "$SESSION" "bash '$REVIVE_RUNNER'" \; \
+            set-option -p -t "$SESSION" remain-on-exit on
+        tmux set-environment -t "$SESSION" WORKER_SPAWNED "$(date +%H:%M)"
+        tmux set-environment -t "$SESSION" WORKER_REVIVED "$(date +%H:%M)"
+        tmux set-environment -t "$SESSION" WORKER_PURPOSE "${PURPOSE:-(?)}"
+        tmux set-environment -t "$SESSION" WORKER_PARENT "${PARENT:-unknown}"
+        tmux set-environment -t "$SESSION" WORKER_MODEL "$MODEL"
+        tmux set-hook -t "$SESSION" pane-died \
+            "run-shell 'echo \"\$(date -Iseconds) worker=$NAME session=#{session_name} status=#{pane_dead_status} signal=#{pane_dead_signal}\" >> $DEATH_LOG'" 2>/dev/null || true
+
+        bash -c "source \"$SPAWN\" && open_tmux_viewer \"$SESSION\"" &
+        echo "  session: $SESSION"
+        echo "  jsonl:   $JSONL"
         ;;
     -h|--help|help)
         usage
