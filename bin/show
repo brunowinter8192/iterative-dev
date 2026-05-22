@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# show: open file(s) in the user's default macOS app for display.
+# Source: Meta/blank/bin/show — symlinked to ~/.local/bin/show
+# Usage: show <file> [file...]
+#   - Relative paths resolve against current pwd
+#   - ~ expansion supported
+#   - Errors with exit 1 if any path does not exist
+
+set -e
+
+if [ $# -lt 1 ]; then
+  echo "Usage: show <file> [file...]" >&2
+  exit 1
+fi
+
+for f in "$@"; do
+  # ~ expansion
+  f="${f/#\~/$HOME}"
+  # relative → absolute (anchored at pwd)
+  [[ "$f" != /* ]] && f="$(pwd)/$f"
+  if [ ! -e "$f" ]; then
+    echo "show: not found: $f" >&2
+    exit 1
+  fi
+  open "$f"
+  echo "opened: $f"
+done
