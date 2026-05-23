@@ -15,8 +15,64 @@
 set -euo pipefail
 
 # --- Constants ---
+_ORCHESTRATOR_SIGNALS_FILE="$HOME/Library/Application Support/com.brunowinter.monitor_cc_menubar/orchestrator_signals.json"
 
 # --- Helpers ---
+
+# _orchestrator_signal_update SESSION_NAME
+#   Update the orchestrator-signal file: set signals[SESSION_NAME] = now, prune entries > 1h.
+#   Atomic write via tmp + os.replace. Failures are non-fatal — signal is a hint to the menubar,
+#   not a correctness requirement for worker delivery. Menubar treats workers without signals
+#   normally (falls through to hook-state for status).
+_orchestrator_signal_update() {
+    local session_name="$1"
+    python3 - "$_ORCHESTRATOR_SIGNALS_FILE" "$session_name" <<'PYEOF' 2>/dev/null || true
+import json, os, sys, time
+path, key = sys.argv[1], sys.argv[2]
+now = time.time()
+try:
+    data = json.loads(open(path).read())
+    if not isinstance(data, dict):
+        data = {}
+except (FileNotFoundError, json.JSONDecodeError, OSError):
+    data = {}
+# prune entries > 1h old (excluding the one we're about to set)
+data = {k: float(v) for k, v in data.items()
+        if isinstance(v, (int, float)) and (now - float(v)) < 3600 and k != key}
+data[key] = now
+os.makedirs(os.path.dirname(path), exist_ok=True)
+tmp = path + ".tmp"
+with open(tmp, "w") as f:
+    json.dump(data, f)
+os.replace(tmp, path)
+PYEOF
+}
+
+# _orchestrator_signal_delete SESSION_NAME
+#   Remove the signal entry for SESSION_NAME (used on worker kill).
+_orchestrator_signal_delete() {
+    local session_name="$1"
+    python3 - "$_ORCHESTRATOR_SIGNALS_FILE" "$session_name" <<'PYEOF' 2>/dev/null || true
+import json, os, sys, time
+path, key = sys.argv[1], sys.argv[2]
+try:
+    raw = open(path).read()
+    data = json.loads(raw)
+    if not isinstance(data, dict):
+        sys.exit(0)
+except (FileNotFoundError, json.JSONDecodeError, OSError):
+    sys.exit(0)
+data.pop(key, None)
+# prune > 1h old entries while we are touching the file
+now = time.time()
+data = {k: float(v) for k, v in data.items()
+        if isinstance(v, (int, float)) and (now - float(v)) < 3600}
+tmp = path + ".tmp"
+with open(tmp, "w") as f:
+    json.dump(data, f)
+os.replace(tmp, path)
+PYEOF
+}
 
 # _worker_project_name PROJECT_PATH
 #   Derives project name from project path.
@@ -201,6 +257,12 @@ worker_send() {
 
     local pane_id
     pane_id=$(tmux list-panes -t "$session" -F "#{pane_id}" | head -1)
+
+    # Signal the orchestrator-send event BEFORE delivering the keys. The Monitor_CC menubar
+    # treats workers with a recent signal as 'working' for auto-abort, bridging the latency
+    # window between this tmux send-keys and CC's UserPromptSubmit hook firing — see
+    # Monitor_CC/decisions/OldThemes/menubar_signal_grace/initial_design.md.
+    _orchestrator_signal_update "$session"
 
     # Paste message, then send Enter as key event.
     # Claude Code TUI ignores pasted newlines as submit — needs real key event.

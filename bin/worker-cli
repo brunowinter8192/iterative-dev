@@ -327,6 +327,8 @@ case "$CMD" in
         tmux kill-session -t "$SESSION" 2>/dev/null && echo "  tmux session: killed" || echo "  tmux session: not found"
         git -C "$PROJECT" worktree remove --force ".claude/worktrees/$NAME" 2>/dev/null && echo "  worktree: removed" || echo "  worktree: not found"
         git -C "$PROJECT" branch -D "$NAME" 2>/dev/null && echo "  branch: deleted" || echo "  branch: not found"
+        # Best-effort signal cleanup so the menubar doesn't keep a stale grace entry around
+        bash -c "source \"$SPAWN\" && _orchestrator_signal_delete \"$SESSION\"" 2>/dev/null || true
         registry_delete "$NAME"
         echo "  registry: removed"
         ;;
