@@ -66,6 +66,33 @@ _worker_detect_status() {
         return 1
     fi
 
+    # Process-tree check: pane_dead is 0 in our zsh/bash-wrapped CC setup even
+    # after Claude exits (shell keeps the pane alive). The reliable signal is
+    # whether a `claude` descendant of the pane PID still exists. If none →
+    # CC has exited (context-limit death, crash, manual quit) — return "exited"
+    # instead of falsely reporting "idle".
+    local pane_pid
+    pane_pid=$(tmux display-message -t "${session}:^" -p "#{pane_pid}" 2>/dev/null)
+    if [ -n "$pane_pid" ]; then
+        local children
+        children=$(pgrep -P "$pane_pid" 2>/dev/null || true)
+        if [ -z "$children" ]; then
+            echo "exited"
+            return 0
+        fi
+        local has_claude=0
+        for cpid in $children; do
+            if ps -o command= -p "$cpid" 2>/dev/null | grep -q "claude"; then
+                has_claude=1
+                break
+            fi
+        done
+        if [ "$has_claude" = "0" ]; then
+            echo "exited"
+            return 0
+        fi
+    fi
+
     local now last_activity delta
     now=$(date +%s)
     last_activity=$(tmux list-panes -t "$session" -F "#{window_activity}" 2>/dev/null | head -1)

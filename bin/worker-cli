@@ -144,9 +144,29 @@ encode_worktree_path() {
 
 # Print context-remaining % for a worker based on its latest session JSONL.
 # Returns "—%" if project is empty or no usage data found; never fails with non-zero exit.
+#
+# Reference ceiling: 170k tokens (Sonnet's empirical death-zone, NOT the
+# advertised 200k). CC consistently aborts requests when cache-read approaches
+# ~170k — observed across multiple workers (Bead Monitor_CC-l7fy). Using 170k
+# as 100% baseline makes the percentage truthful: 0% = at the practical limit,
+# not at the advertised limit. Negative values (cr > 170k) are clamped to 0%.
 context_pct() {
     local name="$1" project="$2"
     if [ -z "$project" ]; then echo "—%"; return; fi
+
+    # If worker session exists but CC has exited (no claude descendant of pane PID),
+    # the latest JSONL may be from an auto-restart with CR=0 → would falsely show 100%.
+    # Detect via _worker_detect_status and return "—%" instead.
+    local session="worker-$(basename "$project")-$name"
+    if tmux has-session -t "$session" 2>/dev/null; then
+        local status
+        status=$(bash -c "source \"\$1\" && _worker_detect_status \"\$2\"" \
+            _ "$SPAWN" "$session" 2>/dev/null || echo "unknown")
+        if [ "$status" = "exited" ] || [ "$status" = "unknown" ]; then
+            echo "—%"; return
+        fi
+    fi
+
     local worktree="$project/.claude/worktrees/$name"
     local encoded_dir="$HOME/.claude/projects/$(encode_worktree_path "$worktree")"
     local jsonl cr
@@ -156,7 +176,9 @@ context_pct() {
     if [ -z "$cr" ] || [ "$cr" = "null" ]; then
         echo "—%"
     else
-        echo "$(( 100 * (200000 - cr) / 200000 ))%"
+        local pct=$(( 100 * (170000 - cr) / 170000 ))
+        [ "$pct" -lt 0 ] && pct=0
+        echo "${pct}%"
     fi
 }
 
