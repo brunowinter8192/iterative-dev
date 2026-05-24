@@ -103,11 +103,12 @@ _worker_session_name() {
 # _worker_detect_status SESSION
 #   Returns status: working, idle, exited, or unknown.
 #   Shared logic used by worker_list and worker_status.
-#   Uses window_activity timestamp (last output to window). Claude Code updates
-#   a live timer every second during thinking — so activity stays fresh
-#   while working. When idle (prompt visible, no output), activity goes stale.
-#   Workers have 1 window with 1 pane, so window_activity == pane activity.
-#   Note: pane_activity does not exist in all tmux versions; window_activity does.
+#   Reads status from CC hooks.json (same source as Monitor_CC menubar) — guarantees
+#   that worker-cli status matches the menubar display. Applies the same stale-working
+#   demote rule (working hook + JSONL >10s = idle) to cover context-limit-hit workers
+#   and crashed workers. Previously used tmux window_activity, which was bumped by CC
+#   UI updates (spinner, cursor blinks) and produced false working/idle readings.
+#   exited detection (pane_dead + claude-descendant) is unchanged from prior logic.
 _worker_detect_status() {
     local session="$1"
     local idle_threshold=10
@@ -149,16 +150,49 @@ _worker_detect_status() {
         fi
     fi
 
-    local now last_activity delta
-    now=$(date +%s)
-    last_activity=$(tmux list-panes -t "$session" -F "#{window_activity}" 2>/dev/null | head -1)
-    delta=$((now - ${last_activity:-0}))
-
-    if [ "$delta" -gt "$idle_threshold" ]; then
-        echo "idle"
-    else
-        echo "working"
+    # Status from hooks.json — same source as Monitor_CC menubar (replaces window_activity heuristic).
+    # window_activity is bumped by CC's UI updates (spinner, cursor blinks) → unreliable.
+    # hooks.json is written by CC's UserPromptSubmit/Stop hooks → authoritative working/idle.
+    # Apply same demote rule as menubar discover.py:147 (working + JSONL >idle_threshold = idle)
+    # so worker-cli status matches the menubar display (post-demote semantics).
+    local worktree encoded jsonl jsonl_mtime session_id hook_status hook_file now jsonl_age
+    worktree=$(tmux display-message -t "${session}:^" -p "#{pane_current_path}" 2>/dev/null)
+    if [ -z "$worktree" ]; then
+        echo "unknown"
+        return 1
     fi
+    # CC encoding: replace /, _, . with - (matches Monitor_CC/src/session_finder.py:encode_project_path).
+    encoded=$(echo "$worktree" | tr '/_.' '-')
+    jsonl=$(ls -t "$HOME/.claude/projects/${encoded}"/*.jsonl 2>/dev/null | head -1)
+    if [ -z "$jsonl" ]; then
+        # No JSONL yet — fresh spawn, still initializing. Honest answer is unknown.
+        echo "unknown"
+        return 1
+    fi
+    session_id=$(basename "$jsonl" .jsonl)
+    hook_file="$HOME/Library/Application Support/com.brunowinter.monitor_cc_menubar/hooks.json"
+    hook_status=$(jq -r --arg sid "$session_id" '.[$sid].status // ""' "$hook_file" 2>/dev/null)
+    if [ -z "$hook_status" ] || [ "$hook_status" = "null" ]; then
+        # No hook entry — hooks not installed, or session not yet registered. Default idle.
+        echo "idle"
+        return 0
+    fi
+    if [ "$hook_status" = "working" ]; then
+        # Demote stale-working to idle if JSONL > idle_threshold old (matches menubar discover.py:147).
+        # Covers context-limit-hit workers (PID alive, no further LLM calls) and crashed workers
+        # (Stop hook never fired). The 60s signal grace in menubar's _auto_abort_check protects
+        # Opus bg timers during legitimate long-thinking phases independently of this display status.
+        now=$(date +%s)
+        jsonl_mtime=$(stat -f "%m" "$jsonl" 2>/dev/null || echo "0")
+        jsonl_age=$((now - jsonl_mtime))
+        if [ "$jsonl_age" -gt "$idle_threshold" ]; then
+            echo "idle"
+        else
+            echo "working"
+        fi
+        return 0
+    fi
+    echo "$hook_status"
 }
 
 # worker_list [PROJECT_PATH]
@@ -420,6 +454,12 @@ RUNSCRIPT
     # Atomic remain-on-exit via ; chain — set before process can exit.
     tmux new-session -d -s "$session" "$claude_cmd" \; \
         set-option -p -t "$session" remain-on-exit on
+
+    # Write orchestrator signal for menubar grace (Fix A: spawn-case protection).
+    # Same mechanism as worker_send — covers initial thinking phase before first JSONL
+    # write. Without this, menubar's stale-JSONL demote kills Opus bg timers during
+    # the fresh-worker thinking window. See Monitor_CC decisions/OldThemes/menubar_signal_grace/.
+    _orchestrator_signal_update "$session"
 
     # Store spawn metadata for worker_list display
     tmux set-environment -t "$session" WORKER_SPAWNED "$(date +%H:%M)"
