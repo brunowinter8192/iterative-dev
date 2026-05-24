@@ -150,12 +150,17 @@ _worker_detect_status() {
         fi
     fi
 
-    # Status from hooks.json — same source as Monitor_CC menubar (replaces window_activity heuristic).
-    # window_activity is bumped by CC's UI updates (spinner, cursor blinks) → unreliable.
-    # hooks.json is written by CC's UserPromptSubmit/Stop hooks → authoritative working/idle.
-    # Apply same demote rule as menubar discover.py:147 (working + JSONL >idle_threshold = idle)
-    # so worker-cli status matches the menubar display (post-demote semantics).
-    local worktree encoded jsonl jsonl_mtime session_id hook_status hook_file now jsonl_age
+    # Status from hooks.json — authoritative working/idle from CC's UserPromptSubmit/Stop hooks.
+    # Demote stale-working to idle using tmux window_activity (pane-level byte-write timestamp),
+    # NOT JSONL mtime: CC only writes JSONL on message completion, so long thinking phases
+    # (Caramelizing/Concocting) keep JSONL stale indefinitely → old code demoted actively-working
+    # workers as false-idle minutes into a real turn. window_activity advances whenever bytes
+    # reach the pane (spinner ticks, streaming chunks); empirically zero false positives on
+    # truly idle CC sessions (cursor blink does NOT bump window_activity — proven by 300+
+    # idle-session-seconds in dev/worker_status_probes/01_reports/comparison_20260524_183937.md).
+    # window_activity is stable in tmux ≥ 1.8. Single source of truth: menubar discover.py uses
+    # the same signal for symmetric worker-cli ⇔ menubar reporting.
+    local worktree encoded jsonl session_id hook_status hook_file now wa wa_age
     worktree=$(tmux display-message -t "${session}:^" -p "#{pane_current_path}" 2>/dev/null)
     if [ -z "$worktree" ]; then
         echo "unknown"
@@ -178,14 +183,14 @@ _worker_detect_status() {
         return 0
     fi
     if [ "$hook_status" = "working" ]; then
-        # Demote stale-working to idle if JSONL > idle_threshold old (matches menubar discover.py:147).
-        # Covers context-limit-hit workers (PID alive, no further LLM calls) and crashed workers
-        # (Stop hook never fired). The 60s signal grace in menubar's _auto_abort_check protects
-        # Opus bg timers during legitimate long-thinking phases independently of this display status.
+        # Demote stale-working if pane has received no bytes for > idle_threshold seconds.
+        # Catches context-limit-hit workers (CC alive, no further output) AND crashed workers
+        # (Stop hook never fired). Does NOT catch genuine thinking phases because CC writes
+        # spinner ticks ~1/sec → window_activity stays fresh through Caramelizing/Concocting.
         now=$(date +%s)
-        jsonl_mtime=$(stat -f "%m" "$jsonl" 2>/dev/null || echo "0")
-        jsonl_age=$((now - jsonl_mtime))
-        if [ "$jsonl_age" -gt "$idle_threshold" ]; then
+        wa=$(tmux display-message -t "${session}:^" -p "#{window_activity}" 2>/dev/null || echo "0")
+        wa_age=$((now - wa))
+        if [ "$wa_age" -gt "$idle_threshold" ]; then
             echo "idle"
         else
             echo "working"
