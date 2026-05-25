@@ -347,6 +347,135 @@ end tell
     fi
 }
 
+# _start_worker_logger NAME SESSION EVENT
+#   Spawn the diagnostic logger sidecar in background. Samples every 10s; on detected
+#   pane_dead writes a forensic snapshot. Writes its own PID to /tmp/worker-logger-<name>.pid
+#   so _stop_worker_logger can clean it up.
+#
+#   EVENT is "spawn" or "revive" — only affects the log filename suffix.
+#
+#   Log dir defaults to ~/Documents/ai/Meta/blank/src/logs (user's plugin source); override
+#   via WORKER_LOGGER_DIR env var. Plugin runs from cache but logs go to source-repo dir so
+#   they survive plugin-publish overwrites.
+_start_worker_logger() {
+    local name="$1"
+    local session="$2"
+    local event="${3:-spawn}"
+    local logger_script
+    logger_script="$(dirname "${BASH_SOURCE[0]}")/worker_logger.sh"
+    if [ ! -x "$logger_script" ]; then
+        # Logger missing — non-fatal, just skip
+        return 0
+    fi
+    local log_dir="${WORKER_LOGGER_DIR:-$HOME/Documents/ai/Meta/blank/src/logs}"
+    mkdir -p "$log_dir"
+    # Start in background, fully detached so the logger survives worker_spawn returning
+    nohup "$logger_script" "$name" "$session" "$log_dir" "$event" \
+        >/dev/null 2>&1 &
+    disown
+}
+
+# _stop_worker_logger NAME
+#   Stop the diagnostic logger sidecar via PID file (best-effort).
+_stop_worker_logger() {
+    local name="$1"
+    local pid_file="/tmp/worker-logger-${name}.pid"
+    if [ -f "$pid_file" ]; then
+        local pid
+        pid=$(cat "$pid_file" 2>/dev/null || echo "")
+        [ -n "$pid" ] && kill -TERM "$pid" 2>/dev/null || true
+        rm -f "$pid_file"
+    fi
+}
+
+
+# _worker_proxy_setup NAME PROJECT_PATH
+#   Sets up a worker-specific mitmproxy if the Monitor_CC proxy marker is present.
+#   The proxy is needed so the worker's claude --resume hits the same per-project
+#   marker prefix as the main session — without it the prompt-cache prefix changes
+#   and Anthropic sees a full cache miss, forcing a complete re-upload of context.
+#
+#   Reads /tmp/.monitor_cc_proxy_<session_id> (line 1 = main_port, line 3 = MONITOR_CC_ROOT).
+#   Starts mitmdump in background on (main_port + N) with a per-worker live-copy of
+#   the addon (live-copy prevents hot-reload bashing the main proxy).
+#
+#   Writes results to global vars (consumed by both spawn and revive):
+#     WORKER_PROXY_PID            — pid of mitmdump or empty if no proxy
+#     WORKER_PROXY_ENV_PREFIX     — env-var string to prefix the claude command, or empty
+#     WORKER_PROXY_LIVE_ADDON     — path to live-copy addon file (for cleanup) or empty
+#     WORKER_PROXY_LIVE_DIR       — path to live-copy proxy dir (for cleanup) or empty
+#
+#   Returns 0 always (including no-proxy-active case); 1 only on dedup error (live addon
+#   already in use by another mitmdump — caller should refuse to spawn).
+_worker_proxy_setup() {
+    local name="$1"
+    local project_path="$2"
+
+    # Reset globals
+    WORKER_PROXY_PID=""
+    WORKER_PROXY_ENV_PREFIX=""
+    WORKER_PROXY_LIVE_ADDON=""
+    WORKER_PROXY_LIVE_DIR=""
+
+    # Detect mitmproxy: strip worktree suffix to get original project path for hash
+    local proxy_project_path="$project_path"
+    if [[ "$project_path" == */.claude/worktrees/* ]]; then
+        proxy_project_path="${project_path%%/.claude/worktrees/*}"
+    fi
+    local proxy_session_id
+    if command -v md5 >/dev/null 2>&1; then
+        proxy_session_id=$(echo -n "$proxy_project_path" | md5 | head -c 8)
+    else
+        proxy_session_id=$(echo -n "$proxy_project_path" | md5sum | head -c 8)
+    fi
+    local proxy_marker="/tmp/.monitor_cc_proxy_${proxy_session_id}"
+    [ ! -f "$proxy_marker" ] && return 0
+
+    local main_port monitor_cc_root
+    main_port=$(sed -n '1p' "$proxy_marker")
+    monitor_cc_root=$(sed -n '3p' "$proxy_marker")
+    if [ -z "$monitor_cc_root" ] || [ ! -d "$monitor_cc_root" ]; then
+        # Marker exists but no MONITOR_CC_ROOT (old format) — skip proxy setup
+        return 0
+    fi
+
+    # Find a free port starting at main_port + 1
+    local worker_port=$((main_port + 1))
+    while lsof -iTCP:${worker_port} -sTCP:LISTEN >/dev/null 2>&1; do
+        worker_port=$((worker_port + 1))
+    done
+    # Generate human-readable log id: worker_{project_session_id}_{name}_{timestamp}
+    # project_session_id scopes this log to the active project (mirrors _proxy_session_id_for_project in parser.py)
+    local worker_log_id="worker_${proxy_session_id}_${name}_$(date +%s)"
+    # Start worker-specific mitmproxy in background (live-copy to prevent hot-reload)
+    local log_dir="${monitor_cc_root}/src/logs"
+    mkdir -p "$log_dir"
+    local worker_live_id="worker_${name}"
+    local worker_live_addon_path="${log_dir}/.proxy_addon_live_${worker_live_id}.py"
+    local worker_live_dir_path="${log_dir}/.proxy_live_${worker_live_id}"
+    # Dedup guard: if this worker's live-copy already exists AND a mitmdump process is
+    # still using it, abort rather than overwriting (which would hot-reload the running proxy).
+    if [ -f "$worker_live_addon_path" ] && lsof "$worker_live_addon_path" >/dev/null 2>&1; then
+        echo "ERROR: Worker proxy for '$name' is already running (live addon in use)." >&2
+        echo "  Kill the existing '$name' worker or choose a different name." >&2
+        return 1
+    fi
+    cp "${monitor_cc_root}/src/proxy_addon.py" "$worker_live_addon_path"
+    mkdir -p "$worker_live_dir_path"
+    cp -r "${monitor_cc_root}/src/proxy" "$worker_live_dir_path/"
+    MONITOR_CC_ROOT="$monitor_cc_root" PROXY_LOG_ID="$worker_log_id" \
+        PROXY_PROJECT_PATH="$proxy_project_path" \
+        mitmdump -p "$worker_port" -s "$worker_live_addon_path" \
+        --set flow_detail=0 -q \
+        >/dev/null 2>"${log_dir}/proxy_errors_${worker_log_id}.log" &
+    WORKER_PROXY_PID=$!
+    WORKER_PROXY_LIVE_ADDON="$worker_live_addon_path"
+    WORKER_PROXY_LIVE_DIR="$worker_live_dir_path"
+    WORKER_PROXY_ENV_PREFIX="HTTPS_PROXY=http://localhost:${worker_port} NODE_EXTRA_CA_CERTS=~/.mitmproxy/mitmproxy-ca-cert.pem SSL_CERT_FILE=~/.mitmproxy/combined-ca.pem REQUESTS_CA_BUNDLE=~/.mitmproxy/combined-ca.pem "
+    return 0
+}
+
+
 # spawn_claude_worker SESSION_IGNORED NAME PROJECT_PATH MODEL TASK_PROMPT [EXTRA_FLAGS]
 #   Spawns Claude Code in its own tmux session ("worker-<project>-<name>").
 #   Opens a Ghostty window to view the session.
@@ -375,64 +504,12 @@ spawn_claude_worker() {
     local prompt_file="/tmp/spawn-prompt-${name}-$$.txt"
     echo "$task_prompt" > "$prompt_file"
 
-    # Detect mitmproxy: strip worktree suffix to get original project path for hash
-    local proxy_project_path="$project_path"
-    if [[ "$project_path" == */.claude/worktrees/* ]]; then
-        proxy_project_path="${project_path%%/.claude/worktrees/*}"
-    fi
-    local proxy_session_id
-    if command -v md5 >/dev/null 2>&1; then
-        proxy_session_id=$(echo -n "$proxy_project_path" | md5 | head -c 8)
-    else
-        proxy_session_id=$(echo -n "$proxy_project_path" | md5sum | head -c 8)
-    fi
-    local proxy_env_prefix=""
-    local worker_proxy_pid=""
-    local worker_live_addon=""
-    local worker_live_dir=""
-    local proxy_marker="/tmp/.monitor_cc_proxy_${proxy_session_id}"
-    if [ -f "$proxy_marker" ]; then
-        local main_port monitor_cc_root
-        main_port=$(sed -n '1p' "$proxy_marker")
-        monitor_cc_root=$(sed -n '3p' "$proxy_marker")
-        if [ -z "$monitor_cc_root" ] || [ ! -d "$monitor_cc_root" ]; then
-            # Marker exists but no MONITOR_CC_ROOT (old format) — skip proxy setup
-            monitor_cc_root=""
-        fi
-    fi
-    if [ -f "$proxy_marker" ] && [ -n "$monitor_cc_root" ]; then
-        # Find a free port starting at main_port + 1
-        local worker_port=$((main_port + 1))
-        while lsof -iTCP:${worker_port} -sTCP:LISTEN >/dev/null 2>&1; do
-            worker_port=$((worker_port + 1))
-        done
-        # Generate human-readable log id: worker_{project_session_id}_{name}_{timestamp}
-        # project_session_id scopes this log to the active project (mirrors _proxy_session_id_for_project in parser.py)
-        local worker_log_id="worker_${proxy_session_id}_${name}_$(date +%s)"
-        # Start worker-specific mitmproxy in background (live-copy to prevent hot-reload)
-        local log_dir="${monitor_cc_root}/src/logs"
-        mkdir -p "$log_dir"
-        local worker_live_id="worker_${name}"
-        local worker_live_addon="${log_dir}/.proxy_addon_live_${worker_live_id}.py"
-        local worker_live_dir="${log_dir}/.proxy_live_${worker_live_id}"
-        # Dedup guard: if this worker's live-copy already exists AND a mitmdump process is
-        # still using it, abort rather than overwriting (which would hot-reload the running proxy).
-        if [ -f "$worker_live_addon" ] && lsof "$worker_live_addon" >/dev/null 2>&1; then
-            echo "ERROR: Worker proxy for '$name' is already running (live addon in use)." >&2
-            echo "  Kill the existing '$name' worker or choose a different name." >&2
-            return 1
-        fi
-        cp "${monitor_cc_root}/src/proxy_addon.py" "$worker_live_addon"
-        mkdir -p "$worker_live_dir"
-        cp -r "${monitor_cc_root}/src/proxy" "$worker_live_dir/"
-        MONITOR_CC_ROOT="$monitor_cc_root" PROXY_LOG_ID="$worker_log_id" \
-            PROXY_PROJECT_PATH="$proxy_project_path" \
-            mitmdump -p "$worker_port" -s "$worker_live_addon" \
-            --set flow_detail=0 -q \
-            >/dev/null 2>"${log_dir}/proxy_errors_${worker_log_id}.log" &
-        worker_proxy_pid=$!
-        proxy_env_prefix="HTTPS_PROXY=http://localhost:${worker_port} NODE_EXTRA_CA_CERTS=~/.mitmproxy/mitmproxy-ca-cert.pem SSL_CERT_FILE=~/.mitmproxy/combined-ca.pem REQUESTS_CA_BUNDLE=~/.mitmproxy/combined-ca.pem "
-    fi
+    # Set up worker-specific mitmproxy via shared helper (populates WORKER_PROXY_* globals)
+    _worker_proxy_setup "$name" "$project_path" || return 1
+    local proxy_env_prefix="$WORKER_PROXY_ENV_PREFIX"
+    local worker_proxy_pid="$WORKER_PROXY_PID"
+    local worker_live_addon="$WORKER_PROXY_LIVE_ADDON"
+    local worker_live_dir="$WORKER_PROXY_LIVE_DIR"
 
     # Build a runner script so trap fires reliably on EXIT/INT/TERM/HUP regardless
     # of how the tmux pane shell is killed (tmux kill-session sends SIGHUP, which
@@ -475,6 +552,9 @@ RUNSCRIPT
     tmux set-environment -t "$session" WORKER_PARENT "${CLAUDE_SESSION_ID:-unknown}"
     tmux set-environment -t "$session" WORKER_MODEL "$model"
 
+    # Start diagnostic logger sidecar (samples + death-snapshot)
+    _start_worker_logger "$name" "$session" "spawn"
+
     # Open Ghostty window attached to this worker's session
     open_tmux_viewer "$session" &
 
@@ -502,4 +582,141 @@ spawn_claude_worker_from_file() {
     task_prompt=$(cat "$prompt_file")
 
     spawn_claude_worker "$session" "$name" "$project_path" "$model" "$task_prompt" "$extra_flags"
+}
+
+
+# worker_revive NAME PROJECT_PATH
+#   Reanimate a worker whose pane died (tmux session still exists, pane_dead=1).
+#   Uses claude --resume with the session's stored JSONL to restore full conversation
+#   context. CRITICAL: sets up the same mitmproxy as spawn (via _worker_proxy_setup),
+#   so the prompt-cache prefix matches what Anthropic saw before the death — without
+#   this the cache invalidates and the entire conversation context gets re-uploaded.
+#
+#   Gates (return 2 + message on failure):
+#     1. tmux session must exist (else: worker was killed, use spawn)
+#     2. pane must be dead (else: worker alive, use send)
+#     3. worktree dir must exist
+#     4. session JSONL must exist
+#
+#   Restores stored env vars: WORKER_MODEL, WORKER_PURPOSE, WORKER_PARENT.
+#   Re-installs pane-died hook for death-log writing.
+#   Opens viewer window.
+worker_revive() {
+    local name="$1"
+    local project_path="$2"
+    local session
+    session=$(_worker_session_name "$project_path" "$name")
+
+    # Gate 1: tmux session must exist
+    if ! tmux has-session -t "$session" 2>/dev/null; then
+        echo "worker_revive: session '$session' not found — worker was fully killed; use 'spawn'" >&2
+        return 2
+    fi
+
+    # Gate 2: pane must be dead
+    local pane_dead
+    pane_dead=$(tmux display-message -t "${session}:^" -p "#{pane_dead}" 2>/dev/null || echo "?")
+    if [ "$pane_dead" = "0" ]; then
+        echo "worker_revive: worker '$name' is still running — use 'send'" >&2
+        return 2
+    elif [ "$pane_dead" != "1" ]; then
+        echo "worker_revive: cannot determine pane state for '$session' (got: $pane_dead)" >&2
+        return 2
+    fi
+
+    # Gate 3: worktree must exist
+    local worktree
+    if [[ "$project_path" == */.claude/worktrees/* ]]; then
+        # Caller passed a worktree path directly; respect it
+        worktree="$project_path"
+    else
+        worktree="$project_path/.claude/worktrees/$name"
+    fi
+    if [ ! -d "$worktree" ]; then
+        echo "worker_revive: worktree not found at $worktree — revive not possible" >&2
+        return 2
+    fi
+
+    # Gate 4: session JSONL must exist
+    local encoded_dir jsonl
+    encoded_dir="$HOME/.claude/projects/$(echo "$worktree" | sed 's|/|-|g')"
+    jsonl=$(ls -t "$encoded_dir"/*.jsonl 2>/dev/null | head -1)
+    if [ -z "$jsonl" ]; then
+        echo "worker_revive: no session JSONL found at $encoded_dir — context lost; use 'spawn'" >&2
+        return 2
+    fi
+    local session_id
+    session_id=$(basename "$jsonl" .jsonl)
+
+    # Restore stored env vars from the dead session BEFORE killing it
+    local model purpose parent
+    model=$(tmux show-environment -t "$session" WORKER_MODEL 2>/dev/null | cut -d= -f2-)
+    [ -z "$model" ] && model="sonnet"
+    purpose=$(tmux show-environment -t "$session" WORKER_PURPOSE 2>/dev/null | cut -d= -f2-)
+    [ -z "$purpose" ] && purpose="(?)"
+    parent=$(tmux show-environment -t "$session" WORKER_PARENT 2>/dev/null | cut -d= -f2-)
+    [ -z "$parent" ] && parent="unknown"
+
+    echo "Reviving $name (session-id $session_id, model $model)"
+
+    # Kill the dead session before recreating
+    tmux kill-session -t "$session" 2>/dev/null || true
+
+    # Set up worker-specific mitmproxy — SAME helper as spawn, ensures cache prefix matches
+    _worker_proxy_setup "$name" "$project_path" || return 1
+    local proxy_env_prefix="$WORKER_PROXY_ENV_PREFIX"
+    local worker_proxy_pid="$WORKER_PROXY_PID"
+    local worker_live_addon="$WORKER_PROXY_LIVE_ADDON"
+    local worker_live_dir="$WORKER_PROXY_LIVE_DIR"
+
+    # Build a runner script — same trap pattern as spawn so the proxy is cleaned up on EXIT/INT/TERM/HUP
+    local worker_claude_bin="${CLAUDE_BIN:-$HOME/.local/bin/claude-114}"
+    local death_log="$HOME/.claude/worker-deaths.log"
+    local runner
+    runner=$(mktemp "/tmp/.worker_${name}_revive.XXXXXX")
+    cat > "$runner" <<RUNSCRIPT
+#!/usr/bin/env bash
+_cleanup() {
+    local _s=\$?
+    echo "\$(date -Iseconds) worker=${name} session=${session} status=\$_s signal=EXIT" >> '${death_log}'
+    [ -n '${worker_proxy_pid}' ] && kill '${worker_proxy_pid}' 2>/dev/null || true
+    [ -n '${worker_live_addon}' ] && rm -f '${worker_live_addon}' || true
+    [ -n '${worker_live_dir}' ]   && rm -rf '${worker_live_dir}' || true
+    touch '/tmp/worker-${name}.done'
+    rm -f '${runner}'
+}
+trap _cleanup EXIT INT TERM HUP
+cd '${worktree}'
+${proxy_env_prefix}${worker_claude_bin} --model '${model}' --dangerously-skip-permissions --resume '${session_id}'
+RUNSCRIPT
+    chmod +x "$runner"
+
+    # Create new tmux session with the runner; remain-on-exit on for next death detection
+    tmux new-session -d -s "$session" "bash '$runner'" \; \
+        set-option -p -t "$session" remain-on-exit on
+
+    # Restore env vars + revive marker
+    tmux set-environment -t "$session" WORKER_SPAWNED "$(date +%H:%M)"
+    tmux set-environment -t "$session" WORKER_REVIVED "$(date +%H:%M)"
+    tmux set-environment -t "$session" WORKER_PURPOSE "$purpose"
+    tmux set-environment -t "$session" WORKER_PARENT "$parent"
+    tmux set-environment -t "$session" WORKER_MODEL "$model"
+
+    # Pane-died hook for death-log writing (single-quoted to defer #{} expansion to tmux)
+    tmux set-hook -t "$session" pane-died \
+        "run-shell 'echo \"\$(date -Iseconds) worker=${name} session=#{session_name} status=#{pane_dead_status} signal=#{pane_dead_signal}\" >> ${death_log}'" 2>/dev/null || true
+
+    # Orchestrator signal for menubar grace (mirrors spawn-case behaviour)
+    _orchestrator_signal_update "$session"
+
+    # Start diagnostic logger sidecar (samples + death-snapshot) — CRITICAL for revive
+    # path so we can catch any post-revive death with full forensics
+    _start_worker_logger "$name" "$session" "revive"
+
+    # Open viewer window
+    open_tmux_viewer "$session" &
+
+    echo "  session: $session"
+    echo "  jsonl:   $jsonl"
+    echo "$session"
 }
