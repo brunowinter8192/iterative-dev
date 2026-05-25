@@ -638,8 +638,13 @@ worker_revive() {
     fi
 
     # Gate 4: session JSONL must exist
-    local encoded_dir jsonl
-    encoded_dir="$HOME/.claude/projects/$(echo "$worktree" | sed 's|/|-|g')"
+    # Claude Code encoding of paths: '/' -> '-', '.' -> '-', '_' -> '-'
+    local encoded jsonl encoded_dir
+    encoded="$worktree"
+    encoded="${encoded//\//-}"
+    encoded="${encoded//\./-}"
+    encoded="${encoded//_/-}"
+    encoded_dir="$HOME/.claude/projects/$encoded"
     jsonl=$(ls -t "$encoded_dir"/*.jsonl 2>/dev/null | head -1)
     if [ -z "$jsonl" ]; then
         echo "worker_revive: no session JSONL found at $encoded_dir — context lost; use 'spawn'" >&2
