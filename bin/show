@@ -5,8 +5,19 @@
 #   - Relative paths resolve against current pwd
 #   - ~ expansion supported
 #   - Errors with exit 1 if any path does not exist
+#
+# Routing:
+#   - .md / .markdown / .txt → CotEditor (regardless of system default)
+#   - everything else → macOS default app via `open`
+#
+# Desktop targeting: after opening, the new window is moved to the Desktop of
+# the calling Main CC session (via desktop_targeting.py helper, best-effort).
+# Failure is silent — file still opens on whichever Desktop is active.
 
 set -e
+
+_SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+_DESKTOP_HELPER="$_SCRIPT_DIR/../src/desktop/desktop_targeting.py"
 
 if [ $# -lt 1 ]; then
   echo "Usage: show <file> [file...]" >&2
@@ -22,6 +33,24 @@ for f in "$@"; do
     echo "show: not found: $f" >&2
     exit 1
   fi
-  open "$f"
+
+  # Extension-based routing (text formats → CotEditor)
+  ext_lower="$(echo "${f##*.}" | tr '[:upper:]' '[:lower:]')"
+  case "$ext_lower" in
+    md|markdown|txt)
+      open -a "CotEditor" "$f"
+      app_name="CotEditor"
+      ;;
+    *)
+      open "$f"
+      app_name=""   # unknown handler → helper polls across all apps
+      ;;
+  esac
+
+  # Move new window to caller's Desktop. Best-effort: failure silent (file still opened above).
+  # $PPID = parent of this bash subprocess = the chat-Bash that invoked show.
+  # Helper walks up from PPID to find the nearest `claude` ancestor and its Main session.
+  python3 "$_DESKTOP_HELPER" wait-and-move "$PPID" "$app_name" 4 >/dev/null 2>&1 &
+
   echo "opened: $f"
 done

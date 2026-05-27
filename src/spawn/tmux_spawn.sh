@@ -345,6 +345,16 @@ end tell
             --window-save-state=never \
             -e tmux attach -t "$session"
     fi
+
+    # Move the freshly-spawned Ghostty worker window to the caller Main's Desktop.
+    # Best-effort: silent failure if caller has no Main ancestor or new window not detected
+    # within 5s. Background to avoid blocking spawn_claude_worker's return.
+    local _spawn_dir _desktop_helper
+    _spawn_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    _desktop_helper="$_spawn_dir/../desktop/desktop_targeting.py"
+    if [ -f "$_desktop_helper" ]; then
+        python3 "$_desktop_helper" wait-and-move "$PPID" "Ghostty" 5 >/dev/null 2>&1 &
+    fi
 }
 
 # _start_worker_logger NAME SESSION EVENT
