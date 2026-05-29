@@ -6,18 +6,27 @@ Used by iterative-dev plugin to:
   2. bin/show: open files on the calling Main's Desktop instead of whichever Desktop is active
 
 Caller identification: walk up parent-PID chain from $$ to find the nearest `claude` process,
-use its TTY to look up the cwd via lsof, then look up cwd→UUID in Monitor_CC's APP_SUPPORT map.
+use its cwd via lsof, then look up cwd→space_id in Monitor_CC's cwd_desktop.json sidecar.
 
-CGS detection logic extracted from Monitor_CC/dev/desktop_detection/01_probe.py (proven 100%
-detection rate). Window-move via private `CGSMoveWindowsToManagedSpace`.
+Space sidecar schema (written by Monitor_CC menubar):
+  Path: ~/Library/Application Support/com.brunowinter.monitor_cc_menubar/cwd_desktop.json
+  Shape: {"<cwd>": {"space_id": <int>, "desktop_no": <int>}}
+  Semantics: last-known-good per cwd; may be absent or lack a given cwd → graceful fallback.
+
+Window-move via private `CGSMoveWindowsToManagedSpace`.
+
+Logging: ~/Library/Logs/blank/desktop_targeting.log (one line per invocation).
 
 CLI usage from bash:
-  desktop_targeting.py wait-and-move <caller_pid> <app_name> [timeout_secs=4]
-    → identifies caller's desktop, snapshots existing app windows, polls for new window,
-      moves new window(s) to caller's desktop. Exit 0 on success, 1 on no-match.
+  desktop_targeting.py find-caller-desktop <caller_pid> [op]
+    → prints "<space_id> <desktop_no>" for the caller's Main session. Exit 0 on success, 1 on fail.
 
-  desktop_targeting.py find-caller-desktop <caller_pid>
-    → prints "<space_id> <desktop_no>" for the caller's Main session.
+  desktop_targeting.py wait-and-move-space <space_id> <owner_name> [timeout_secs=4] [op]
+    → snapshots existing app windows, polls for new window, moves to space_id.
+      Exit 0 on success, 1 on no-match. Use after pre-resolving space via find-caller-desktop.
+
+  desktop_targeting.py wait-and-move <caller_pid> <app_name> [timeout_secs=4] [op]
+    → combined: resolves caller space then moves new window. Legacy fallback.
 """
 
 # INFRASTRUCTURE
@@ -30,13 +39,13 @@ import time
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
-_APP_SUPPORT = Path("~/Library/Application Support/com.brunowinter.monitor_cc_menubar").expanduser()
-_CWD_UUID_FILE = _APP_SUPPORT / "ghostty_cwd_uuid.json"
+_APP_SUPPORT      = Path("~/Library/Application Support/com.brunowinter.monitor_cc_menubar").expanduser()
+_CWD_DESKTOP_FILE = _APP_SUPPORT / "cwd_desktop.json"
+_BLANK_LOG        = Path("~/Library/Logs/blank/desktop_targeting.log").expanduser()
 
-_CGS_SPACE_MASK   = 0x7
-_CGW_LIST_ALL     = 0
-_CGW_NULL_WID     = 0
-_PARENT_WALK_MAX  = 12
+_CGW_LIST_ALL    = 0
+_CGW_NULL_WID    = 0
+_PARENT_WALK_MAX = 12
 
 _CG  = ctypes.CDLL('/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics')
 _OBJ = ctypes.CDLL('/usr/lib/libobjc.A.dylib')
@@ -58,18 +67,16 @@ _FT_nvvv = ctypes.CFUNCTYPE(None,            ctypes.c_void_p, ctypes.c_void_p, c
 
 _IMP = ctypes.cast(_OBJ.objc_msgSend, ctypes.c_void_p).value
 
-_CG.CGSMainConnectionID.argtypes           = []
-_CG.CGSMainConnectionID.restype            = ctypes.c_int32
-_CG.CGSGetActiveSpace.argtypes             = [ctypes.c_int32]
-_CG.CGSGetActiveSpace.restype              = ctypes.c_uint64
-_CG.CGSCopyManagedDisplaySpaces.argtypes   = [ctypes.c_int32]
-_CG.CGSCopyManagedDisplaySpaces.restype    = ctypes.c_void_p
-_CG.CGSCopySpacesForWindows.argtypes       = [ctypes.c_int32, ctypes.c_int32, ctypes.c_void_p]
-_CG.CGSCopySpacesForWindows.restype        = ctypes.c_void_p
-_CG.CGSMoveWindowsToManagedSpace.argtypes  = [ctypes.c_int32, ctypes.c_void_p, ctypes.c_uint64]
-_CG.CGSMoveWindowsToManagedSpace.restype   = None
-_CG.CGWindowListCopyWindowInfo.argtypes    = [ctypes.c_uint32, ctypes.c_uint32]
-_CG.CGWindowListCopyWindowInfo.restype     = ctypes.c_void_p
+_CG.CGSMainConnectionID.argtypes          = []
+_CG.CGSMainConnectionID.restype           = ctypes.c_int32
+_CG.CGSGetActiveSpace.argtypes            = [ctypes.c_int32]
+_CG.CGSGetActiveSpace.restype             = ctypes.c_uint64
+_CG.CGSCopyManagedDisplaySpaces.argtypes  = [ctypes.c_int32]
+_CG.CGSCopyManagedDisplaySpaces.restype   = ctypes.c_void_p
+_CG.CGSMoveWindowsToManagedSpace.argtypes = [ctypes.c_int32, ctypes.c_void_p, ctypes.c_uint64]
+_CG.CGSMoveWindowsToManagedSpace.restype  = None
+_CG.CGWindowListCopyWindowInfo.argtypes   = [ctypes.c_uint32, ctypes.c_uint32]
+_CG.CGWindowListCopyWindowInfo.restype    = ctypes.c_void_p
 
 # FUNCTIONS
 
@@ -107,6 +114,17 @@ def _make_uint_array(values: List[int]):
         n = ctypes.cast(_IMP, _FT_vvl)(NSNumber, _sel("numberWithUnsignedInt:"), ctypes.c_long(v))
         ctypes.cast(_IMP, _FT_nvv)(arr, _sel("addObject:"), n)
     return arr
+
+# --- logging ---
+
+def _log(msg: str) -> None:
+    try:
+        _BLANK_LOG.parent.mkdir(parents=True, exist_ok=True)
+        ts = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
+        with _BLANK_LOG.open("a") as f:
+            f.write(f"{ts} {msg}\n")
+    except Exception:  # best-effort logger — swallow all I/O errors silently
+        return
 
 # --- caller identification ---
 
@@ -163,40 +181,11 @@ def _build_space_map(cid: int) -> Tuple[Dict[int, Tuple[str, int]], int]:
                 out[sid] = (disp_id, si + 1)
     return out, active
 
-# Returns list of space_ids for one CGWindowID
-def _spaces_for_wid(cid: int, wid: int) -> List[int]:
-    arr = _CG.CGSCopySpacesForWindows(cid, _CGS_SPACE_MASK, _make_uint_array([wid]))
-    if not arr: return []
-    return [_msgl(_cf_at(arr, i), "intValue") for i in range(_cf_count(arr))]
-
 # Move one or more windows to the target space (private API; non-fullscreen windows only)
 def _move_windows_to_space(cid: int, wids: List[int], space_id: int) -> None:
     _CG.CGSMoveWindowsToManagedSpace(cid, _make_uint_array(wids), ctypes.c_uint64(space_id))
 
-# --- Ghostty / Main lookup ---
-
-def _ghostty_pid() -> Optional[int]:
-    r = subprocess.run(['ps', '-A', '-o', 'pid=,command='], capture_output=True, text=True, timeout=2)
-    for line in r.stdout.splitlines():
-        if 'Ghostty.app/Contents/MacOS' in line:
-            pid_str = line.split(None, 1)[0].strip()
-            if pid_str.isdigit():
-                return int(pid_str)
-    return None
-
-# Returns {window_name: [wid, ...]} for layer-0 windows owned by the given PID across all spaces
-def _windows_by_name_for_pid(owner_pid: int) -> Dict[str, List[int]]:
-    arr = _CG.CGWindowListCopyWindowInfo(_CGW_LIST_ALL, _CGW_NULL_WID)
-    out: Dict[str, List[int]] = {}
-    for i in range(_cf_count(arr)):
-        d = _cf_at(arr, i)
-        if _dict_long(d, "kCGWindowOwnerPID") != owner_pid: continue
-        if _dict_long(d, "kCGWindowLayer") != 0: continue
-        wid  = _dict_long(d, "kCGWindowNumber")
-        name = _dict_str(d, "kCGWindowName")
-        if wid is None or name is None: continue
-        out.setdefault(name, []).append(wid)
-    return out
+# --- window polling ---
 
 # Returns {wid} for layer-0 windows. If owner_name is non-empty, filters by kCGWindowOwnerName;
 # else returns all layer-0 windows except system-app noise (Dock, WindowServer, Finder, etc.).
@@ -218,67 +207,61 @@ def _wids_for_owner_name(owner_name: str) -> Set[int]:
         if wid is not None: out.add(wid)
     return out
 
-def _read_cwd_uuid_map() -> Dict[str, str]:
-    if not _CWD_UUID_FILE.exists():
-        return {}
-    try:
-        return json.loads(_CWD_UUID_FILE.read_text())
-    except Exception:
-        return {}
+# --- sidecar lookup ---
 
-# AppleScript one-call → {uuid: window_name}
-def _ghostty_uuid_to_window_name() -> Dict[str, str]:
-    osa = (
-        'tell application "Ghostty"\n'
-        '  set out to ""\n'
-        '  repeat with w in every window\n'
-        '    set wname to (name of w) as text\n'
-        '    repeat with t in every tab of w\n'
-        '      try\n'
-        '        set out to out & wname & "|||" & (id of terminal of t) & ASCII character 10\n'
-        '      end try\n'
-        '    end repeat\n'
-        '  end repeat\n'
-        '  return out\n'
-        'end tell'
-    )
-    r = subprocess.run(['osascript', '-e', osa], capture_output=True, text=True, timeout=6)
-    if r.returncode != 0:
+def _read_cwd_desktop_map() -> Dict:
+    try:
+        return json.loads(_CWD_DESKTOP_FILE.read_text())
+    except Exception as e:
+        _log(f"sidecar read error: {e}")
         return {}
-    out: Dict[str, str] = {}
-    for line in r.stdout.strip().split('\n'):
-        p = line.strip().split('|||')
-        if len(p) == 2:
-            out[p[1]] = p[0]
-    return out
 
 # --- public ops ---
 
-# Returns (space_id, desktop_no) for the caller's Main session, or (None, None) on failure.
-# Strategy: parent-walk → claude pid → claude's cwd via lsof → cwd-uuid map → AppleScript window name
-# → CGWindowList lookup by ghostty pid → CGSCopySpacesForWindows.
-def find_caller_main_space(caller_pid: int) -> Tuple[Optional[int], Optional[int]]:
+# Returns (space_id, desktop_no) for the caller's Main session.
+# On sidecar miss falls back to CGSGetActiveSpace (best-effort). Logs all outcomes.
+# Strategy: parent-walk → claude pid → claude's cwd via lsof → cwd_desktop.json sidecar lookup.
+def find_caller_main_space(caller_pid: int, op: str = "unknown") -> Tuple[Optional[int], Optional[int]]:
     claude_pid = _find_claude_ancestor(caller_pid)
-    if not claude_pid: return None, None
+    if not claude_pid:
+        _log(f"op={op} caller_pid={caller_pid} claude_pid=none sidecar=skip space_id=none")
+        return None, None
     cwd = _cwd_of_pid(claude_pid)
-    if not cwd: return None, None
-    uuid = _read_cwd_uuid_map().get(cwd)
-    if not uuid: return None, None
-    win_name = _ghostty_uuid_to_window_name().get(uuid)
-    if not win_name: return None, None
-    g_pid = _ghostty_pid()
-    if not g_pid: return None, None
-    wids = _windows_by_name_for_pid(g_pid).get(win_name, [])
-    if len(wids) != 1: return None, None   # ambiguity → fail safely
+    if not cwd:
+        _log(f"op={op} caller_pid={caller_pid} claude_pid={claude_pid} cwd=none sidecar=skip space_id=none")
+        return None, None
+
     cid = _CG.CGSMainConnectionID()
-    spaces = _spaces_for_wid(cid, wids[0])
-    if not spaces: return None, None
-    space_id = spaces[0]
-    space_map, _ = _build_space_map(cid)
-    desktop_no = space_map.get(space_id, (None, None))[1]
+
+    if not _CWD_DESKTOP_FILE.exists():
+        active = _CG.CGSGetActiveSpace(cid)
+        space_map, _ = _build_space_map(cid)
+        dno = space_map.get(active, (None, None))[1]
+        _log(f"op={op} caller_pid={caller_pid} claude_pid={claude_pid} cwd={cwd} sidecar=miss:file_absent space_id=active:{active}")
+        return active, dno
+
+    sidecar = _read_cwd_desktop_map()
+    if not sidecar:
+        active = _CG.CGSGetActiveSpace(cid)
+        space_map, _ = _build_space_map(cid)
+        dno = space_map.get(active, (None, None))[1]
+        _log(f"op={op} caller_pid={caller_pid} claude_pid={claude_pid} cwd={cwd} sidecar=miss:parse_error space_id=active:{active}")
+        return active, dno
+
+    entry = sidecar.get(cwd)
+    if not entry:
+        active = _CG.CGSGetActiveSpace(cid)
+        space_map, _ = _build_space_map(cid)
+        dno = space_map.get(active, (None, None))[1]
+        _log(f"op={op} caller_pid={caller_pid} claude_pid={claude_pid} cwd={cwd} sidecar=miss:no_cwd space_id=active:{active}")
+        return active, dno
+
+    space_id   = entry.get("space_id")
+    desktop_no = entry.get("desktop_no")
+    _log(f"op={op} caller_pid={caller_pid} claude_pid={claude_pid} cwd={cwd} sidecar=hit space_id={space_id}")
     return space_id, desktop_no
 
-# Snapshot windows of owner_name, run callback, poll up to timeout_secs for NEW windows,
+# Snapshot windows of owner_name, poll up to timeout_secs for NEW windows,
 # move all new windows to target space. Returns count of moved windows (0 = none found).
 def wait_for_new_windows_and_move(owner_name: str, target_space_id: int,
                                    timeout_secs: float = 4.0,
@@ -298,43 +281,61 @@ def wait_for_new_windows_and_move(owner_name: str, target_space_id: int,
 
 # CLI
 
-def _cli_find_caller_desktop(caller_pid: int) -> int:
-    sid, dno = find_caller_main_space(caller_pid)
+def _cli_find_caller_desktop(caller_pid: int, op: str = "find") -> int:
+    sid, dno = find_caller_main_space(caller_pid, op=op)
     if sid is None:
-        print("none", file=sys.stderr)
         return 1
     print(f"{sid} {dno}")
     return 0
 
-# Marker file is written BEFORE the open; bash invokes `wait-and-move` AFTER the open with
-# the same marker so we can read the snapshot. Avoids race where snapshot happens between
-# open-launch and window-appear.
-def _cli_wait_and_move(caller_pid: int, owner_name: str, timeout: float) -> int:
-    sid, _dno = find_caller_main_space(caller_pid)
-    if sid is None:
-        print("caller-main-not-found", file=sys.stderr)
-        return 1
-    n = wait_for_new_windows_and_move(owner_name, sid, timeout_secs=timeout)
+# wait-and-move-space: caller already resolved space_id pre-open; just poll + move.
+def _cli_wait_and_move_space(space_id: int, owner_name: str, timeout: float, op: str) -> int:
+    n = wait_for_new_windows_and_move(owner_name, space_id, timeout_secs=timeout)
     if n == 0:
+        _log(f"op={op} wait-and-move-space space_id={space_id} owner={owner_name!r} move=no-new-window")
         print("no-new-window", file=sys.stderr)
         return 1
-    print(f"moved {n} window(s) to space {sid}")
+    _log(f"op={op} wait-and-move-space space_id={space_id} owner={owner_name!r} move={n}_windows")
+    print(f"moved {n} window(s) to space {space_id}")
     return 0
+
+# wait-and-move: legacy combined command (resolve + move in one call).
+def _cli_wait_and_move(caller_pid: int, owner_name: str, timeout: float, op: str) -> int:
+    sid, _dno = find_caller_main_space(caller_pid, op=op)
+    if sid is None:
+        _log(f"op={op} wait-and-move caller_pid={caller_pid} owner={owner_name!r} move=caller-not-found")
+        print("caller-main-not-found", file=sys.stderr)
+        return 1
+    return _cli_wait_and_move_space(sid, owner_name, timeout, op)
 
 def main() -> int:
     if len(sys.argv) < 2:
         print(__doc__, file=sys.stderr)
         return 2
     cmd = sys.argv[1]
+
     if cmd == 'find-caller-desktop':
-        if len(sys.argv) != 3: return 2
-        return _cli_find_caller_desktop(int(sys.argv[2]))
+        if len(sys.argv) < 3: return 2
+        caller_pid = int(sys.argv[2])
+        op = sys.argv[3] if len(sys.argv) > 3 else "find"
+        return _cli_find_caller_desktop(caller_pid, op)
+
+    if cmd == 'wait-and-move-space':
+        if len(sys.argv) < 4: return 2
+        space_id   = int(sys.argv[2])
+        owner_name = sys.argv[3]
+        timeout    = float(sys.argv[4]) if len(sys.argv) > 4 else 4.0
+        op         = sys.argv[5] if len(sys.argv) > 5 else "move"
+        return _cli_wait_and_move_space(space_id, owner_name, timeout, op)
+
     if cmd == 'wait-and-move':
         if len(sys.argv) < 4: return 2
         caller_pid = int(sys.argv[2])
         owner_name = sys.argv[3]
-        timeout = float(sys.argv[4]) if len(sys.argv) > 4 else 4.0
-        return _cli_wait_and_move(caller_pid, owner_name, timeout)
+        timeout    = float(sys.argv[4]) if len(sys.argv) > 4 else 4.0
+        op         = sys.argv[5] if len(sys.argv) > 5 else "move"
+        return _cli_wait_and_move(caller_pid, owner_name, timeout, op)
+
     print(f"unknown command: {cmd}", file=sys.stderr)
     return 2
 
