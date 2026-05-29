@@ -513,6 +513,21 @@ Refactor workers MUST update affected DOCS.md per the file-move checklist (`~/.c
 
 The next Recap-time drift check verifies post-refactor state.
 
+## Companion Check: Symbol-Relocation Reference Audit
+
+When a refactor relocates WHERE a symbol lives — an attribute moved to a different owner object, a function or constant moved to a different module, a name moved into a namespace — EVERY reference to it must be updated to the new access path. This needs its own verification because tests miss it:
+
+**Why automated checks miss stale references:** import + entry-point smoke tests validate only the load path. References inside conditionally-executed code (event/callback handlers, error branches, rarely-hit CLI flags, lazy-imported paths) can stay stale, pass every smoke test, and fail only at runtime when that path first executes. `docs-drift-check` does not catch it either — a stale `old_path.symbol` access is syntactically valid and resolves no object-type/attribute analysis.
+
+**The audit (worker runs post-implementation, before recap):** for each relocated symbol, grep ALL references and verify each resolves to the new path.
+
+```bash
+grep -rnE "\b<old_owner>\b\.?_?<symbol>\b" <affected_tree>
+# Expected: references only via the new owner/module; zero via the old path.
+```
+
+Whitelist symbols deliberately left in place (e.g. shared state intentionally kept on the original owner — name them so they are not false-flagged). Belongs in the Phase 4 Refactor Plan deliverables for any relocation-type refactor, alongside the doc-drift companion.
+
 ## Output Format
 
 Findings are presented inline in chat — Opus runs the scans, synthesizes Phase 3 + Phase 4, and reports to the user. No file is written.
