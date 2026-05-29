@@ -92,3 +92,19 @@ Both call paths log resolution + move outcomes. Silent failures are now diagnosa
 1. **Worker-calling-`show` routing**: When a worker calls `show`, `_find_claude_ancestor` returns the worker's own claude PID. The sidecar entry for the worker's cwd resolves the worker's Desktop, not the parent Main's Desktop. Routing decision (follow worker cwd vs. parent-main cwd) is deferred.
 
 2. **Multi-new-window disambiguation**: `wait_for_new_windows_and_move` moves all new layer-0 windows in the poll window. Concurrent app opens from other sources may be incorrectly moved. Left for a future targeted fix.
+
+## Live-Verify 2026-05-29 — Routing greift nicht (zwei Bugs)
+
+End-to-End-Test (Opus ruft `show <md>` auf, User auf Desktop 1, Caller-Main-Session auf Desktop 2): md öffnete auf Desktop 1 (aktiver Desktop) statt auf 2 (Caller). Routing funktioniert nicht. Zwei getrennte Ursachen.
+
+### Bug 1 — `show` findet seinen Helper nicht (Symlink-Pfad)
+
+`show` ist symlinkt: `~/.local/bin/show → Meta/blank/bin/show`. Das Script leitet `_SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"` ab — folgt dem Symlink NICHT. Bei Aufruf via PATH ist `$0=~/.local/bin/show`, also `_DESKTOP_HELPER=~/.local/bin/../src/desktop/desktop_targeting.py = ~/.local/src/desktop/desktop_targeting.py` → **existiert nicht** → `[ -f "$_DESKTOP_HELPER" ]` false → `_space_id` bleibt leer → `find-caller-desktop` wird nie aufgerufen (daher kein `op=show`-Logeintrag) → `wait-and-move-space` wird nie aufgerufen → CotEditor bleibt auf dem aktiven Desktop.
+
+Verifiziert: direkter Helper-Aufruf `find-caller-desktop $$` liefert korrekt `780 2` (`sidecar=hit`) — die Auflösung ist intakt, NUR der Pfad in `show` ist falsch.
+
+**Fix:** Symlink in `show` auflösen, bevor `dirname` läuft (while-`readlink`-Schleife oder `python3 -c "os.path.realpath"`). Betrifft NUR `show`; `tmux_spawn.sh` findet den Helper auf anderem Weg (Spawn-Logs zeigen `sidecar=hit space_id=780`).
+
+### Bug 2 — `move=no-new-window` (separat, pending)
+
+Bei Worker-Spawns (Helper gefunden, `space_id 780` korrekt aufgelöst) meldet `wait_for_new_windows_and_move` trotzdem `move=no-new-window` (Logs 02:01 + 02:59). Das neue Fenster wird im Poll-Fenster nicht als `after - before`-Delta erkannt → kein Move. Verdacht: CGWindowList-Sichtbarkeit (TCC für blanks `python3`), oder das Ziel-Fenster existierte bereits (kein Delta), oder Timing. Ursache pending — betrifft auch `show`, sobald Bug 1 gefixt ist.
