@@ -10,9 +10,10 @@
 #   - .md / .markdown / .txt → CotEditor (regardless of system default)
 #   - everything else → macOS default app via `open`
 #
-# Desktop targeting: after opening, the new window is moved to the Desktop of
-# the calling Main CC session (via desktop_targeting.py helper, best-effort).
-# Failure is silent — file still opens on whichever Desktop is active.
+# Desktop targeting: the caller's Desktop space_id is resolved BEFORE opening the file
+# (detect-before-disturb), then the new window is moved there after open. Best-effort —
+# file still opens on whichever Desktop is active if resolution fails.
+# Both resolution and move outcomes are logged to ~/Library/Logs/blank/desktop_targeting.log.
 
 set -e
 
@@ -22,6 +23,13 @@ _DESKTOP_HELPER="$_SCRIPT_DIR/../src/desktop/desktop_targeting.py"
 if [ $# -lt 1 ]; then
   echo "Usage: show <file> [file...]" >&2
   exit 1
+fi
+
+# Resolve caller's Desktop space_id ONCE before iterating files (caller context is constant).
+# $PPID = parent of this bash subprocess = the chat-Bash that invoked show.
+_space_id=""
+if [ -f "$_DESKTOP_HELPER" ]; then
+  _space_id=$(python3 "$_DESKTOP_HELPER" find-caller-desktop "$PPID" show 2>/dev/null | cut -d' ' -f1)
 fi
 
 for f in "$@"; do
@@ -47,10 +55,11 @@ for f in "$@"; do
       ;;
   esac
 
-  # Move new window to caller's Desktop. Best-effort: failure silent (file still opened above).
-  # $PPID = parent of this bash subprocess = the chat-Bash that invoked show.
-  # Helper walks up from PPID to find the nearest `claude` ancestor and its Main session.
-  python3 "$_DESKTOP_HELPER" wait-and-move "$PPID" "$app_name" 4 >/dev/null 2>&1 &
+  # Move new window to pre-resolved Desktop. Background to avoid blocking.
+  # Logs move result to ~/Library/Logs/blank/desktop_targeting.log.
+  if [ -n "$_space_id" ] && [ -f "$_DESKTOP_HELPER" ]; then
+    python3 "$_DESKTOP_HELPER" wait-and-move-space "$_space_id" "$app_name" 4 show &
+  fi
 
   echo "opened: $f"
 done
