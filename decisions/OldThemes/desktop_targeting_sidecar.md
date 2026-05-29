@@ -157,4 +157,22 @@ Verifikation, ob es überhaupt eine API gibt, ein Fenster direkt auf einem nicht
 
 **Fenster-Erkennung:** before/after-Diff via `CGWindowListCopyWindowInfo` ist robust. `open -a TextEdit` ohne `-n` öffnet kein neues Fenster wenn App bereits läuft → Fix: AppleScript `make new document`.
 
-**Konsequenz:** Move-after-create ist auf macOS 15.7 aus Python/ctypes ohne SIP-Modifikation nicht machbar. Nächster architektonischer Schritt: Switch-open-switch (aktiven Space temporär wechseln, App öffnen, zurückwechseln) als einzige nicht-SIP-gebundene Alternative untersuchen.
+**Konsequenz:** Move-after-create ist auf macOS 15.7 aus Python/ctypes ohne SIP-Modifikation nicht machbar.
+
+### Re-Verifikation 2026-05-29 (Opus + Screenshots) — Worker-Messmethode war unzuverlässig, Ergebnis trotzdem bestätigt
+
+Anlass: User-Beobachtung beim Live-Test — TextEdit startete (Dock-Icon), aber kein Fenster auf seinem Desktop sichtbar; Verdacht, der Sonnet-Worker habe sich vertan. Opus hat unabhängig nachgeprüft.
+
+**Befund 1 — Worker-Verifikation war kaputt.** Der Probe bestimmte PASS/FAIL allein über `SLSCopySpacesForWindows`. Diese API meldet für frisch erzeugte Fenster stur den *aktiven* Space, unabhängig davon wo das Fenster real liegt. Screenshot-Beleg: aktiver Desktop = 2 (space 780), API meldet Fenster auf [780], aber Vollbild-Screenshot des aktiven Desktops zeigt **kein** TextEdit-Fenster. Die `after==before==target?`-Logik des Workers mass also Rauschen.
+
+**Befund 2 — unabhängige Methode bestätigt: Move ist tot.** Verlässliches Signal statt Readback-API: `CGWindowListCopyWindowInfo` mit `kCGWindowListOptionOnScreenOnly` (=1) listet nur Fenster des *aktiven* Desktops. Entscheidender Test: Fenster öffnen (landet NICHT auf aktivem Desktop) → per `SLSMoveWindowsToManagedSpace` auf den aktiven Desktop holen → on-screen-Liste UND Vollbild-Screenshot prüfen. Ergebnis: Fenster blieb unsichtbar (nicht in on-screen-Liste, nicht im Screenshot). Move bewegt nichts. Per-Window-Direktaufnahme `screencapture -l<wid>` zeigt das Fenster zwar sauber (existiert), aber es ist eben nicht auf dem aktiven Desktop platzierbar. **Worker-Schlussfolgerung war über einen falschen Weg richtig.**
+
+**Befund 3 — verlässliche Methoden für künftige Tests:** (a) Fenster-Existenz/Inhalt: `screencapture -x -l<wid>` (space-übergreifend). (b) „Liegt Fenster auf aktivem Desktop?": Mitgliedschaft in `CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly, …)`. (c) Desktop↔space_id-Karte: `CGSCopyManagedDisplaySpaces` (Reihenfolge = Desktop-Nummer), aktiver via `CGSGetActiveSpace`. NICHT verlassen auf `SLSCopySpacesForWindows`/`CGSGetWindowWorkspace` für die Live-Position fremder Fenster.
+
+**Befund 4 (Nebenfund, offen):** Ein neues App-Fenster (`make new document`) öffnet NICHT auf dem aktiven Desktop, sondern dort wo die App „zuhause" ist. Reproduziert über mehrere Läufe (aktiv 2 bzw. 5, Fenster nie dort). Eigene Baustelle, separat von der Move-Frage — relevant falls künftig „open landet richtig" angenommen wird.
+
+### Status: SACKGASSE — zurückgestellt (Entscheidung User 2026-05-29)
+
+Optionsraum erschöpft: (1) Move-after-open = tot ohne SIP (verifiziert). (2) Direkt auf Ziel-Space öffnen = keine API (GitHub-Recherche). (3) Switch-open-switch = **abgelehnt** (User will nicht auf anderen Desktop gezogen werden). (4) Dock-Scripting-Addition + SIP-Teilabschaltung (yabai Stufe 3) = **abgelehnt** (kein Sicherheits-Trade-off). (5) Auto-Platzierung aufgeben = **abgelehnt** (Übersichtsverlust).
+
+Kein nicht-SIP-Werkzeug auf macOS 15.7 erfüllt „lautlos platzieren ohne den User zu stören". Thema zurückgestellt. **Wiederaufnahme:** wenn die Reddit-/gh-cli-Recherchewerkzeuge ausgereifter sind → umfangreiche Neu-Recherche zu macOS-15-Space-Placement (neue private APIs, ggf. ScreenCaptureKit-/Accessibility-Wege, Entitlement-Optionen). Bis dahin bleibt der Symlink-Fix in `bin/show` (Bug 1) das einzige produktiv gelandete Ergebnis; Desktop-Routing (Bug 2) ist bekannt nicht funktionsfähig auf macOS 15.7.
