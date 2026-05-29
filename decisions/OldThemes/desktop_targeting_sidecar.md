@@ -131,3 +131,30 @@ Verifikation, ob es überhaupt eine API gibt, ein Fenster direkt auf einem nicht
 **Konsequenz für Bug 2.** Zwei Schichten: (a) Fenster-Detection (`after - before`) scheitert, (b) selbst der Move (`CGSMoveWindowsToManagedSpace`) ist auf macOS 15 tot. Beide müssen adressiert werden. Migration der Move-API von CoreGraphics-`CGS` → SkyLight-`SLSPerformAsynchronousBridgedWindowManagementOperation` ist eine Architektur-Alternative → gehört in einen `dev/`-Probe (Worker-Rules §5), NICHT direkt in `src/`. Probe muss auf macOS 15.7 real ein Fenster auf einen Ziel-Space schieben, bevor `desktop_targeting.py` angefasst wird.
 
 **Quellen (GitHub):** `kasper/phoenix` Phoenix/PHSpace.m; `asmvik/yabai` src/space_manager.c; `beeper/BetterSwiftAX`, `bryancostanich/lattice`, `linearmouse/linearmouse` (CGSSpace.h-Header-Deklarationen).
+
+### Probe-Ergebnis 2026-05-29 — alle Move-APIs scheitern aus unprivilegiertem Prozess
+
+**Probe:** `dev/space_move_probe/probe.py` + `dev/space_move_probe/01_reports/space_move_probe_2026-05-29.md`. Vollständiges Protokoll dort.
+
+**Umgebung:** macOS 15.7.7, Homebrew Python 3.14.3, PyObjC NICHT verfügbar → reines ctypes + raw objc_msgSend. Accessibility (`AXIsProcessTrusted=True`) + Screen Recording (290 Fenster via CGWindowList) beide aktiv — kein Permission-Problem.
+
+**Symbol-Inventar auf macOS 15.7:**
+- `SLSMoveWindowsToManagedSpace` — FOUND (Stufe 2)
+- `SLSPerformAsynchronousBridgedWindowManagementOperation` — **MISSING** (Stufe 1 Dispatcher)
+- `SLSBridgedMoveWindowsToManagedSpaceOperation` (ObjC-Klasse) — FOUND, aber CRASH ohne Dispatcher
+- `SLSCopySpacesForWindows`, `SLSGetActiveSpace`, `SLSMainConnectionID`, `SLSGetConnectionIDForPSN` — alle FOUND
+
+**Test-Matrix:**
+
+| Methode | Ergebnis | Detail |
+|---------|----------|--------|
+| A: `CGSMoveWindowsToManagedSpace` | **FAIL** | No-Op, bestätigt; rc=0x16000000 (void-Funktion) |
+| B: `SLSMoveWindowsToManagedSpace` (eigene cid) | **FAIL** | Lautlos, Fenster bleibt auf aktivem Space |
+| C: `SLSMoveWindowsToManagedSpace` (TextEdit-Owner-cid via `SLSGetConnectionIDForPSN`) | **FAIL** | Connection-ID ist nicht das fehlende Element |
+| Stufe 1b: `SLSBridgedMoveWindowsToManagedSpaceOperation.start` direkt | **CRASH** | SIGSEGV; Klasse braucht `SLSPerformAsynchronousBridgedWindowManagementOperation` als Dispatch-Kontext |
+
+**Diagnose:** `SLSMoveWindowsToManagedSpace` läuft ohne Fehler durch, bewegt aber nichts — silenter No-Op für unprivilegierte Prozesse. Vermutliche Ursache: benötigt privates System-Entitlement (`com.apple.private.skylight.*`) oder die yabai Dock-Scripting-Addition (Stufe 3, braucht SIP-Modifikation). Aus unprivilegiertem Python-Prozess nicht erreichbar.
+
+**Fenster-Erkennung:** before/after-Diff via `CGWindowListCopyWindowInfo` ist robust. `open -a TextEdit` ohne `-n` öffnet kein neues Fenster wenn App bereits läuft → Fix: AppleScript `make new document`.
+
+**Konsequenz:** Move-after-create ist auf macOS 15.7 aus Python/ctypes ohne SIP-Modifikation nicht machbar. Nächster architektonischer Schritt: Switch-open-switch (aktiven Space temporär wechseln, App öffnen, zurückwechseln) als einzige nicht-SIP-gebundene Alternative untersuchen.
