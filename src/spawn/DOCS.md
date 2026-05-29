@@ -22,6 +22,15 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 **Called by:** `~/.local/bin/worker-cli` (all subcommands via `source`); `spawn.py` (via subprocess for `spawn_claude_worker_from_file`).
 **Calls out:** tmux, osascript/Ghostty, mitmdump, `~/.local/bin/claude-114`.
 
+**spawn_claude_worker — Prompt-Inject Flow:**
+claude starts bare (no positional prompt arg — prompt never touches the cmdline).
+After session creation, a readiness gate polls `tmux capture-pane` for `^❯`
+(U+276F at col 0 = CC input-ready). 30s deadline; timeout → `return 1`.
+Prompt is injected via `load-buffer / paste-buffer / send-keys Enter` (same
+as `worker_send`). Fragility: `^❯` marker is CC-version-dependent — if the
+glyph changes, gate times out and spawn fails explicitly; update the grep
+pattern. See `decisions/OldThemes/worker_spawn_prompt_injection.md`.
+
 ### spawn.py (117 LOC)
 
 **Purpose:** Worktree setup + worker session launch. Stdlib only — no fastmcp, no external deps.
