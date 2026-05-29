@@ -105,6 +105,29 @@ Verifiziert: direkter Helper-Aufruf `find-caller-desktop $$` liefert korrekt `78
 
 **Fix:** Symlink in `show` auflösen, bevor `dirname` läuft (while-`readlink`-Schleife oder `python3 -c "os.path.realpath"`). Betrifft NUR `show`; `tmux_spawn.sh` findet den Helper auf anderem Weg (Spawn-Logs zeigen `sidecar=hit space_id=780`).
 
+**Fix applied 2026-05-29** (`bin/show` Z.20-22): `$0` wird vor `dirname` via `python3 -c 'os.path.realpath'` aufgelöst. `python3` ist ohnehin harte Dependency des Scripts, daher konsistent gegenüber der `readlink`-Schleife. Verifiziert (ohne CotEditor-Open): Aufruf-Simulation mit `$0=~/.local/bin/show` → `_DESKTOP_HELPER` resolved auf `Meta/blank/bin/../src/desktop/desktop_targeting.py`, `[ -f ]` true. Helper wird jetzt erreicht.
+
+End-to-End-Live-Verify 2026-05-29T16:42 (User auf aktivem Desktop, `~/.local/bin/show <md>` aus Monitor_CC-Session): erstmals zwei `op=show`-Logzeilen — `op=show caller_pid=80872 claude_pid=80872 cwd=Monitor_CC sidecar=hit space_id=780` (Helper läuft, Caller-Desktop korrekt aufgelöst) + `op=show wait-and-move-space space_id=780 owner='CotEditor' move=no-new-window`. **Bug 1 damit vollständig bestätigt** (vorher NIE ein `op=show`-Eintrag). Datei landete trotzdem auf aktivem Desktop — Symptom jetzt rein durch Bug 2 verursacht.
+
 ### Bug 2 — `move=no-new-window` (separat, pending)
 
-Bei Worker-Spawns (Helper gefunden, `space_id 780` korrekt aufgelöst) meldet `wait_for_new_windows_and_move` trotzdem `move=no-new-window` (Logs 02:01 + 02:59). Das neue Fenster wird im Poll-Fenster nicht als `after - before`-Delta erkannt → kein Move. Verdacht: CGWindowList-Sichtbarkeit (TCC für blanks `python3`), oder das Ziel-Fenster existierte bereits (kein Delta), oder Timing. Ursache pending — betrifft auch `show`, sobald Bug 1 gefixt ist.
+Bei Worker-Spawns (Helper gefunden, `space_id 780` korrekt aufgelöst) meldet `wait_for_new_windows_and_move` trotzdem `move=no-new-window` (Logs 02:01 + 02:59). Das neue Fenster wird im Poll-Fenster nicht als `after - before`-Delta erkannt → kein Move. Verdacht: CGWindowList-Sichtbarkeit (TCC für blanks `python3`), oder das Ziel-Fenster existierte bereits (kein Delta), oder Timing. Ursache pending.
+
+**Bestätigt für `show` 2026-05-29T16:42** (nach Bug-1-Fix): `op=show wait-and-move-space space_id=780 owner='CotEditor' move=no-new-window`. Damit reproduziert über drei Pfade — spawn (Ghostty), show (CotEditor), alter dryrun (CotEditor) — alle `move=no-new-window`. Systematisches Problem in `wait_for_new_windows_and_move` (`after - before`-Delta erkennt das neue Fenster nicht), nicht app- oder pfadspezifisch.
+
+### GitHub-Recherche 2026-05-29 — Move-API ist auf macOS 15 tot
+
+Verifikation, ob es überhaupt eine API gibt, ein Fenster direkt auf einem nicht-aktiven Space zu öffnen, und ob unsere Move-API noch lebt. System: **macOS 15.7.7 (Sequoia, Build 24G720)**.
+
+**Befund 1 — kein direktes Open-on-Space.** Es gibt keine öffentliche API, um ein Fenster direkt auf einem bestimmten, nicht-aktiven Space zu öffnen. Alle untersuchten Window-Manager (yabai 28.9k★, kasper/phoenix, lwouis/alt-tab-macos, bryancostanich/lattice, linearmouse) erzeugen das Fenster und **verschieben es danach** per privater SkyLight/CoreGraphics-API. Bestätigt damit: `open` landet immer auf dem aktiven Space, Move-after-create ist der einzige Weg.
+
+**Befund 2 — `CGSMoveWindowsToManagedSpace` ist tot ab macOS 13.6/14.5/15.0.** Genau diese API nutzt unser Helper (`_move_windows_to_space` → `_CG.CGSMoveWindowsToManagedSpace`). `kasper/phoenix` `Phoenix/PHSpace.m:218-228` gibt für `moveWindows` explizit auf: `if isOperatingSystemAtLeastVentura136 || isOperatingSystemAtLeastSonoma145 || isOperatingSystemAtLeastSequoia: NSLog("deprecated"); return;` — Kommentar Z.64-65: *"only works prior to macOS 14.5"*. Auf macOS 15.7 ist der Move-Aufruf also vermutlich No-Op, selbst wenn die Fenster-Detection greift. (Bug-2-Symptom `move=no-new-window` kommt aktuell aber schon VOR dem Move-Call zustande — Detection scheitert zuerst; der tote Move ist eine zweite, noch nicht erreichte Schicht.)
+
+**Befund 3 — moderner Weg (yabai, funktioniert auf macOS 15).** `asmvik/yabai` `src/space_manager.c:665-688` (`space_manager_move_window_to_space`), dreistufiger Fallback:
+1. **`SLSPerformAsynchronousBridgedWindowManagementOperation`** + `objc_getClass("SLSBridgedMoveWindowsToManagedSpaceOperation")` / `initWithWindows:spaceID:` — der moderne SkyLight-„bridged"-Operations-Pfad, OHNE Scripting-Addition/SIP. Bevorzugt auf aktuellem macOS.
+2. **`SLSMoveWindowsToManagedSpace`** (SkyLight-`SLS`-Variante, NICHT die CoreGraphics-`CGS`-Variante die wir nutzen).
+3. Scripting-Addition (`scripting_addition_move_window_to_space`, braucht partielles SIP-disable + Dock-Injection) bzw. `SLSSpaceSetCompatID`+`SLSSetWindowListWorkspace` mit Magic-CompatID als letzter Fallback.
+
+**Konsequenz für Bug 2.** Zwei Schichten: (a) Fenster-Detection (`after - before`) scheitert, (b) selbst der Move (`CGSMoveWindowsToManagedSpace`) ist auf macOS 15 tot. Beide müssen adressiert werden. Migration der Move-API von CoreGraphics-`CGS` → SkyLight-`SLSPerformAsynchronousBridgedWindowManagementOperation` ist eine Architektur-Alternative → gehört in einen `dev/`-Probe (Worker-Rules §5), NICHT direkt in `src/`. Probe muss auf macOS 15.7 real ein Fenster auf einen Ziel-Space schieben, bevor `desktop_targeting.py` angefasst wird.
+
+**Quellen (GitHub):** `kasper/phoenix` Phoenix/PHSpace.m; `asmvik/yabai` src/space_manager.c; `beeper/BetterSwiftAX`, `bryancostanich/lattice`, `linearmouse/linearmouse` (CGSSpace.h-Header-Deklarationen).

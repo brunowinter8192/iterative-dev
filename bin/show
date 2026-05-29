@@ -17,7 +17,12 @@
 
 set -e
 
-_SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Resolve symlink: when invoked via ~/.local/bin/show (a symlink to this file),
+# $0 is the symlink path — dirname of it points into ~/.local/bin, not the repo.
+# realpath follows the symlink to the real bin/show in the repo so the relative
+# helper path resolves correctly. python3 is already a hard dependency below.
+_SCRIPT_PATH="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$0")"
+_SCRIPT_DIR="$(cd "$(dirname "$_SCRIPT_PATH")" && pwd)"
 _DESKTOP_HELPER="$_SCRIPT_DIR/../src/desktop/desktop_targeting.py"
 
 if [ $# -lt 1 ]; then
