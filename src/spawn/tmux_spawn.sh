@@ -542,7 +542,7 @@ _cleanup() {
 }
 trap _cleanup EXIT INT TERM HUP
 cd '${project_path}'
-${proxy_env_prefix}${worker_claude_bin} --model '${model}' ${extra_flags} "\$(cat '${prompt_file}')"
+${proxy_env_prefix}${worker_claude_bin} --model '${model}' ${extra_flags}
 RUNSCRIPT
     local claude_cmd="bash '${runner}'"
 
@@ -580,6 +580,34 @@ RUNSCRIPT
 
     # Open Ghostty window attached to this worker's session
     open_tmux_viewer "$session" "$_dt_space_id" &
+
+    # Readiness gate: poll until CC shows its input prompt (❯ at col 0).
+    # CC writes no JSONL before the first prompt — the pane content is the only
+    # pre-input signal. ❯ (U+276F) at line start = input box ready; the trust-dir
+    # dialog uses " ❯ 1." (leading space) and does NOT match ^❯, so a trust dialog
+    # in an untrusted dir causes gate timeout → explicit failure rather than silent
+    # injection into a dialog. FRAGILITY: if CC changes this glyph, gate times out
+    # and spawn fails explicitly — update the grep pattern to match.
+    local _pane_id _deadline
+    _pane_id=$(tmux list-panes -t "$session" -F "#{pane_id}" | head -1)
+    _deadline=$(( $(date +%s) + 30 ))
+    while [ "$(date +%s)" -lt "$_deadline" ]; do
+        tmux capture-pane -p -t "$_pane_id" 2>/dev/null | grep -q '^❯' && break
+        sleep 0.3
+    done
+    if ! tmux capture-pane -p -t "$_pane_id" 2>/dev/null | grep -q '^❯'; then
+        echo "spawn_claude_worker: CC did not reach input-ready state within 30s (session=$session)" >&2
+        rm -f "$prompt_file"
+        return 1
+    fi
+
+    # Inject prompt via paste — same mechanism as worker_send.
+    # Prompt text never touches the claude cmdline; pane content only.
+    printf '%s' "$task_prompt" | tmux load-buffer -
+    tmux paste-buffer -d -t "$_pane_id"
+    sleep 0.2
+    tmux send-keys -t "$_pane_id" Enter
+    rm -f "$prompt_file"
 
     # Return session name (pane_id no longer needed — use session:^ for queries)
     echo "$session"
