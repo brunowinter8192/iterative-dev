@@ -314,16 +314,12 @@ worker_send() {
 
 # --- Functions ---
 
-# open_tmux_viewer SESSION [SPACE_ID]
+# open_tmux_viewer SESSION
 #   Opens a new Ghostty window and attaches to the tmux session.
-#   SPACE_ID: pre-resolved caller Desktop space_id (detect-before-disturb). When provided,
-#   the new Ghostty window is moved there via wait-and-move-space. Callers must resolve
-#   space_id BEFORE calling this function (before the Ghostty open triggers).
 #   Ghostty 1.3+: Uses native AppleScript API (PR #11208).
 #   Ghostty 1.2.x: Falls back to open -na with isolation flags.
 open_tmux_viewer() {
     local session="$1"
-    local space_id="${2:-}"
 
     local ghostty_version
     ghostty_version=$(ghostty +version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+' || echo "0.0")
@@ -350,15 +346,6 @@ end tell
             -e tmux attach -t "$session"
     fi
 
-    # Move the freshly-spawned Ghostty window to the pre-resolved caller Desktop.
-    # space_id was resolved BEFORE this open (detect-before-disturb). Logs to
-    # ~/Library/Logs/blank/desktop_targeting.log; never blocks the caller.
-    local _spawn_dir _desktop_helper
-    _spawn_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    _desktop_helper="$_spawn_dir/../desktop/desktop_targeting.py"
-    if [ -f "$_desktop_helper" ] && [ -n "$space_id" ]; then
-        python3 "$_desktop_helper" wait-and-move-space "$space_id" "Ghostty" 5 spawn &
-    fi
 }
 
 # _start_worker_logger NAME SESSION EVENT
@@ -569,17 +556,8 @@ RUNSCRIPT
     # Start diagnostic logger sidecar (samples + death-snapshot)
     _start_worker_logger "$name" "$session" "spawn"
 
-    # Resolve caller's Desktop space_id BEFORE opening the Ghostty window (detect-before-disturb).
-    local _dt_space_id=""
-    local _dt_spawn_dir _dt_helper
-    _dt_spawn_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    _dt_helper="$_dt_spawn_dir/../desktop/desktop_targeting.py"
-    if [ -f "$_dt_helper" ]; then
-        _dt_space_id=$(python3 "$_dt_helper" find-caller-desktop "$PPID" spawn 2>/dev/null | cut -d' ' -f1)
-    fi
-
     # Open Ghostty window attached to this worker's session
-    open_tmux_viewer "$session" "$_dt_space_id" &
+    open_tmux_viewer "$session" &
 
     # Readiness gate: poll until CC shows its input prompt (❯ at col 0).
     # CC writes no JSONL before the first prompt — the pane content is the only
@@ -769,17 +747,8 @@ RUNSCRIPT
     # path so we can catch any post-revive death with full forensics
     _start_worker_logger "$name" "$session" "revive"
 
-    # Resolve caller's Desktop space_id BEFORE opening the Ghostty window (detect-before-disturb).
-    local _dt_space_id=""
-    local _dt_spawn_dir _dt_helper
-    _dt_spawn_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    _dt_helper="$_dt_spawn_dir/../desktop/desktop_targeting.py"
-    if [ -f "$_dt_helper" ]; then
-        _dt_space_id=$(python3 "$_dt_helper" find-caller-desktop "$PPID" revive 2>/dev/null | cut -d' ' -f1)
-    fi
-
     # Open viewer window
-    open_tmux_viewer "$session" "$_dt_space_id" &
+    open_tmux_viewer "$session" &
 
     echo "  session: $session"
     echo "  jsonl:   $jsonl"
