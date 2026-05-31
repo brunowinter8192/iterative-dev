@@ -32,11 +32,9 @@ for f in "$@"; do
   case "$ext_lower" in
     md|markdown|txt)
       open -a "CotEditor" "$f"
-      app_name="CotEditor"
       ;;
     *)
       open "$f"
-      app_name=""   # unknown handler → helper polls across all apps
       ;;
   esac
 
