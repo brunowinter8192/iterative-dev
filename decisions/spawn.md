@@ -65,7 +65,6 @@ Architecture: one tmux session per worker, named `worker-<project>-<name>`. Proj
 
 ## Evidenz
 
-Siehe sources/sources.md — Spalte "Decision: spawn":
 - agent-of-empires: Shell-Ready Pattern + Status Detection
 - cmux: Community-Validierung tmux+worktree Pattern
 - recon: tmux-native Status Monitoring

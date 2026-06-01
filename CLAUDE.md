@@ -2,10 +2,6 @@
 
 Source repo for the `iterative-dev` plugin. Development workflow engine for Claude Code — structured development cycle, worker spawning via CLI, git automation via CLI, session analysis.
 
-## Sources
-
-See [sources/sources.md](sources/sources.md).
-
 ## Pipeline Components
 
 ### Worker Spawning
@@ -97,8 +93,6 @@ See [sources/sources.md](sources/sources.md).
 │   ├── spawn.md
 │   ├── git.md
 │   └── pipeline.md
-├── sources/
-│   └── sources.md
 └── dev/                            → [DOCS.md](dev/DOCS.md)
     ├── debug/
     │   └── log_permission_request.sh
