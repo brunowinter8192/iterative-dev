@@ -515,7 +515,7 @@ spawn_claude_worker() {
     # Build a runner script so trap fires reliably on EXIT/INT/TERM/HUP regardless
     # of how the tmux pane shell is killed (tmux kill-session sends SIGHUP, which
     # cuts the ; chain before cleanup commands can run).
-    local worker_claude_bin="${CLAUDE_BIN:-$HOME/.local/bin/claude-114}"
+    local worker_claude_bin="${CLAUDE_BIN:-$HOME/.local/bin/claude-149}"
     local runner
     runner=$(mktemp "/tmp/.worker_${name}.XXXXXX")
     cat > "$runner" <<RUNSCRIPT
@@ -704,7 +704,7 @@ worker_revive() {
     local worker_live_dir="$WORKER_PROXY_LIVE_DIR"
 
     # Build a runner script — same trap pattern as spawn so the proxy is cleaned up on EXIT/INT/TERM/HUP
-    local worker_claude_bin="${CLAUDE_BIN:-$HOME/.local/bin/claude-114}"
+    local worker_claude_bin="${CLAUDE_BIN:-$HOME/.local/bin/claude-149}"
     local death_log="$HOME/.claude/worker-deaths.log"
     local runner
     runner=$(mktemp "/tmp/.worker_${name}_revive.XXXXXX")
