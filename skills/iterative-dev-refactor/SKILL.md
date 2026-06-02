@@ -1,5 +1,5 @@
 ---
-name: refactor
+name: iterative-dev-refactor
 description: Systematic codebase refactor scan. Use when the user asks to scan/audit a project for refactoring opportunities — file-size violations, long functions, argument-mutation anti-patterns, root-module justification, coupling. Runs AST-based audits and produces a prioritized refactor candidate list. NOT for on-the-fly code review (those checks live in worker rules); this is the heavyweight session-level audit.
 ---
 
