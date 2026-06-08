@@ -115,7 +115,7 @@ _worker_detect_status() {
         return 0
     elif [ "$dead" != "0" ]; then
         echo "unknown"
-        return 1
+        return 0
     fi
 
     # Process-tree check: pane_dead is 0 in our zsh/bash-wrapped CC setup even
@@ -151,7 +151,7 @@ _worker_detect_status() {
     worktree=$(tmux display-message -t "${session}:^" -p "#{pane_current_path}" 2>/dev/null)
     if [ -z "$worktree" ]; then
         echo "unknown"
-        return 1
+        return 0
     fi
     # CC encoding: replace /, _, . with - (matches Monitor_CC/src/session_finder.py:encode_project_path).
     encoded=$(echo "$worktree" | tr '/_.' '-')
@@ -159,7 +159,7 @@ _worker_detect_status() {
     if [ -z "$jsonl" ]; then
         # No JSONL yet — fresh spawn, still initializing. Honest answer is unknown.
         echo "unknown"
-        return 1
+        return 0
     fi
     session_id=$(basename "$jsonl" .jsonl)
     hook_file="$HOME/Library/Application Support/com.brunowinter.monitor-cc-menubar/hooks.json"
@@ -167,7 +167,7 @@ _worker_detect_status() {
     if [ -z "$hook_status" ] || [ "$hook_status" = "null" ]; then
         # No hook entry: file missing, session not yet registered, or hooks not installed.
         echo "unknown"
-        return 1
+        return 0
     fi
     echo "$hook_status"
 }
@@ -215,7 +215,7 @@ worker_status() {
 
     if ! tmux has-session -t "$session" 2>/dev/null; then
         echo "unknown"
-        return 1
+        return 0
     fi
 
     _worker_detect_status "$session"
