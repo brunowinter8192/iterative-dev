@@ -46,6 +46,7 @@ Groups:
 - **Cohesion** (2.5, 2.5b, 2.5c): too many concerns at one place — imports, instance attrs, constant clusters
 - **Operational Hygiene** (2.6): prototype-to-prod readiness — diagnostic gates, install friction, state-file scattering
 - **Refactor Residue** (2.7): accumulated drift — dead imports, scripts in library tree, dev-tooling gaps
+- **Control-Flow Integrity** (2.8): silent fallbacks / redundant derivation paths — the debugging-hell anti-pattern
 
 #### 2.1 File-LOC against Hard Ceiling
 
@@ -453,6 +454,58 @@ for mod in src/*/; do
 done
 ```
 
+#### 2.8 Silent-Fallback / Redundant-Derivation Scan
+
+Standard: a code path that, on missing input or failure, SILENTLY produces alternative output through a second method — a fallback — is the highest-severity debugging liability. When two routes can produce the "same" output by different means, a wrong result looks plausible and you cannot tell which route made it. Symptom: you fix one case (whack the mole) and a different case breaks (next mole), because patches (dedup, gating, "best-effort" branches) accrete ON TOP of the fallback instead of removing it. The root data is usually computed once correctly upstream; the fallback re-derives it lossily downstream.
+
+Distinguish from a **tripwire/assertion** — a check that REFUSES to produce output and surfaces the failure (raise / flag / render-plain-with-marker). That is NOT a violation; it is the cure. The violation is specifically the route that GUESSES an alternative output to keep going.
+
+Heuristic — manual review per hit (like 2.6a); some flagged constructs are legitimate (a cache-miss returning `None` is a tripwire, not a fallback). The judgment per hit: does the flagged branch PRODUCE derived output by a second method, or does it REFUSE and surface?
+
+Textual signatures:
+```bash
+# markers in comments and names
+grep -rniE '\b(fall ?back|legacy path|old path|best.?effort|backward.?compat)\b' src \
+  --include='*.py' | grep -vE '/(logs|worktrees|__pycache__)/'
+grep -rnE 'def _?\w*(fallback|legacy|dedup|gated)\w*\(' src \
+  --include='*.py' | grep -vE '/(logs|worktrees|__pycache__)/'
+```
+
+Structural signature — `except` that returns a value without re-raising (silent degradation):
+```python
+# /tmp/refactor_silent_except.py
+import ast, os
+SKIP = ('__pycache__', '/logs/', '/worktrees/', '/dev/', '/tests/')
+hits = []
+for root, _, files in os.walk('src'):
+    if any(x in root for x in SKIP):
+        continue
+    for fn in files:
+        if not fn.endswith('.py'):
+            continue
+        p = os.path.join(root, fn)
+        try:
+            tree = ast.parse(open(p).read())
+        except SyntaxError:
+            continue
+        for n in ast.walk(tree):
+            if not isinstance(n, ast.Try):
+                continue
+            for h in n.handlers:
+                produces = any(isinstance(x, ast.Return) and x.value is not None
+                               for x in ast.walk(h))
+                reraises = any(isinstance(x, ast.Raise) for x in ast.walk(h))
+                if produces and not reraises:
+                    hits.append((p, h.lineno))
+for p, l in hits:
+    print(f"  {p}:{l}  except returns a value, no re-raise — silent fallback?")
+print(f"\nTotal: {len(hits)} (review each: fallback that guesses vs tripwire that refuses)")
+```
+
+Structural signature — sentinel branch feeding two derivations of one output (`if <key> in x: <new path>  else: <old path>`): not reliably AST-detectable without per-project knowledge. Surface it during manual review of the textual hits, and during any "why are there two ways to compute X" reading of the codebase.
+
+**This dimension does NOT auto-produce a refactor candidate.** A silent-fallback finding is architectural — its fix is a one-way redesign that MUST be evaluated WITH the user. Route every hit to the One-Way Redesign Evaluation companion below.
+
 ### Phase 3 — Prioritization
 
 Combine the scan outputs into a single ordered table.
@@ -461,6 +514,7 @@ Combine the scan outputs into a single ordered table.
 - **HARD** — file >400 LOC, function ≥100 LOC, argument-mutation cluster ≥4 hits in one function, class with ≥15 instance attributes, install-friction (placeholder config) with no setup script
 - **WATCH** — file 300-400 LOC, function 50-99 LOC, single-hit argument mutations, class with 10-14 instance attributes, ungated diagnostic writes, scattered application state, scripts in library tree, dead imports
 - **STRUCT** — root-module relocations, files with >5 cross-module imports, constant-clustering split candidates, dev-tooling gaps
+- **REDESIGN** — silent-fallback / redundant-derivation findings (2.8): NOT a mechanical candidate; route to the One-Way Redesign Evaluation companion for user-collaborative architectural rework
 
 | Severity | File | Issue | Hits/LOC | Recommendation |
 |---|---|---|---|---|
@@ -474,6 +528,7 @@ Combine the scan outputs into a single ordered table.
 | STRUCT | src/foo.py | single-subdir use | — | Move into subdir/ |
 | STRUCT | path/to/file.py | constant prefix clusters | 3 clusters | Split file by prefix |
 | STRUCT | src/<mod>/ | no dev/ counterpart | — | Add dev/<mod>_debug.py |
+| REDESIGN | path/to/file.py | silent fallback / 2nd derivation | — | One-Way Redesign Evaluation (with user) |
 
 ### Phase 4 — Refactor Plan
 
@@ -528,6 +583,24 @@ grep -rnE "\b<old_owner>\b\.?_?<symbol>\b" <affected_tree>
 
 Whitelist symbols deliberately left in place (e.g. shared state intentionally kept on the original owner — name them so they are not false-flagged). Belongs in the Phase 4 Refactor Plan deliverables for any relocation-type refactor, alongside the doc-drift companion.
 
+## Companion Check: One-Way Redesign Evaluation (Silent-Fallback findings)
+
+Unlike LOC, mutation, or coupling findings — which a worker refactors mechanically — a silent-fallback finding (2.8) cannot be auto-fixed. Removing a fallback safely requires rebuilding the strategy so a SINGLE deterministic route produces the output, with correctness guaranteed structurally rather than guarded at runtime. That redesign is architectural and is evaluated WITH the user. The scan surfaces candidates; this companion is the evaluation process.
+
+**Per candidate, first classify (the decisive distinction):**
+- **Fallback** (eliminate): primary route fails / input missing → produce alternative output by a second method. Hides the failure behind plausible-but-wrong output. This is the debugging hell.
+- **Tripwire / assertion** (keep, shaped right): check a property; on violation REFUSE to produce output and surface it. Never a second derivation. Leave it (or harden it to refuse-and-surface).
+
+**One-way redesign — work through with the user:**
+1. **Record once at the source.** Can the data be captured at the point of truth (where the operation actually happens) with enough information — position, identity, order — that a single deterministic path produces the output later, with no re-derivation or inference downstream? The downstream re-derivation is almost always the fallback's home.
+2. **Completeness is a CODE property, not an INPUT property.** Operations happen at a finite, enumerable set of code sites. New input can only trigger an existing (recorded) site or no operation at all — it cannot manufacture an unrecorded one. So completeness can be VERIFIED exhaustively, not hoped for at runtime.
+3. **Move the safety check from runtime to test.** Replace the runtime fallback with a test-time invariant: `source + recorded operations == produced output`, asserted over a real corpus and kept as a CI regression test. A failure there = a code site that forgot to record = fix the site. The test IS the guarantee; it catches future code that forgets to record.
+4. **Production runs one way.** After (1)–(3): one deterministic route, no fallback, no dedup-patch, no "best-effort". Any retained tripwire refuses-and-surfaces; it never guesses.
+
+**Validate in `dev/` before touching `src/`.** The redesign is an architectural rewrite — build it as a `dev/` probe, prove exact equivalence on real data across ALL operation types (the invariant holds for every case), THEN port to `src/` and delete the fallback chain. Do not modify `src/` during the exploration (dev/-first rule, `~/.claude/shared-rules/global/documentation.md`).
+
+**Anti-pattern — the self-defeating hedge:** prove the one-way path in `dev/` and then STILL ship a runtime fallback "just in case". That admits you distrust the proof, and it re-introduces the exact hell you set out to remove. If the `dev/` proof holds over the corpus and the invariant lives in CI, production needs no fallback — at most a refuse-and-surface tripwire for genuinely-novel input.
+
 ## Output Format
 
 Findings are presented inline in chat — Opus runs the scans, synthesizes Phase 3 + Phase 4, and reports to the user. No file is written.
@@ -543,3 +616,5 @@ For ad-hoc invocations (user asks for one specific dimension only), present that
 - Mixing rule-violations with personal style preferences — this skill audits against codified rules only
 - Refactoring without a worker — Opus reviews findings, workers implement
 - Bundling unrelated refactors in one worker — corrections required, slower than two focused workers
+- Removing a silent fallback by hand without the one-way redesign + dev/ proof → the fallback's failure mode just relocates; classify it, evaluate the redesign with the user, prove byte/bit-exact equivalence in dev/, then delete
+- Shipping a runtime fallback "just in case" after a passing dev/ proof — re-introduces the debugging hell the redesign removed
