@@ -15,7 +15,7 @@
 set -euo pipefail
 
 # --- Constants ---
-_ORCHESTRATOR_SIGNALS_FILE="$HOME/Library/Application Support/com.brunowinter.monitor_cc_menubar/orchestrator_signals.json"
+_ORCHESTRATOR_SIGNALS_FILE="$HOME/Library/Application Support/com.brunowinter.monitor-cc-menubar/orchestrator_signals.json"
 
 # --- Helpers ---
 
@@ -103,15 +103,10 @@ _worker_session_name() {
 # _worker_detect_status SESSION
 #   Returns status: working, idle, exited, or unknown.
 #   Shared logic used by worker_list and worker_status.
-#   Reads status from CC hooks.json (same source as Monitor_CC menubar) — guarantees
-#   that worker-cli status matches the menubar display. Applies the same stale-working
-#   demote rule (working hook + JSONL >10s = idle) to cover context-limit-hit workers
-#   and crashed workers. Previously used tmux window_activity, which was bumped by CC
-#   UI updates (spinner, cursor blinks) and produced false working/idle readings.
-#   exited detection (pane_dead + claude-descendant) is unchanged from prior logic.
+#   Thin client of hooks.json: returns the menubar's working/idle verbatim — no demote.
+#   exited detection (pane_dead + claude-descendant) is orthogonal and unchanged.
 _worker_detect_status() {
     local session="$1"
-    local idle_threshold=10
 
     local dead
     dead=$(tmux display-message -t "${session}:^" -p "#{pane_dead}" 2>/dev/null || echo "?")
@@ -120,7 +115,7 @@ _worker_detect_status() {
         return 0
     elif [ "$dead" != "0" ]; then
         echo "unknown"
-        return 1
+        return 0
     fi
 
     # Process-tree check: pane_dead is 0 in our zsh/bash-wrapped CC setup even
@@ -150,51 +145,28 @@ _worker_detect_status() {
         fi
     fi
 
-    # Status from hooks.json — authoritative working/idle from CC's UserPromptSubmit/Stop hooks.
-    # Demote stale-working to idle using tmux window_activity (pane-level byte-write timestamp),
-    # NOT JSONL mtime: CC only writes JSONL on message completion, so long thinking phases
-    # (Caramelizing/Concocting) keep JSONL stale indefinitely → old code demoted actively-working
-    # workers as false-idle minutes into a real turn. window_activity advances whenever bytes
-    # reach the pane (spinner ticks, streaming chunks); empirically zero false positives on
-    # truly idle CC sessions (cursor blink does NOT bump window_activity — proven by 300+
-    # idle-session-seconds in dev/worker_status_probes/01_reports/comparison_20260524_183937.md).
-    # window_activity is stable in tmux ≥ 1.8. Single source of truth: menubar discover.py uses
-    # the same signal for symmetric worker-cli ⇔ menubar reporting.
-    local worktree encoded jsonl session_id hook_status hook_file now wa wa_age
+    # Status from hooks.json — single authoritative source for working/idle.
+    # Returned verbatim; no heuristic demote layers.
+    local worktree encoded jsonl session_id hook_status hook_file
     worktree=$(tmux display-message -t "${session}:^" -p "#{pane_current_path}" 2>/dev/null)
     if [ -z "$worktree" ]; then
         echo "unknown"
-        return 1
+        return 0
     fi
     # CC encoding: replace /, _, . with - (matches Monitor_CC/src/session_finder.py:encode_project_path).
     encoded=$(echo "$worktree" | tr '/_.' '-')
-    jsonl=$(ls -t "$HOME/.claude/projects/${encoded}"/*.jsonl 2>/dev/null | head -1)
+    jsonl=$(ls -t "$HOME/.claude/projects/${encoded}"/*.jsonl 2>/dev/null | head -1 || true)
     if [ -z "$jsonl" ]; then
         # No JSONL yet — fresh spawn, still initializing. Honest answer is unknown.
         echo "unknown"
-        return 1
-    fi
-    session_id=$(basename "$jsonl" .jsonl)
-    hook_file="$HOME/Library/Application Support/com.brunowinter.monitor_cc_menubar/hooks.json"
-    hook_status=$(jq -r --arg sid "$session_id" '.[$sid].status // ""' "$hook_file" 2>/dev/null)
-    if [ -z "$hook_status" ] || [ "$hook_status" = "null" ]; then
-        # No hook entry — hooks not installed, or session not yet registered. Default idle.
-        echo "idle"
         return 0
     fi
-    if [ "$hook_status" = "working" ]; then
-        # Demote stale-working if pane has received no bytes for > idle_threshold seconds.
-        # Catches context-limit-hit workers (CC alive, no further output) AND crashed workers
-        # (Stop hook never fired). Does NOT catch genuine thinking phases because CC writes
-        # spinner ticks ~1/sec → window_activity stays fresh through Caramelizing/Concocting.
-        now=$(date +%s)
-        wa=$(tmux display-message -t "${session}:^" -p "#{window_activity}" 2>/dev/null || echo "0")
-        wa_age=$((now - wa))
-        if [ "$wa_age" -gt "$idle_threshold" ]; then
-            echo "idle"
-        else
-            echo "working"
-        fi
+    session_id=$(basename "$jsonl" .jsonl)
+    hook_file="$HOME/Library/Application Support/com.brunowinter.monitor-cc-menubar/hooks.json"
+    hook_status=$(jq -r --arg sid "$session_id" '.[$sid].status // ""' "$hook_file" 2>/dev/null || true)
+    if [ -z "$hook_status" ] || [ "$hook_status" = "null" ]; then
+        # No hook entry: file missing, session not yet registered, or hooks not installed.
+        echo "unknown"
         return 0
     fi
     echo "$hook_status"
@@ -243,7 +215,7 @@ worker_status() {
 
     if ! tmux has-session -t "$session" 2>/dev/null; then
         echo "unknown"
-        return 1
+        return 0
     fi
 
     _worker_detect_status "$session"

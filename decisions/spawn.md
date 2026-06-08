@@ -17,10 +17,19 @@ Architecture: one tmux session per worker, named `worker-<project>-<name>`. Proj
 - Ghostty 1.2.x: fallback via `open -na` with `--quit-after-last-window-closed` and `--window-save-state=never`
 
 **Orchestration:**
-- `worker_list()` — lists active workers with status (running/exited) for current project
-- `worker_status()` — returns status of a single worker via `#{pane_dead}` query
+- `worker_list()` — lists active workers with status (working/idle/exited/unknown) for current project
+- `worker_status()` — returns status of a single worker (working/idle/exited/unknown); thin client of Monitor_CC menubar's `hooks.json`
 - `worker_capture()` — captures pane content to `/tmp/worker-<name>-pane.txt` (configurable scrollback lines)
 - `worker_send()` — sends text input to worker's Claude session (tmux send-keys + Enter)
+
+**Status Detection (IST):**
+Single authoritative source: `~/Library/Application Support/com.brunowinter.monitor-cc-menubar/hooks.json`.
+Schema: `{ "<session_id>": { "status": "working"|"idle", ... } }` — written by Monitor_CC lifecycle hooks.
+`_worker_detect_status` logic:
+- **exited** — local process checks: `pane_dead=1`, OR no child PIDs under pane PID, OR no `claude` descendant
+- **working / idle** — `hooks.json[session_id].status` returned verbatim; no heuristic demote
+- **unknown** — honest: hooks.json missing, no entry for session_id, no JSONL yet, or pane unreadable
+No `window_activity` demote layer. `unknown` returns exit 0 (verdict, not error).
 
 **Signal:**
 - `.done` file written on Claude exit for manual checking (`ls /tmp/worker-*.done`)
@@ -49,13 +58,13 @@ Architecture: one tmux session per worker, named `worker-<project>-<name>`. Proj
 **`claude-patched` (MANDATORY):**
 - Workers ALWAYS use `claude-patched` instead of `claude`. The patch fixes cache behavior (Cache Read instead of Cache Create per turn), preventing massive usage spikes.
 
-**File:** `src/spawn/tmux_spawn.sh` (245 lines)
+**File:** `src/spawn/tmux_spawn.sh` (728 lines)
 
 ## Recommendation (SOLL)
 
 **Shell-Ready Detection:** Keep (implemented) — Direct command arg to `tmux new-session`. Env vars inherited automatically (verified in dev/spawn/test_direct_command.sh). Polling loop eliminated.
 
-**Worker Status Detection:** Keep (implemented) — `worker_status()` via `#{pane_dead}` query. `worker_list()` shows status per worker. `remain-on-exit on` keeps pane open after exit (verified in dev/spawn/test_status_detection.sh).
+**Worker Status Detection:** Implemented — thin client of Monitor_CC's `hooks.json` (hyphen bundle-id path). `working`/`idle` read verbatim; `exited` from local pane/process checks; `unknown` when no authoritative data. No `window_activity` demote. `remain-on-exit on` keeps pane open for `exited` detection.
 
 **Worker → Main Notification:** Pending — blockiert durch fehlendes `claude inject`. Kein Workaround möglich. `.done` File bleibt als manuelles Signal. Automatische Notification erst wenn #24947 implementiert ist.
 

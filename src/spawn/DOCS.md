@@ -14,13 +14,15 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 
 ## Modules
 
-### tmux_spawn.sh (354 LOC)
+### tmux_spawn.sh (728 LOC)
 
 **Purpose:** Bash library — worker lifecycle: spawn, list, status, capture, send. Handles proxy injection for Monitor_CC sessions automatically when `/tmp/.monitor_cc_proxy_*` marker exists.
-**Reads:** tmux session list, proxy marker `/tmp/.monitor_cc_proxy_<session_id>`, project path.
+**Reads:** tmux session list, proxy marker `/tmp/.monitor_cc_proxy_<session_id>`, project path, `~/Library/Application Support/com.brunowinter.monitor-cc-menubar/hooks.json` (working/idle source).
 **Writes:** tmux sessions, Ghostty windows, worker mitmproxy processes, `/tmp/worker-<name>.done` signal file.
 **Called by:** `~/.local/bin/worker-cli` (all subcommands via `source`); `spawn.py` (via subprocess for `spawn_claude_worker_from_file`).
 **Calls out:** tmux, osascript/Ghostty, mitmdump, `~/.local/bin/claude-114`.
+
+**Status detection (`_worker_detect_status`):** Thin client — `exited` from local pane/process checks (`pane_dead`, child PIDs, `claude` descendant); `working`/`idle` verbatim from `hooks.json[session_id].status`; `unknown` if no authoritative data (missing file, no entry, no JSONL). No `window_activity` demote. All paths return exit 0.
 
 **spawn_claude_worker — Prompt-Inject Flow:**
 claude starts bare (no positional prompt arg — prompt never touches the cmdline).
