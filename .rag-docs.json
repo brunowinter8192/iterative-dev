@@ -1,0 +1,7 @@
+{
+  "collection": "iterative-dev-docs",
+  "include": [
+    "**/DOCS.md",
+    "decisions/**/*.md"
+  ]
+}
