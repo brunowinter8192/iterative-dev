@@ -23,13 +23,15 @@ Python codebases. Source root is the project's `src/` (or equivalent). Filter ou
 - `.claude/worktrees/` (in-flight worker copies)
 - `venv/`, `.venv/`, `node_modules/`
 
+**Every scan step honors this SKIP scope — including any `subprocess`/`grep` shell-out, not only the AST walks.** Shell-outs must pass `--include='*.py' --exclude-dir=__pycache__ --exclude-dir=logs --exclude-dir=worktrees`, or be replaced by an in-process pass over the already-SKIP-filtered file list (no subprocess at all).
+
 For non-Python codebases adapt the AST scripts to the equivalent parser; the workflow phases stay the same.
 
 ## Workflow
 
 ### Phase 1 — Standards Calibration
 
-Confirm which standards apply BEFORE scanning, otherwise documented exceptions get flagged as violations.
+Confirm which standards apply BEFORE scanning.
 
 1. Read `~/.claude/shared-rules/worker/code-standards.md` and `code-organization.md` — the on-the-fly rules; the skill scans against them.
 2. Read the project's `CLAUDE.md` and `src/DOCS.md` — captures project-specific exceptions ("module-level state is documented and intended", "this entry-point lives at root by design").
@@ -46,7 +48,7 @@ Groups:
 - **Cohesion** (2.5, 2.5b, 2.5c): too many concerns at one place — imports, instance attrs, constant clusters
 - **Operational Hygiene** (2.6): prototype-to-prod readiness — diagnostic gates, install friction, state-file scattering
 - **Refactor Residue** (2.7): accumulated drift — dead imports, scripts in library tree, dev-tooling gaps
-- **Control-Flow Integrity** (2.8): silent fallbacks / redundant derivation paths — the debugging-hell anti-pattern
+- **Control-Flow Integrity** (2.8): silent fallbacks / redundant derivation paths
 
 #### 2.1 File-LOC against Hard Ceiling
 
@@ -168,7 +170,7 @@ for f in src/*.py; do
   mod=$(basename "$f" .py)
   [ "$mod" = "__init__" ] && continue
   dirs=$(grep -rln "from src.${mod}\|from \.${mod} \|from \.\.${mod}\|import ${mod}$" src \
-            --include="*.py" 2>/dev/null \
+            --include="*.py" --exclude-dir=__pycache__ --exclude-dir=logs --exclude-dir=worktrees 2>/dev/null \
           | xargs -I{} dirname {} | sort -u | wc -l | tr -d ' ')
   ext=$(grep -l "from src\.${mod}\|import.*\b${mod}\b" *.py 2>/dev/null | head -1)
   echo "  $mod: ${dirs} subdir(s)${ext:+, entry-point: $ext}"
@@ -217,7 +219,7 @@ for count, p, mods in results:
 
 #### 2.5b Class State Sprawl
 
-Standard: a class with ≥10 instance attributes likely conflates concerns. Symptom: bug-fix in one concern requires reading the entire class because state ownership is unclear. Same dimensional axis as 2.5 coupling (too many things in one place) measured on the class level instead of the import level.
+Standard: a class with ≥10 instance attributes = split candidate (conflates concerns). Class-level analog of 2.5 coupling.
 
 ```python
 # /tmp/refactor_state_sprawl.py
@@ -259,7 +261,7 @@ for n_attrs, cname, path, line, attrs in results:
 
 #### 2.5c Constant Concern-Clustering
 
-Standard: module-level UPPER_CASE constants split into ≥2 distinct prefix clusters (each ≥3 constants) suggest the file conflates concerns. Each prefix cluster names a concern that should live in its own module. Helps surface split candidates even when LOC and import counts are still under the hard ceilings.
+Standard: module-level UPPER_CASE constants split into ≥2 distinct prefix clusters (each ≥3 constants) = split candidate. Each prefix cluster names a concern that should live in its own module.
 
 ```python
 # /tmp/refactor_constclust.py
@@ -295,11 +297,11 @@ for root, _, files in os.walk('src'):
 
 #### 2.6 Operational Hygiene
 
-Prototype-to-prod readiness. Three sub-checks for patterns that work fine in development but bite in production or new-developer onboarding.
+Prototype-to-prod readiness. Three sub-checks.
 
 ##### 2.6a Ungated Diagnostic Writes
 
-Standard: file-append calls (`open(path, "a").write(...)`) or stream-redirects to debug/log targets in production code paths MUST be gated by an env-var, debug flag, or log-level check. Ungated diagnostic writes accumulate unbounded log growth in prod and slow the runtime path. Common targets: `/tmp/*.log`, `~/*.log`, or any append-mode path with diagnostic naming (`debug`, `trace`, `diag`).
+Standard: file-append calls (`open(path, "a").write(...)`) or stream-redirects to debug/log targets in production code paths MUST be gated by an env-var, debug flag, or log-level check. Common targets: `/tmp/*.log`, `~/*.log`, or any append-mode path with diagnostic naming (`debug`, `trace`, `diag`).
 
 ```python
 # /tmp/refactor_ungated_diag.py
@@ -344,7 +346,7 @@ for p, ln, ps, m in hits:
 
 ##### 2.6b Installation Friction
 
-Standard: configuration files containing placeholder tokens (e.g. `<UPPER_CASE>`-style markers) MUST have an accompanying setup/install script that substitutes them. Without it, manual editing during install creates onboarding friction and version-skew bugs (repo-update overwrites the local substitution). Applies to plist, yaml, toml, json, conf, and similar config files outside Python code.
+Standard: configuration files containing placeholder tokens (e.g. `<UPPER_CASE>`-style markers) MUST have an accompanying setup/install script that substitutes them. Applies to plist, yaml, toml, json, conf, and similar config files outside Python code.
 
 ```bash
 # find non-Python configs with <UPPER> placeholder tokens; flag those without setup_*.py in same dir
@@ -364,7 +366,7 @@ done
 
 ##### 2.6c Scattered Application State
 
-Standard: ≥3 application-owned files in `$HOME` with the same project prefix → recommend grouping under XDG-style `~/.config/<project>/` (or platform equivalent). Reduces user-home clutter, eases backup/uninstall, and signals which files belong to which app.
+Standard: ≥3 application-owned files in `$HOME` with the same project prefix → recommend grouping under XDG-style `~/.config/<project>/` (or platform equivalent).
 
 ```bash
 # project-aware: pass project_prefix as $1, defaults to cwd basename
@@ -379,11 +381,11 @@ fi
 
 #### 2.7 Refactor Residue
 
-Artifacts from incremental development that accumulate silently. Catch with periodic scans, not on individual change reviews.
+Catch with periodic scans, not on individual change reviews.
 
 ##### 2.7a Dead Imports
 
-Standard: imports never referenced in the file. Common after function-extraction, feature-removal, or library-replacement commits. Each dead import is a small noise hit but they compound; also a hint that the relevant refactor wasn't fully completed.
+Standard: imports never referenced in the file.
 
 ```bash
 # pyflakes-based; install with `pip install pyflakes` if missing
@@ -392,49 +394,64 @@ pyflakes src/ 2>&1 | grep "imported but unused" || echo "(none)"
 
 ##### 2.7b Scripts in Library Tree
 
-Standard: source-tree files containing an `if __name__ == "__main__"` block AND not imported by any other module → they're scripts, not library code. Belong in `scripts/`, `dev/`, or a dedicated `bin/` directory. The library tree should be import-only so that the boundary between "loaded as library" and "executed as program" stays clear.
+Standard: source-tree files containing an `if __name__ == "__main__"` block AND not imported by any other module → they're scripts, not library code. Belong in `scripts/`, `dev/`, or a dedicated `bin/` directory.
 
 ```python
 # /tmp/refactor_scripts_in_lib.py
-import ast, os, subprocess
+# In-process import index — NO subprocess grep (SKIP-filtered walk only).
+import ast, os
 SKIP = ('__pycache__', '/logs/', '/worktrees/')
-candidates = []
+
+# Pass 1 — parse the filtered tree once; collect every module name referenced by an import.
+pyfiles = []
+imported = set()
 for root, _, files in os.walk('src'):
     if any(x in root for x in SKIP):
         continue
     for fn in files:
-        if not fn.endswith('.py') or fn == '__init__.py':
+        if not fn.endswith('.py'):
             continue
         p = os.path.join(root, fn)
         try:
             tree = ast.parse(open(p).read())
         except SyntaxError:
             continue
-        has_main = False
-        for n in tree.body:
-            if isinstance(n, ast.If):
-                t = n.test
-                if (isinstance(t, ast.Compare) and isinstance(t.left, ast.Name)
-                        and t.left.id == '__name__'):
-                    has_main = True
-                    break
-        if not has_main:
-            continue
-        mod_name = os.path.splitext(fn)[0]
-        # count grep hits for imports of this module across src/
-        r = subprocess.run(['grep', '-rln', '-E',
-                            f'(from .*{mod_name}|import.*\\b{mod_name}\\b)', 'src'],
-                           capture_output=True, text=True)
-        n_imports = len([ln for ln in r.stdout.splitlines() if ln != p])
-        if n_imports == 0:
-            candidates.append(p)
+        pyfiles.append((p, fn, tree))
+        for n in ast.walk(tree):
+            # from pkg.X import y  /  from . import X  /  from pkg import X
+            if isinstance(n, ast.ImportFrom):
+                if n.module:
+                    imported.add(n.module.split('.')[-1])
+                for a in n.names:
+                    imported.add(a.name.split('.')[-1])
+            # import pkg.X  /  import pkg.X as q
+            elif isinstance(n, ast.Import):
+                for a in n.names:
+                    imported.add(a.name.split('.')[-1])
+
+# Pass 2 — a __main__ file whose module name nobody imports is a script in the lib tree.
+candidates = []
+for p, fn, tree in pyfiles:
+    if fn == '__init__.py':
+        continue
+    has_main = any(
+        isinstance(n, ast.If) and isinstance(n.test, ast.Compare)
+        and isinstance(n.test.left, ast.Name) and n.test.left.id == '__name__'
+        for n in tree.body
+    )
+    if not has_main:
+        continue
+    if os.path.splitext(fn)[0] not in imported:
+        candidates.append(p)
 for p in candidates:
     print(f"  {p}  (has __main__, not imported elsewhere)")
+if not candidates:
+    print("  (none)")
 ```
 
 ##### 2.7c Dev-Tooling Gap
 
-Standard: actively-maintained `src/<module>/` directory without any `dev/<module>*` counterpart (script or subdir) suggests missing debug/probe infrastructure. Heuristic flag — not every module needs a dev counterpart, but actively-iterated UI/runtime modules benefit from a dedicated foreground/probe entry-point for fast iteration. Active = recent git commits on the module.
+Standard: actively-maintained `src/<module>/` directory without any `dev/<module>*` counterpart (script or subdir) = flag. Heuristic — not every module needs a dev counterpart. Active = recent git commits on the module.
 
 ```bash
 # for each src/<module>/, check dev/<module>* counterpart; flag if module touched <30d ago
@@ -456,13 +473,13 @@ done
 
 #### 2.8 Silent-Fallback / Redundant-Derivation Scan
 
-Standard: a code path that, on missing input or failure, SILENTLY produces alternative output through a second method — a fallback — is the highest-severity debugging liability. When two routes can produce the "same" output by different means, a wrong result looks plausible and you cannot tell which route made it. Symptom: you fix one case (whack the mole) and a different case breaks (next mole), because patches (dedup, gating, "best-effort" branches) accrete ON TOP of the fallback instead of removing it. The root data is usually computed once correctly upstream; the fallback re-derives it lossily downstream.
+Standard: a code path that, on missing input or failure, produces alternative output through a second method — a fallback — is a refactor target. Distinguish from a **tripwire/assertion** — a check that REFUSES to produce output and surfaces the failure (raise / flag / render-plain-with-marker). The tripwire is the cure, not a violation; the violation is the route that GUESSES an alternative output to keep going.
 
-Distinguish from a **tripwire/assertion** — a check that REFUSES to produce output and surfaces the failure (raise / flag / render-plain-with-marker). That is NOT a violation; it is the cure. The violation is specifically the route that GUESSES an alternative output to keep going.
+Per hit, the classifying question: does the flagged branch PRODUCE derived output by a second method (fallback → eliminate), or does it REFUSE and surface (tripwire → keep)? Manual review per hit — a cache-miss returning `None` is a tripwire, not a fallback.
 
-Heuristic — manual review per hit (like 2.6a); some flagged constructs are legitimate (a cache-miss returning `None` is a tripwire, not a fallback). The judgment per hit: does the flagged branch PRODUCE derived output by a second method, or does it REFUSE and surface?
+Detection runs three passes.
 
-Textual signatures:
+**Pass 1 — Textual signatures:**
 ```bash
 # markers in comments and names
 grep -rniE '\b(fall ?back|legacy path|old path|best.?effort|backward.?compat)\b' src \
@@ -471,7 +488,7 @@ grep -rnE 'def _?\w*(fallback|legacy|dedup|gated)\w*\(' src \
   --include='*.py' | grep -vE '/(logs|worktrees|__pycache__)/'
 ```
 
-Structural signature — `except` that returns a value without re-raising (silent degradation):
+**Pass 2 — Structural signature (AST) — `except` that returns a value without re-raising:**
 ```python
 # /tmp/refactor_silent_except.py
 import ast, os
@@ -502,9 +519,24 @@ for p, l in hits:
 print(f"\nTotal: {len(hits)} (review each: fallback that guesses vs tripwire that refuses)")
 ```
 
-Structural signature — sentinel branch feeding two derivations of one output (`if <key> in x: <new path>  else: <old path>`): not reliably AST-detectable without per-project knowledge. Surface it during manual review of the textual hits, and during any "why are there two ways to compute X" reading of the codebase.
+**Pass 3 — Cross-module behavioral redundancy (manual — the AST passes do NOT catch this):**
 
-**This dimension does NOT auto-produce a refactor candidate.** A silent-fallback finding is architectural — its fix is a one-way redesign that MUST be evaluated WITH the user. Route every hit to the One-Way Redesign Evaluation companion below.
+Pass 2 catches single-function silent-excepts. It does NOT catch the same effect achieved via two independent paths across module boundaries — that requires a manual structural read.
+
+For each conceptual value or effect the system produces, map every code site that PRODUCES or READS it. ≥2 independent derivations of the same value/effect = candidate. Patterns:
+- Two periodic threads/functions performing the same operation (e.g. two heartbeat loops bumping the same lock).
+- One conceptual value read from two different sources that can diverge (e.g. idle computed from two different file mtimes; "is X running" from state-file vs port-scan vs process-scan).
+- The same operation implemented in two places with divergent behavior (e.g. one health probe retries, the other does not).
+- A hardcoded fallback consulted when the canonical source is absent (e.g. a default port / default path another process can occupy and then masquerade as the real thing).
+
+A sentinel branch feeding two derivations of one output (`if <key> in x: <new path> else: <old path>`) is not reliably AST-detectable; surface it here and during any "are there two ways to compute X" read of the codebase.
+
+**Verify at the source before classifying any Pass-3 candidate:**
+- Read the actual code of BOTH paths; confirm they produce/derive the same value/effect.
+- For external or library behavior the verdict depends on (does endpoint X block, does the kernel do Y), read the vendored/external source for the categorical answer. Do NOT infer from training knowledge.
+- Where cheap, confirm with a live probe (lsof, curl, a one-shot call).
+
+**This dimension does NOT auto-produce a refactor candidate.** Route every hit (all three passes) to the One-Way Redesign Evaluation companion below.
 
 ### Phase 3 — Prioritization
 
@@ -562,7 +594,7 @@ Universal binary at `~/.local/bin/docs-drift-check`, scans the current project (
 **What to do with findings:**
 
 - Drift IS clean → proceed with refactor worker dispatch.
-- Drift found → fix the drift FIRST (worker fix, separate from refactor) so refactor commits land on a clean doc base. Refactor workers updating DOCS.md after the move would otherwise stack on top of existing drift, making both harder to verify post-Recap.
+- Drift found → fix the drift FIRST (worker fix, separate from refactor).
 
 Refactor workers MUST update affected DOCS.md per the file-move checklist (`~/.claude/shared-rules/opus/workers-1.md` § File-Move Checklist) and the Persistence Routing rule (pure refactor → DOCS.md only, no decisions/<step>.md touch unless functional behavior changes per SOLL→IST direction).
 
@@ -570,9 +602,9 @@ The next Recap-time drift check verifies post-refactor state.
 
 ## Companion Check: Symbol-Relocation Reference Audit
 
-When a refactor relocates WHERE a symbol lives — an attribute moved to a different owner object, a function or constant moved to a different module, a name moved into a namespace — EVERY reference to it must be updated to the new access path. This needs its own verification because tests miss it:
+When a refactor relocates WHERE a symbol lives — an attribute moved to a different owner object, a function or constant moved to a different module, a name moved into a namespace — EVERY reference to it must be updated to the new access path. This needs its own verification:
 
-**Why automated checks miss stale references:** import + entry-point smoke tests validate only the load path. References inside conditionally-executed code (event/callback handlers, error branches, rarely-hit CLI flags, lazy-imported paths) can stay stale, pass every smoke test, and fail only at runtime when that path first executes. `docs-drift-check` does not catch it either — a stale `old_path.symbol` access is syntactically valid and resolves no object-type/attribute analysis.
+**What automated checks miss:** import + entry-point smoke tests validate only the load path. References inside conditionally-executed code (event/callback handlers, error branches, rarely-hit CLI flags, lazy-imported paths) stay stale and fail only at runtime. `docs-drift-check` does not catch it either — a stale `old_path.symbol` access is syntactically valid.
 
 **The audit (worker runs post-implementation, before recap):** for each relocated symbol, grep ALL references and verify each resolves to the new path.
 
@@ -585,36 +617,34 @@ Whitelist symbols deliberately left in place (e.g. shared state intentionally ke
 
 ## Companion Check: One-Way Redesign Evaluation (Silent-Fallback findings)
 
-Unlike LOC, mutation, or coupling findings — which a worker refactors mechanically — a silent-fallback finding (2.8) cannot be auto-fixed. Removing a fallback safely requires rebuilding the strategy so a SINGLE deterministic route produces the output, with correctness guaranteed structurally rather than guarded at runtime. That redesign is architectural and is evaluated WITH the user. The scan surfaces candidates; this companion is the evaluation process.
+A silent-fallback finding (2.8) cannot be auto-fixed by a worker. The fix is a redesign so a SINGLE deterministic route produces the output, correctness guaranteed structurally not guarded at runtime. Evaluated WITH the user. The scan surfaces candidates; this companion is the evaluation process.
 
-**Per candidate, first classify (the decisive distinction):**
-- **Fallback** (eliminate): primary route fails / input missing → produce alternative output by a second method. Hides the failure behind plausible-but-wrong output. This is the debugging hell.
+**Per candidate, first classify:**
+- **Fallback** (eliminate): primary route fails / input missing → produce alternative output by a second method.
 - **Tripwire / assertion** (keep, shaped right): check a property; on violation REFUSE to produce output and surface it. Never a second derivation. Leave it (or harden it to refuse-and-surface).
 
 **One-way redesign — work through with the user:**
-1. **Record once at the source.** Can the data be captured at the point of truth (where the operation actually happens) with enough information — position, identity, order — that a single deterministic path produces the output later, with no re-derivation or inference downstream? The downstream re-derivation is almost always the fallback's home.
-2. **Completeness is a CODE property, not an INPUT property.** Operations happen at a finite, enumerable set of code sites. New input can only trigger an existing (recorded) site or no operation at all — it cannot manufacture an unrecorded one. So completeness can be VERIFIED exhaustively, not hoped for at runtime.
-3. **Move the safety check from runtime to test.** Replace the runtime fallback with a test-time invariant: `source + recorded operations == produced output`, asserted over a real corpus and kept as a CI regression test. A failure there = a code site that forgot to record = fix the site. The test IS the guarantee; it catches future code that forgets to record.
+1. **Record once at the source.** Capture the data at the point of truth (where the operation happens) with enough information — position, identity, order — that a single deterministic path produces the output later, with no re-derivation or inference downstream.
+2. **Completeness is a CODE property, not an INPUT property.** Operations happen at a finite, enumerable set of code sites. Completeness is VERIFIED exhaustively across those sites, not hoped for at runtime.
+3. **Move the safety check from runtime to test.** Replace the runtime fallback with a test-time invariant: `source + recorded operations == produced output`, asserted over a real corpus and kept as a CI regression test. A failure there = a code site that forgot to record = fix the site.
 4. **Production runs one way.** After (1)–(3): one deterministic route, no fallback, no dedup-patch, no "best-effort". Any retained tripwire refuses-and-surfaces; it never guesses.
 
-**Validate in `dev/` before touching `src/`.** The redesign is an architectural rewrite — build it as a `dev/` probe, prove exact equivalence on real data across ALL operation types (the invariant holds for every case), THEN port to `src/` and delete the fallback chain. Do not modify `src/` during the exploration (dev/-first rule, `~/.claude/shared-rules/global/documentation.md`).
+**Validate in `dev/` before touching `src/`.** Build the redesign as a `dev/` probe, prove exact equivalence on real data across ALL operation types, THEN port to `src/` and delete the fallback chain. Do not modify `src/` during the exploration (dev/-first rule, `~/.claude/shared-rules/global/documentation.md`).
 
-**Anti-pattern — the self-defeating hedge:** prove the one-way path in `dev/` and then STILL ship a runtime fallback "just in case". That admits you distrust the proof, and it re-introduces the exact hell you set out to remove. If the `dev/` proof holds over the corpus and the invariant lives in CI, production needs no fallback — at most a refuse-and-surface tripwire for genuinely-novel input.
+**Anti-pattern — the self-defeating hedge:** prove the one-way path in `dev/` and then STILL ship a runtime fallback "just in case". After a passing `dev/` proof with the invariant in CI, production needs no fallback — at most a refuse-and-surface tripwire for genuinely-novel input.
 
 ## Output Format
 
 Findings are presented inline in chat — Opus runs the scans, synthesizes Phase 3 + Phase 4, and reports to the user. No file is written.
 
-The session log already preserves the scan output; writing a separate `dev/refactor_<date>.md` adds a maintenance artifact without operational benefit (workers operate from the inline scope-up, not from a re-read of a saved file).
-
 For ad-hoc invocations (user asks for one specific dimension only), present that dimension's findings; skip the full Phase 3/4 synthesis.
 
 ## Anti-Patterns
 
-- Scanning before reading the project's code-standards files → documented exceptions get flagged as violations
+- Scanning before reading the project's code-standards files
 - Cosmetic LOC shrinking (trim blanks, merge comments) treated as a split — never counts
 - Mixing rule-violations with personal style preferences — this skill audits against codified rules only
 - Refactoring without a worker — Opus reviews findings, workers implement
-- Bundling unrelated refactors in one worker — corrections required, slower than two focused workers
-- Removing a silent fallback by hand without the one-way redesign + dev/ proof → the fallback's failure mode just relocates; classify it, evaluate the redesign with the user, prove byte/bit-exact equivalence in dev/, then delete
-- Shipping a runtime fallback "just in case" after a passing dev/ proof — re-introduces the debugging hell the redesign removed
+- Bundling unrelated refactors in one worker
+- Removing a silent fallback by hand without the one-way redesign + dev/ proof — classify it, evaluate the redesign with the user, prove exact equivalence in dev/, then delete
+- Shipping a runtime fallback "just in case" after a passing dev/ proof
