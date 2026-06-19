@@ -12,12 +12,11 @@
 #   6. rsync source -> cache (preserves runtime artifacts, honors .gitignore)
 #   7. Update installed_plugins.json (installPath, version, gitCommitSha, lastUpdated)
 #      Atomic write via temp file + mv. Backup written to /tmp/.
-#   8. Kill MCP server processes for this plugin (--no-restart to skip)
-#   9. Print restart hint
+#   8. Print restart hint
 #
 # Usage:
 #   cd <plugin-source-repo>
-#   plugin-publish [--no-push] [--no-restart] [--dry-run]
+#   plugin-publish [--no-push] [--dry-run]
 #
 # Designed to be safe to invoke blindly: any failure aborts before mutating
 # state on disk; installed_plugins.json gets a backup on every successful run.
@@ -29,13 +28,11 @@ CACHE_BASE="$HOME/.claude/plugins/cache/$MARKETPLACE"
 INSTALLED_JSON="$HOME/.claude/plugins/installed_plugins.json"
 
 DO_PUSH=1
-DO_RESTART=1
 DRY_RUN=0
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --no-push)    DO_PUSH=0 ;;
-        --no-restart) DO_RESTART=0 ;;
         --dry-run)    DRY_RUN=1 ;;
         -h|--help)
             sed -n '2,/^set -euo/p' "$0" | sed '/^set -euo/d' | sed 's/^# \{0,1\}//'
@@ -154,9 +151,6 @@ if [ "$DRY_RUN" = "1" ]; then
         echo "  Cache version:   unchanged ($SOURCE_VERSION)"
     fi
     echo "  Would rsync:     $REPO_PATH/  ->  $CACHE_DIR/"
-    if [ "$DO_RESTART" = "1" ]; then
-        echo "  Would kill MCP servers matching: ${PLUGIN_NAME}.*server\\.py"
-    fi
     exit 0
 fi
 
@@ -252,18 +246,6 @@ mv "$TMP" "$INSTALLED_JSON"
 echo "→ installed_plugins.json updated (backup: $BACKUP)"
 echo "  version=$SOURCE_VERSION sha=${SHA:0:8} ts=$TIMESTAMP"
 
-# ---------- kill MCP servers ----------
-
-if [ "$DO_RESTART" = "1" ]; then
-    PIDS=$(ps aux | grep -E "${PLUGIN_NAME}.*server\.py" | grep -v grep | awk '{print $2}' || true)
-    if [ -n "$PIDS" ]; then
-        echo "→ killing MCP server PIDs: $(echo "$PIDS" | tr '\n' ' ')"
-        echo "$PIDS" | xargs kill 2>/dev/null || true
-    else
-        echo "→ no running MCP server matched ${PLUGIN_NAME}.*server.py"
-    fi
-fi
-
 echo
 echo "✓ Plugin $PLUGIN_NAME v$SOURCE_VERSION live."
-echo "  Restart Claude Code session (or run /mcp) to load the new code."
+echo "  Restart Claude Code session to load the new code."

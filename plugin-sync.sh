@@ -3,7 +3,7 @@
 # Bypasses /plugin install — direct, reliable, no version-check issues.
 #
 # Usage: plugin-sync.sh <plugin-name> <local-repo-path>
-# Example: plugin-sync.sh rag ~/Documents/ai/Meta/ClaudeCode/MCP/RAG
+# Example: plugin-sync.sh rag ~/Documents/ai/Meta/ClaudeCode/cli/rag-cli
 
 set -euo pipefail
 
@@ -15,7 +15,7 @@ INSTALLED_JSON="$HOME/.claude/plugins/installed_plugins.json"
 
 if [ $# -ne 2 ]; then
     echo "Usage: plugin-sync.sh <plugin-name> <local-repo-path>"
-    echo "Example: plugin-sync.sh rag ~/Documents/ai/Meta/ClaudeCode/MCP/RAG"
+    echo "Example: plugin-sync.sh rag ~/Documents/ai/Meta/ClaudeCode/cli/rag-cli"
     exit 1
 fi
 
