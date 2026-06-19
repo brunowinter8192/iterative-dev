@@ -55,6 +55,12 @@ fired) reads `working` verbatim rather than being heuristically demoted to `idle
 is the truthful reflection of the hook state; a genuine process death is still caught
 by the `exited` checks.
 
+> **SUPERSEDED (2026-06-19):** this accepted trade-off was reversed. The kill-while-working
+> guard requires forcefully-stopped workers to resolve to idle (an un-killable `working`
+> zombie is worse than the drift). A `#{window_activity}` demote was re-added (rename-proof
+> signal; the hooks.json path that caused the original drift is unchanged). See
+> `worker_force_stop_detection.md`.
+
 ### unknown is a verdict, not an error (return 0)
 
 All `unknown` paths originally did `echo "unknown"; return 1`. Combined with the

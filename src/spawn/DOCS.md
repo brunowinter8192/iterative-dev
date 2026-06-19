@@ -14,7 +14,7 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 
 ## Modules
 
-### tmux_spawn.sh (728 LOC)
+### tmux_spawn.sh (748 LOC)
 
 **Purpose:** Bash library — worker lifecycle: spawn, list, status, capture, send. Handles proxy injection for Monitor_CC sessions automatically when `/tmp/.monitor_cc_proxy_*` marker exists.
 **Reads:** tmux session list, proxy marker `/tmp/.monitor_cc_proxy_<session_id>`, project path, `~/Library/Application Support/com.brunowinter.monitor-cc-menubar/hooks.json` (working/idle source).
@@ -22,7 +22,7 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 **Called by:** `~/.local/bin/worker-cli` (all subcommands via `source`); `spawn.py` (via subprocess for `spawn_claude_worker_from_file`).
 **Calls out:** tmux, osascript/Ghostty, mitmdump, `~/.local/bin/claude-114`.
 
-**Status detection (`_worker_detect_status`):** Thin client — `exited` from local pane/process checks (`pane_dead`, child PIDs, `claude` descendant); `working`/`idle` verbatim from `hooks.json[session_id].status`; `unknown` if no authoritative data (missing file, no entry, no JSONL). No `window_activity` demote. All paths return exit 0.
+**Status detection (`_worker_detect_status`):** `exited` from local pane/process checks (`pane_dead`, child PIDs, `claude` descendant); reads `working`/`idle` from `hooks.json[session_id].status` then demotes `working`→`idle-demoted` when tmux `#{window_activity}` is stale > 10s (forcefully-stopped: ESC/crash/ctx-limit, CC alive) — mirrors menubar `discover.py:178-181`. Display callers normalize the `idle-demoted` sentinel→`idle`; `context_pct` reads it raw to suppress the % (force-stopped → `idle` with no number). `unknown` if no authoritative data. Fail-open: window_activity unreadable → no demote. All paths return exit 0. See `decisions/OldThemes/worker_force_stop_detection.md`.
 
 **spawn_claude_worker — Prompt-Inject Flow:**
 claude starts bare (no positional prompt arg — prompt never touches the cmdline).

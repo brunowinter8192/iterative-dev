@@ -18,7 +18,7 @@ Architecture: one tmux session per worker, named `worker-<project>-<name>`. Proj
 
 **Orchestration:**
 - `worker_list()` — lists active workers with status (working/idle/exited/unknown) for current project
-- `worker_status()` — returns status of a single worker (working/idle/exited/unknown); thin client of Monitor_CC menubar's `hooks.json`
+- `worker_status()` — returns status of a single worker (working/idle/exited/unknown); reads Monitor_CC menubar's `hooks.json` + applies the `#{window_activity}` demote (normalizes the internal `idle-demoted` sentinel to `idle`)
 - `worker_capture()` — captures pane content to `/tmp/worker-<name>-pane.txt` (configurable scrollback lines)
 - `worker_send()` — sends text input to worker's Claude session (tmux send-keys + Enter)
 
@@ -27,9 +27,13 @@ Single authoritative source: `~/Library/Application Support/com.brunowinter.moni
 Schema: `{ "<session_id>": { "status": "working"|"idle", ... } }` — written by Monitor_CC lifecycle hooks.
 `_worker_detect_status` logic:
 - **exited** — local process checks: `pane_dead=1`, OR no child PIDs under pane PID, OR no `claude` descendant
-- **working / idle** — `hooks.json[session_id].status` returned verbatim; no heuristic demote
+- **working** — hook status `working` AND tmux `#{window_activity}` fresh (≤ 10s)
+- **idle** — hook status `idle` (Stop hook fired — normal finish)
+- **idle-demoted** (internal sentinel) — hook status `working` BUT `#{window_activity}` stale (> 10s): forcefully stopped (ESC / crash / context-limit with alive process). Mirrors Monitor_CC menubar `discover.py:178-181`. Display callers (`worker_status`, `worker_list`) normalize `idle-demoted`→`idle`; `context_pct` reads it raw to suppress the %.
 - **unknown** — honest: hooks.json missing, no entry for session_id, no JSONL yet, or pane unreadable
-No `window_activity` demote layer. `unknown` returns exit 0 (verdict, not error).
+Fail-open: `#{window_activity}` unreadable → no demote (status stays `working`). All paths return exit 0 (verdict, not error).
+
+**Context-% (`context_pct`, `bin/worker-cli`):** context-used = `input_tokens + cache_read_input_tokens + cache_creation_input_tokens` of the last usage entry (true occupied context — cache_read-only undercounted turn-1, where the input sits in cache_creation, → false 100%). `pct = 100*(170000-used)/170000`, clamp ≥ 0. Output: `—%` for exited/unknown/no-usage; empty (suppressed, NOT `—%`) for `idle-demoted`; `<pct>%` otherwise.
 
 **Signal:**
 - `.done` file written on Claude exit for manual checking (`ls /tmp/worker-*.done`)
@@ -58,13 +62,13 @@ No `window_activity` demote layer. `unknown` returns exit 0 (verdict, not error)
 **`claude-patched` (MANDATORY):**
 - Workers ALWAYS use `claude-patched` instead of `claude`. The patch fixes cache behavior (Cache Read instead of Cache Create per turn), preventing massive usage spikes.
 
-**File:** `src/spawn/tmux_spawn.sh` (728 lines)
+**File:** `src/spawn/tmux_spawn.sh` (748 lines)
 
 ## Recommendation (SOLL)
 
 **Shell-Ready Detection:** Keep (implemented) — Direct command arg to `tmux new-session`. Env vars inherited automatically (verified in dev/spawn/test_direct_command.sh). Polling loop eliminated.
 
-**Worker Status Detection:** Implemented — thin client of Monitor_CC's `hooks.json` (hyphen bundle-id path). `working`/`idle` read verbatim; `exited` from local pane/process checks; `unknown` when no authoritative data. No `window_activity` demote. `remain-on-exit on` keeps pane open for `exited` detection.
+**Worker Status Detection:** Implemented — reads Monitor_CC's `hooks.json` (hyphen bundle-id path) AND demotes `working`→`idle-demoted` when tmux `#{window_activity}` is stale > 10s, mirroring the menubar (`discover.py:178-181`). This REVERSES the prior "no demote / verbatim" decision: the kill-while-working guard requires a forcefully-stopped worker (ESC / context-limit, CC alive, Stop never fired) to resolve to idle so it can be killed. The drift that motivated the earlier thin-client redesign was the hooks.json **path** (stable, unchanged here); the demote's only added signal is the rename-proof tmux `#{window_activity}`. `exited` from local pane/process checks; `unknown` when no authoritative data; `remain-on-exit on` keeps pane open for `exited` detection. See `OldThemes/worker_force_stop_detection.md`.
 
 **Worker → Main Notification:** Pending — blockiert durch fehlendes `claude inject`. Kein Workaround möglich. `.done` File bleibt als manuelles Signal. Automatische Notification erst wenn #24947 implementiert ist.
 
@@ -74,6 +78,7 @@ No `window_activity` demote layer. `unknown` returns exit 0 (verdict, not error)
 
 ## Evidenz
 
+- Live repro 2026-06-19 (`status-demo`, ESC-interrupted, full context, claude alive): hooks.json=`working`, `#{window_activity}` age 384s→975s (≫10s) → pre-fix `worker-cli status` = `working`, menubar = `idle` (diverged); post-fix = `idle`. `context_pct`: status-demo last usage `{input:3, cache_read:0, cache_creation:19452}` → cache_read-only formula gave 100%, summed formula gives 88%. Post-publish verification: `status-demo`→`idle` (no %), `status-fix` (normal idle)→`idle 59%` (with %). Detail: `OldThemes/worker_force_stop_detection.md`.
 - agent-of-empires: Shell-Ready Pattern + Status Detection
 - cmux: Community-Validierung tmux+worktree Pattern
 - recon: tmux-native Status Monitoring
