@@ -103,7 +103,7 @@ _worker_session_name() {
 # _worker_detect_status SESSION
 #   Returns status: working, idle, exited, or unknown.
 #   Shared logic used by worker_list and worker_status.
-#   Thin client of hooks.json: returns the menubar's working/idle verbatim — no demote.
+#   Demotes 'working' → 'idle' when #{window_activity} is stale > 10s, mirroring the menubar's logic.
 #   exited detection (pane_dead + claude-descendant) is orthogonal and unchanged.
 _worker_detect_status() {
     local session="$1"
@@ -168,6 +168,21 @@ _worker_detect_status() {
         # No hook entry: file missing, session not yet registered, or hooks not installed.
         echo "unknown"
         return 0
+    fi
+    # Demote 'working' to 'idle' when pane has been inactive > 10s.
+    # Mirrors menubar discover.py:178-181 (WORKING_THRESHOLD_SECS=10, #{window_activity}).
+    # Catches ESC-interrupt / context-limit where the Stop hook never fired.
+    if [ "$hook_status" = "working" ]; then
+        local wa now_ts
+        wa=$(tmux display-message -t "${session}:^" -p "#{window_activity}" 2>/dev/null || true)
+        if [[ "$wa" =~ ^[0-9]+$ ]] && [ "$wa" -gt 0 ]; then
+            now_ts=$(date +%s)
+            if [ $((now_ts - wa)) -gt 10 ]; then
+                echo "idle"
+                return 0
+            fi
+        fi
+        # Fail-open: wa unreadable or non-positive → keep hook_status (working).
     fi
     echo "$hook_status"
 }
