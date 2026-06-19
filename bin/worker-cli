@@ -168,17 +168,27 @@ context_pct() {
     if [ "$status" = "exited" ] || [ "$status" = "unknown" ]; then
         echo "—%"; return
     fi
+    if [ "$status" = "idle-demoted" ]; then
+        echo ""; return    # force-stopped: suppress %, not —%
+    fi
 
     local worktree="$project/.claude/worktrees/$name"
     local encoded_dir="$HOME/.claude/projects/$(encode_worktree_path "$worktree")"
-    local jsonl cr
+    local jsonl ctx_used
     jsonl=$(ls -t "$encoded_dir"/*.jsonl 2>/dev/null | head -1)
     [ -z "$jsonl" ] && { echo "—%"; return; }
-    cr=$(jq -rs '[.[] | select(.message.usage.cache_read_input_tokens? != null)] | last | .message.usage.cache_read_input_tokens // empty' "$jsonl" 2>/dev/null || true)
-    if [ -z "$cr" ] || [ "$cr" = "null" ]; then
+    ctx_used=$(jq -rs '
+      [.[] | select(.message.usage != null)] | last |
+      if . == null then empty
+      else ((.message.usage.input_tokens // 0) +
+            (.message.usage.cache_read_input_tokens // 0) +
+            (.message.usage.cache_creation_input_tokens // 0))
+      end
+    ' "$jsonl" 2>/dev/null || true)
+    if [ -z "$ctx_used" ] || [ "$ctx_used" = "null" ]; then
         echo "—%"
     else
-        local pct=$(( 100 * (170000 - cr) / 170000 ))
+        local pct=$(( 100 * (170000 - ctx_used) / 170000 ))
         [ "$pct" -lt 0 ] && pct=0
         echo "${pct}%"
     fi
@@ -206,7 +216,7 @@ case "$CMD" in
                     _status=$(bash -c "source \"$SPAWN\" && worker_status \"\$1\" \"\$2\"" \
                         _ "$_wname" "$_proj" 2>/dev/null || echo "unknown")
                     _pct=$(context_pct "$_wname" "$_proj")
-                    echo "${_wname}: ${_status} ${_pct}  (${_proj})"
+                    echo "${_wname}: ${_status}${_pct:+ ${_pct}}  (${_proj})"
                 done
             fi
         else
@@ -229,7 +239,7 @@ case "$CMD" in
                         STATUS=$(bash -c "source \"$SPAWN\" && worker_status \"\$1\" \"\$2\"" \
                             _ "$wname" "$PROJECT" 2>/dev/null || echo "unknown")
                         PCT=$(context_pct "$wname" "$PROJECT")
-                        echo "${wname}: ${STATUS} ${PCT}"
+                        echo "${wname}: ${STATUS}${PCT:+ $PCT}"
                     done <<< "$NAMES"
                 fi
             else
@@ -244,7 +254,7 @@ case "$CMD" in
                         _status=$(bash -c "source \"$SPAWN\" && worker_status \"\$1\" \"\$2\"" \
                             _ "$_wname" "$_proj" 2>/dev/null || echo "unknown")
                         _pct=$(context_pct "$_wname" "$_proj")
-                        echo "${_wname}: ${_status} ${_pct}"
+                        echo "${_wname}: ${_status}${_pct:+ ${_pct}}"
                     done
                 fi
             fi
@@ -256,7 +266,7 @@ case "$CMD" in
             STATUS=$(bash -c "source \"$SPAWN\" && worker_status \"\$1\" \"\$2\"" \
                 _ "$NAME" "$PROJECT" 2>/dev/null || echo "unknown")
             PCT=$(context_pct "$NAME" "$PROJECT")
-            echo "${STATUS} ${PCT}"
+            echo "${STATUS}${PCT:+ $PCT}"
         fi
         ;;
     capture)

@@ -101,9 +101,11 @@ _worker_session_name() {
 # --- Orchestration ---
 
 # _worker_detect_status SESSION
-#   Returns status: working, idle, exited, or unknown.
+#   Returns status: working, idle, idle-demoted, exited, or unknown.
 #   Shared logic used by worker_list and worker_status.
-#   Demotes 'working' → 'idle' when #{window_activity} is stale > 10s, mirroring the menubar's logic.
+#   Demotes 'working' → 'idle-demoted' when #{window_activity} is stale > 10s (ESC / crash /
+#   context-limit with alive process). Callers that only display normalize idle-demoted → idle;
+#   context_pct reads the sentinel raw to suppress the context % for force-stopped workers.
 #   exited detection (pane_dead + claude-descendant) is orthogonal and unchanged.
 _worker_detect_status() {
     local session="$1"
@@ -178,7 +180,7 @@ _worker_detect_status() {
         if [[ "$wa" =~ ^[0-9]+$ ]] && [ "$wa" -gt 0 ]; then
             now_ts=$(date +%s)
             if [ $((now_ts - wa)) -gt 10 ]; then
-                echo "idle"
+                echo "idle-demoted"
                 return 0
             fi
         fi
@@ -207,6 +209,7 @@ worker_list() {
         local name="${session_name#$prefix}"
         local status
         status=$(_worker_detect_status "$session_name" 2>/dev/null || echo "unknown")
+        [ "$status" = "idle-demoted" ] && status="idle"
         local spawned
         spawned=$(tmux show-environment -t "$session_name" WORKER_SPAWNED 2>/dev/null | cut -d= -f2)
         [ -z "$spawned" ] && spawned="(?)"
@@ -233,7 +236,9 @@ worker_status() {
         return 0
     fi
 
-    _worker_detect_status "$session"
+    local raw
+    raw=$(_worker_detect_status "$session")
+    [ "$raw" = "idle-demoted" ] && echo "idle" || echo "$raw"
 }
 
 # worker_capture NAME [LINES] [PROJECT_PATH]
