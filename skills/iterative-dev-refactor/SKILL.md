@@ -69,7 +69,7 @@ awk '$1 > 300 && $1 <= 400 && $2 != "total"' /tmp/refactor_loc.txt
 
 #### 2.2 Function-LOC AST Scan
 
-Standard (per code-organization.md): function >50 LOC = extract helper. Above 100 LOC = hard refactor target.
+Standard: function >50 LOC = extract helper. Above 100 LOC = hard refactor target.
 
 ```python
 # /tmp/refactor_funclen.py
@@ -181,7 +181,7 @@ Decision: ≥2 subdirs OR entry-point reference = JUSTIFIED. Single subdir witho
 
 #### 2.5 Coupling Indicator
 
-Standard (per code-organization.md): >5 cross-module imports = review dependencies, may indicate over-coupling.
+Standard: >5 cross-module imports = review dependencies.
 
 ```python
 # /tmp/refactor_coupling.py
