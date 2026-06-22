@@ -14,13 +14,15 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 
 ## Modules
 
-### tmux_spawn.sh (748 LOC)
+### tmux_spawn.sh (788 LOC)
 
 **Purpose:** Bash library — worker lifecycle: spawn, list, status, capture, send. Handles proxy injection for Monitor_CC sessions automatically when `/tmp/.monitor_cc_proxy_*` marker exists.
 **Reads:** tmux session list, proxy marker `/tmp/.monitor_cc_proxy_<session_id>`, project path, `~/Library/Application Support/com.brunowinter.monitor-cc-menubar/hooks.json` (working/idle source).
 **Writes:** tmux sessions, Ghostty windows, worker mitmproxy processes, `/tmp/worker-<name>.done` signal file.
 **Called by:** `~/.local/bin/worker-cli` (all subcommands via `source`); `spawn.py` (via subprocess for `spawn_claude_worker_from_file`).
 **Calls out:** tmux, osascript/Ghostty, mitmdump, `~/.local/bin/claude-114`.
+
+`worker_capture_clean NAME [PROJECT_PATH]` — captures pane, scopes to output since last real orchestrator `❯` prompt, applies clean filter (see `_capture_clean.py`), prints to stdout. Called by `worker-cli capture` (default). `worker_capture` (raw pane to file) called via `worker-cli capture --raw`.
 
 **Status detection (`_worker_detect_status`):** `exited` from local pane/process checks (`pane_dead`, child PIDs, `claude` descendant); reads `working`/`idle` from `hooks.json[session_id].status` then demotes `working`→`idle-demoted` when tmux `#{window_activity}` is stale > 10s (forcefully-stopped: ESC/crash/ctx-limit, CC alive) — mirrors menubar `discover.py:178-181`. Display callers normalize the `idle-demoted` sentinel→`idle`; `context_pct` reads it raw to suppress the % (force-stopped → `idle` with no number). `unknown` if no authoritative data. Fail-open: window_activity unreadable → no demote. All paths return exit 0. See `decisions/OldThemes/worker_force_stop_detection.md`.
 
@@ -32,6 +34,20 @@ Prompt is injected via `load-buffer / paste-buffer / send-keys Enter` (same
 as `worker_send`). Fragility: `^❯` marker is CC-version-dependent — if the
 glyph changes, gate times out and spawn fails explicitly; update the grep
 pattern. See `decisions/OldThemes/worker_spawn_prompt_injection.md`.
+
+### _capture_clean.py (148 LOC)
+
+**Purpose:** Scope + clean worker pane output. Takes `<pane_file> <worker_name>`, prints `=== capture from <name> (since last prompt, N chars) ===` + cleaned body to stdout.
+**Reads:** raw tmux pane file (arg); searches backward for last `❯ <non-whitespace>` prompt anchor.
+**Writes:** stdout only.
+**Called by:** `worker_capture_clean()` in `tmux_spawn.sh` (via `python3 _capture_clean.py`).
+**Calls out:** nothing (stdlib only).
+
+Scope: slices to lines after the last real orchestrator prompt (`_RE_REAL_PROMPT = r'^❯\s+\S'`); pre-trims bottom widget (rule/bare-❯/Sonnet footer/bypass) so the bare input box never wins the anchor. Fallback: full buffer + `⚠` warning when no prompt in scrollback.
+
+Clean filter — **Strip:** boot welcome box (`╭…╰`), thinking spinners (`✻`), `ctrl+o to expand` collapse markers, CC diff body lines (indented `<linenum>[+/-]content` after `Update()`/`Create()` headers — counter `⎿ Added N` kept, body dropped), bottom widget chrome (rule/bare-❯/Sonnet/bypass). **Keep:** `Update()`/`Create()` headers, `Added N, removed M` counters, `Read()`/`Bash()` headers, prose, Bash output, checklists. Leading `⏺`/`⎿` glyphs stripped from lines where they are the first character.
+
+---
 
 ### spawn.py (117 LOC)
 

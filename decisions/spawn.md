@@ -9,6 +9,7 @@ Architecture: one tmux session per worker, named `worker-<project>-<name>`. Proj
 - `spawn_claude_worker_from_file()` — same but reads prompt from existing file
 - Direct command execution: command passed as arg to `tmux new-session` — env vars inherited automatically
 - `remain-on-exit on` set atomically via `;` chain — pane stays open after process exit for status detection
+- `history-limit 50000` set at spawn and revive — ensures the prompt anchor (`❯ <non-whitespace>`) stays in scrollback even after a long worker turn
 - After Claude exits: `touch /tmp/worker-<name>.done` (semicolon-chained, fires even on crash)
 
 **Viewer:**
@@ -19,8 +20,11 @@ Architecture: one tmux session per worker, named `worker-<project>-<name>`. Proj
 **Orchestration:**
 - `worker_list()` — lists active workers with status (working/idle/exited/unknown) for current project
 - `worker_status()` — returns status of a single worker (working/idle/exited/unknown); reads Monitor_CC menubar's `hooks.json` + applies the `#{window_activity}` demote (normalizes the internal `idle-demoted` sentinel to `idle`)
-- `worker_capture()` — captures pane content to `/tmp/worker-<name>-pane.txt` (configurable scrollback lines)
+- `worker_capture()` — captures raw pane to `/tmp/worker-<name>-pane.txt`; legacy / `--raw` fallback
+- `worker_capture_clean()` — scoped+cleaned capture: slices to output since last real `❯` prompt, applies clean filter (strip: boot box, spinners, diff body, widget chrome; keep: tool headers, counters, prose, Bash output); prints to stdout. Default for `worker-cli capture`.
 - `worker_send()` — sends text input to worker's Claude session (tmux send-keys + Enter)
+
+**`worker-cli capture` (IST):** defaults to `worker_capture_clean` (clean+scoped output to stdout). `--raw` falls back to `worker_capture` (raw pane to file, prints path). Implemented in `_capture_clean.py` (`src/spawn/`), called from `worker_capture_clean()` in `tmux_spawn.sh`.
 
 **Status Detection (IST):**
 Single authoritative source: `~/Library/Application Support/com.brunowinter.monitor-cc-menubar/hooks.json`.
@@ -62,7 +66,7 @@ Fail-open: `#{window_activity}` unreadable → no demote (status stays `working`
 **`claude-patched` (MANDATORY):**
 - Workers ALWAYS use `claude-patched` instead of `claude`. The patch fixes cache behavior (Cache Read instead of Cache Create per turn), preventing massive usage spikes.
 
-**File:** `src/spawn/tmux_spawn.sh` (748 lines)
+**Files:** `src/spawn/tmux_spawn.sh` (788 LOC), `src/spawn/_capture_clean.py` (148 LOC)
 
 ## Recommendation (SOLL)
 

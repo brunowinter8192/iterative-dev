@@ -15,7 +15,7 @@ usage: worker-cli <cmd> [args]
   list [project_path]                                        — list active workers (all if no path)
   status <name>                                              — idle / working / exited + context remaining %
   status --all [project_path]                                — snapshot all workers in one call
-  capture <name>                                             — write pane to file, print path
+  capture <name> [--raw]                                     — clean output since last prompt (--raw: raw pane to file)
   response <name> [N]                                        — clean last N assistant turns from session JSONL (default 1)
   merge <name>                                               — log + merge branch into current
   kill <name>                                                — tmux + worktree + branch cleanup
@@ -270,12 +270,24 @@ case "$CMD" in
         fi
         ;;
     capture)
-        [ $# -lt 1 ] && { echo "worker-cli capture: need <name> [project_path]" >&2; exit 2; }
-        NAME="$1"
-        OVERRIDE="${2:-}"
+        [ $# -lt 1 ] && { echo "worker-cli capture: need <name> [--raw] [project_path]" >&2; exit 2; }
+        NAME="$1"; shift
+        RAW=0; OVERRIDE=""
+        while [ $# -gt 0 ]; do
+            case "$1" in
+                --raw) RAW=1 ;;
+                *)     OVERRIDE="$1" ;;
+            esac
+            shift
+        done
         PROJECT=$(resolve_worker_project "$NAME" "$OVERRIDE")
-        bash -c "source \"$SPAWN\" && worker_capture \"\$1\" \"\" \"\$2\"" \
-            _ "$NAME" "$PROJECT"
+        if [ "$RAW" = "1" ]; then
+            bash -c "source \"$SPAWN\" && worker_capture \"\$1\" \"\" \"\$2\"" \
+                _ "$NAME" "$PROJECT"
+        else
+            bash -c "source \"$SPAWN\" && worker_capture_clean \"\$1\" \"\$2\"" \
+                _ "$NAME" "$PROJECT"
+        fi
         ;;
     response)
         [ $# -lt 1 ] && { echo "worker-cli response: need <name> [count] [project_path]" >&2; exit 2; }
