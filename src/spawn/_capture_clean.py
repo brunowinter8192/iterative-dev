@@ -23,10 +23,9 @@ _RE_BOX_TOP   = re.compile(r'^\s*╭')
 _RE_BOX_BOT   = re.compile(r'^\s*╰')
 _RE_COLLAPSE  = re.compile(r'ctrl\+o to expand', re.I)
 _RE_THINKING  = re.compile(r'^\s*✻')
-_RE_UPDATE        = re.compile(r'\b(Update|Create)\s*\(')
-_RE_ADDED         = re.compile(r'^⎿\s+Added \d+')
-_RE_DIFF_LINE     = re.compile(r'^\s+\d+(?:\s|$)')
-_RE_DIFF_EXPLICIT = re.compile(r'^\s+\d+\s+[+-]')
+_RE_UPDATE    = re.compile(r'\b(Update|Create)\s*\(')
+_RE_ADDED     = re.compile(r'^⎿\s+Added \d+')
+_RE_DIFF_LINE = re.compile(r'^\s+\d+(?:\s|$)')
 
 # Leading tool-use glyphs to strip (keep the text after them)
 _GLYPHS = {'⏺', '⎿'}
@@ -114,10 +113,6 @@ def _clean(lines):
         if line and line[0] in _GLYPHS:
             line = line[1:].lstrip()
         stripped = line.strip()
-
-        # Global drop: numbered lines with explicit +/- (diff-format prose outside Update blocks)
-        if _RE_DIFF_EXPLICIT.match(line):
-            continue
 
         # Diff block: Update()/Create() header enters; sticky until blank or next ⏺ tool-call
         if _RE_UPDATE.search(line):
