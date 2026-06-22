@@ -29,9 +29,10 @@ FIXTURE = (
     "  ⎿ Read 133 lines (ctrl+o to expand)\n"
     '\n'
     '⏺ Update(src/hooks/block_polling_loop.py)\n'
-    "  - _TAIL_N_FILE = re.compile(r'\\btail\\s+-\\d+\\s+(\\S+)')\n"
-    "  + _TAIL_N_FILE = re.compile(r'\\btail\\s+-\\d+[^\\S\\n]+(\\S+)')\n"
-    '  ⎿ Added 3, removed 1\n'
+    '  ⎿  Added 3 lines, removed 1 line\n'
+    '      13\n'
+    "      16 -_TAIL_N_FILE = re.compile(r'\\btail\\s+-\\d+\\s+(\\S+)')\n"
+    "      16 +_TAIL_N_FILE = re.compile(r'\\btail\\s+-\\d+[^\\S\\n]+(\\S+)')\n"
     '\n'
     '⏺ Bash(python3 dev/hook_smoke/test_block_polling_loop.py > /tmp/out.md 2>&1)\n'
     'All 20 tests passed.\n'
@@ -109,8 +110,9 @@ def _assert_cases(output):
         ('boot box interior',  'Ready.'),
         ('thinking spinner',   'Crunched 12 seconds'),
         ('Read sub-line',      'Read 133 lines'),
-        ('diff body minus',    '- _TAIL_N_FILE'),
-        ('diff body plus',     '+ _TAIL_N_FILE'),
+        ('diff body context',   '      13'),
+        ('diff body minus',    '      16 -_TAIL_N_FILE'),
+        ('diff body plus',     '      16 +_TAIL_N_FILE'),
         ('collapse ctrl+o',    'ctrl+o to expand'),
         ('collapse ellipsis',  '… +5 lines'),
         ('rule line',          '────────────────────────────────────────────────'),
@@ -124,7 +126,7 @@ def _assert_cases(output):
     # --- KEEP cases: must appear in output ---
     must_have = [
         ('Update header (glyph stripped)', 'Update(src/hooks/block_polling_loop.py)'),
-        ('Added counter (glyph stripped)',  'Added 3, removed 1'),
+        ('Added counter (glyph stripped)',  'Added 3 lines, removed 1 line'),
         ('Read tool header',               'Read(src/hooks/block_polling_loop.py)'),
         ('Bash tool header',               'Bash(python3 dev/hook_smoke'),
         ('Bash output',                    'All 20 tests passed.'),

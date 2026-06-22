@@ -24,8 +24,8 @@ _RE_BOX_BOT   = re.compile(r'^\s*╰')
 _RE_COLLAPSE  = re.compile(r'ctrl\+o to expand', re.I)
 _RE_THINKING  = re.compile(r'^\s*✻')
 _RE_UPDATE    = re.compile(r'\b(Update|Create)\s*\(')
-_RE_ADDED     = re.compile(r'^Added \d+')
-_RE_DIFF_LINE = re.compile(r'^\s*[+\-]\s')
+_RE_ADDED     = re.compile(r'^⎿\s+Added \d+')
+_RE_DIFF_LINE = re.compile(r'^\s+\d+(?:\s|$)')
 
 # Leading tool-use glyphs to strip (keep the text after them)
 _GLYPHS = {'⏺', '⎿'}
@@ -122,11 +122,10 @@ def _clean(lines):
         if in_diff:
             if _RE_ADDED.match(stripped):
                 out.append(line)
-                in_diff = False
-                continue
+                continue      # stay in diff — body follows counter
             if _RE_DIFF_LINE.match(line):
                 continue
-            in_diff = False   # any other line exits diff block
+            in_diff = False   # non-diff-body line exits diff block
 
         out.append(line)
 
