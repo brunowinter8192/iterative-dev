@@ -271,6 +271,41 @@ worker_capture() {
     echo "$outfile"
 }
 
+# worker_capture_clean NAME [PROJECT_PATH]
+#   Captures worker pane, scopes to output since last real orchestrator prompt (❯ with content),
+#   applies clean filter (boot box, spinners, diff hunks, widget chrome), prints to stdout.
+#   Output shape: "=== capture from <name> (since last prompt, N chars) ===" + cleaned body.
+#   Fallback: if no ❯ prompt marker in scrollback → prints full cleaned buffer + warning.
+#   Uses _capture_clean.py (same dir as this script) for the scope + filter logic.
+worker_capture_clean() {
+    local name="$1"
+    local project_path="${2:-$(pwd)}"
+    local session
+    session=$(_worker_session_name "$project_path" "$name")
+
+    if ! tmux has-session -t "$session" 2>/dev/null; then
+        echo "ERROR: No session '$session'" >&2
+        return 1
+    fi
+
+    local clean_script
+    clean_script="$(dirname "${BASH_SOURCE[0]}")/_capture_clean.py"
+    if [ ! -f "$clean_script" ]; then
+        echo "ERROR: _capture_clean.py not found at $clean_script" >&2
+        return 1
+    fi
+
+    local pane_id pane_file
+    pane_id=$(tmux list-panes -t "$session" -F "#{pane_id}" | head -1)
+    pane_file=$(mktemp "/tmp/.cap_pane_${name}_XXXXXX.txt")
+
+    tmux capture-pane -p -t "$pane_id" -S - > "$pane_file"
+    python3 "$clean_script" "$pane_file" "$name"
+    local exit_code=$?
+    rm -f "$pane_file"
+    return $exit_code
+}
+
 # worker_send NAME MESSAGE [PROJECT_PATH]
 #   Sends text input to a running worker's tmux pane (followed by Enter).
 #   PROJECT_PATH: project the worker belongs to (default: pwd).
@@ -527,8 +562,11 @@ RUNSCRIPT
 
     # Create session with command as direct arg (no polling needed).
     # Atomic remain-on-exit via ; chain — set before process can exit.
+    # 50000-line history so a long worker turn never scrolls off the top of the scrollback
+    # before worker_capture_clean can find the ❯ prompt anchor.
     tmux new-session -d -s "$session" "$claude_cmd" \; \
-        set-option -p -t "$session" remain-on-exit on
+        set-option -p -t "$session" remain-on-exit on \; \
+        set-option -t "$session" history-limit 50000
 
     # Write orchestrator signal for menubar grace (Fix A: spawn-case protection).
     # Same mechanism as worker_send — covers initial thinking phase before first JSONL
@@ -717,9 +755,11 @@ ${proxy_env_prefix}${worker_claude_bin} --model '${model}' --dangerously-skip-pe
 RUNSCRIPT
     chmod +x "$runner"
 
-    # Create new tmux session with the runner; remain-on-exit on for next death detection
+    # Create new tmux session with the runner; remain-on-exit on for next death detection.
+    # 50000-line history mirrors spawn_claude_worker so capture_clean works after revive too.
     tmux new-session -d -s "$session" "bash '$runner'" \; \
-        set-option -p -t "$session" remain-on-exit on
+        set-option -p -t "$session" remain-on-exit on \; \
+        set-option -t "$session" history-limit 50000
 
     # Restore env vars + revive marker
     tmux set-environment -t "$session" WORKER_SPAWNED "$(date +%H:%M)"
