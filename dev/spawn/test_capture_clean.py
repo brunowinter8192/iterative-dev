@@ -14,6 +14,7 @@ SCRIPT = os.path.join(os.path.dirname(__file__), '../../src/spawn/_capture_clean
 # Lines present:
 #   boot welcome box (╭…╰), thinking spinner (✻), Read tool + ctrl+o sub-line,
 #   Update() header + diff body (+/-) + Added counter, Bash() tool header + output,
+#   Update() header with ... collapse + post-collapse body + wrap continuation,
 #   worker prose + checklist, collapse ellipsis, rule, bare ❯, Sonnet footer, bypass
 FIXTURE = (
     '╭──────────────── Claude Code ─────────────────╮\n'
@@ -33,6 +34,13 @@ FIXTURE = (
     '      13\n'
     "      16 -_TAIL_N_FILE = re.compile(r'\\btail\\s+-\\d+\\s+(\\S+)')\n"
     "      16 +_TAIL_N_FILE = re.compile(r'\\btail\\s+-\\d+[^\\S\\n]+(\\S+)')\n"
+    '\n'
+    '⏺ Update(src/spawn/DOCS.md)\n'
+    '  ⎿  Added 2 lines, removed 1 line\n'
+    '      14\n'
+    '     ...\n'
+    '      22  **Called by:** after-collapse-leak\n'
+    '      22 +post-collapse-plus\n'
     '\n'
     '⏺ Bash(python3 dev/hook_smoke/test_block_polling_loop.py > /tmp/out.md 2>&1)\n'
     'All 20 tests passed.\n'
@@ -113,6 +121,9 @@ def _assert_cases(output):
         ('diff body context',   '      13'),
         ('diff body minus',    '      16 -_TAIL_N_FILE'),
         ('diff body plus',     '      16 +_TAIL_N_FILE'),
+        ('diff collapse line',  '     ...'),
+        ('post-collapse body',  'after-collapse-leak'),
+        ('post-collapse plus',  'post-collapse-plus'),
         ('collapse ctrl+o',    'ctrl+o to expand'),
         ('collapse ellipsis',  '… +5 lines'),
         ('rule line',          '────────────────────────────────────────────────'),
@@ -125,7 +136,8 @@ def _assert_cases(output):
 
     # --- KEEP cases: must appear in output ---
     must_have = [
-        ('Update header (glyph stripped)', 'Update(src/hooks/block_polling_loop.py)'),
+        ('Update header 1',                'Update(src/hooks/block_polling_loop.py)'),
+        ('Update header 2 (with collapse)', 'Update(src/spawn/DOCS.md)'),
         ('Added counter (glyph stripped)',  'Added 3 lines, removed 1 line'),
         ('Read tool header',               'Read(src/hooks/block_polling_loop.py)'),
         ('Bash tool header',               'Bash(python3 dev/hook_smoke'),
