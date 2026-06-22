@@ -66,7 +66,7 @@ Fail-open: `#{window_activity}` unreadable → no demote (status stays `working`
 **`claude-patched` (MANDATORY):**
 - Workers ALWAYS use `claude-patched` instead of `claude`. The patch fixes cache behavior (Cache Read instead of Cache Create per turn), preventing massive usage spikes.
 
-**Files:** `src/spawn/tmux_spawn.sh` (788 LOC), `src/spawn/_capture_clean.py` (148 LOC)
+**Files:** `src/spawn/tmux_spawn.sh` (788 LOC), `src/spawn/_capture_clean.py` (153 LOC)
 
 ## Recommendation (SOLL)
 
