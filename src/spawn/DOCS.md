@@ -35,7 +35,7 @@ as `worker_send`). Fragility: `^❯` marker is CC-version-dependent — if the
 glyph changes, gate times out and spawn fails explicitly; update the grep
 pattern. See `decisions/OldThemes/worker_spawn_prompt_injection.md`.
 
-### _capture_clean.py (148 LOC)
+### _capture_clean.py (153 LOC)
 
 **Purpose:** Scope + clean worker pane output. Takes `<pane_file> <worker_name>`, prints `=== capture from <name> (since last prompt, N chars) ===` + cleaned body to stdout.
 **Reads:** raw tmux pane file (arg); searches backward for last `❯ <non-whitespace>` prompt anchor.
