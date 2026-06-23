@@ -371,7 +371,15 @@ case "$CMD" in
         [ $# -lt 3 ] && { echo "worker-cli spawn: need <name> <prompt_file> <project_path> [model] [--no-worktree]" >&2; exit 2; }
         NAME="$1"
         PROMPT_FILE="$2"; [[ "$PROMPT_FILE" != /* ]] && PROMPT_FILE="$(pwd)/$PROMPT_FILE"
-        PROJECT=$(resolve_project_path "$3")
+        REQUESTED=$(resolve_project_path "$3")
+        if [ -n "${PROXY_PROJECT_PATH:-}" ]; then
+            PROJECT=$(resolve_project_path "$PROXY_PROJECT_PATH")
+            if [ "$REQUESTED" != "$PROJECT" ]; then
+                echo "worker-cli spawn: spawning into main session project $PROJECT (PROXY_PROJECT_PATH policy); project_path arg '$3' ignored — for cross-project work, create a worktree in the target project and have the worker cd there" >&2
+            fi
+        else
+            PROJECT="$REQUESTED"
+        fi
         MODEL="${4:-sonnet}"
         WORKTREE_FLAG=""
         [ "${5:-}" = "--no-worktree" ] && WORKTREE_FLAG="--no-worktree"
