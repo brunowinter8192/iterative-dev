@@ -13,7 +13,7 @@ usage() {
 usage: worker-cli <cmd> [args]
 
   list [project_path]                                        — list active workers (all if no path)
-  status <name>                                              — idle / working / exited + context remaining %
+  status <name>                                              — idle / working / limit reached / unknown
   status --all [project_path]                                — snapshot all workers in one call
   capture <name> [--raw]                                     — clean output since last prompt (--raw: raw pane to file)
   response <name> [N]                                        — clean last N assistant turns from session JSONL (default 1)
@@ -142,57 +142,6 @@ encode_worktree_path() {
     echo "$p"
 }
 
-# Print context-remaining % for a worker based on its latest session JSONL.
-# Returns "—%" if project is empty or no usage data found; never fails with non-zero exit.
-#
-# Reference ceiling: 170k tokens (Sonnet's empirical death-zone, NOT the
-# advertised 200k). CC consistently aborts requests when cache-read approaches
-# ~170k — observed across multiple workers (Bead Monitor_CC-l7fy). Using 170k
-# as 100% baseline makes the percentage truthful: 0% = at the practical limit,
-# not at the advertised limit. Negative values (cr > 170k) are clamped to 0%.
-context_pct() {
-    local name="$1" project="$2"
-    if [ -z "$project" ]; then echo "—%"; return; fi
-
-    # Positive liveness precondition: no tmux session → worker is dead (registry entry may be
-    # stale after kill). Without this guard, the block below was optional — a dead worker
-    # with no session fell through to JSONL reading and returned 100% when CR=0.
-    # Also catch CC-exited-inside-live-session via _worker_detect_status.
-    local session="worker-$(basename "$project")-$name"
-    if ! tmux has-session -t "$session" 2>/dev/null; then
-        echo "—%"; return
-    fi
-    local status
-    status=$(bash -c "source \"\$1\" && _worker_detect_status \"\$2\"" \
-        _ "$SPAWN" "$session" 2>/dev/null || echo "unknown")
-    if [ "$status" = "exited" ] || [ "$status" = "unknown" ]; then
-        echo "—%"; return
-    fi
-    if [ "$status" = "idle-demoted" ]; then
-        echo ""; return    # force-stopped: suppress %, not —%
-    fi
-
-    local worktree="$project/.claude/worktrees/$name"
-    local encoded_dir="$HOME/.claude/projects/$(encode_worktree_path "$worktree")"
-    local jsonl ctx_used
-    jsonl=$(ls -t "$encoded_dir"/*.jsonl 2>/dev/null | head -1)
-    [ -z "$jsonl" ] && { echo "—%"; return; }
-    ctx_used=$(jq -rs '
-      [.[] | select(.message.usage != null)] | last |
-      if . == null then empty
-      else ((.message.usage.input_tokens // 0) +
-            (.message.usage.cache_read_input_tokens // 0) +
-            (.message.usage.cache_creation_input_tokens // 0))
-      end
-    ' "$jsonl" 2>/dev/null || true)
-    if [ -z "$ctx_used" ] || [ "$ctx_used" = "null" ]; then
-        echo "—%"
-    else
-        local pct=$(( 100 * (170000 - ctx_used) / 170000 ))
-        [ "$pct" -lt 0 ] && pct=0
-        echo "${pct}%"
-    fi
-}
 
 if [ $# -eq 0 ]; then
     usage
@@ -215,8 +164,7 @@ case "$CMD" in
                     _proj=$(cat "$_f")
                     _status=$(bash -c "source \"$SPAWN\" && worker_status \"\$1\" \"\$2\"" \
                         _ "$_wname" "$_proj" 2>/dev/null || echo "unknown")
-                    _pct=$(context_pct "$_wname" "$_proj")
-                    echo "${_wname}: ${_status}${_pct:+ ${_pct}}  (${_proj})"
+                    echo "${_wname}: ${_status}  (${_proj})"
                 done
             fi
         else
@@ -238,8 +186,7 @@ case "$CMD" in
                     while IFS= read -r wname; do
                         STATUS=$(bash -c "source \"$SPAWN\" && worker_status \"\$1\" \"\$2\"" \
                             _ "$wname" "$PROJECT" 2>/dev/null || echo "unknown")
-                        PCT=$(context_pct "$wname" "$PROJECT")
-                        echo "${wname}: ${STATUS}${PCT:+ $PCT}"
+                        echo "${wname}: ${STATUS}"
                     done <<< "$NAMES"
                 fi
             else
@@ -253,8 +200,7 @@ case "$CMD" in
                         _proj=$(cat "$_f")
                         _status=$(bash -c "source \"$SPAWN\" && worker_status \"\$1\" \"\$2\"" \
                             _ "$_wname" "$_proj" 2>/dev/null || echo "unknown")
-                        _pct=$(context_pct "$_wname" "$_proj")
-                        echo "${_wname}: ${_status}${_pct:+ ${_pct}}"
+                        echo "${_wname}: ${_status}"
                     done
                 fi
             fi
@@ -265,8 +211,7 @@ case "$CMD" in
             PROJECT=$(resolve_worker_project "$NAME" "$OVERRIDE")
             STATUS=$(bash -c "source \"$SPAWN\" && worker_status \"\$1\" \"\$2\"" \
                 _ "$NAME" "$PROJECT" 2>/dev/null || echo "unknown")
-            PCT=$(context_pct "$NAME" "$PROJECT")
-            echo "${STATUS}${PCT:+ $PCT}"
+            echo "${STATUS}"
         fi
         ;;
     capture)
