@@ -18,8 +18,8 @@ Architecture: one tmux session per worker, named `worker-<project>-<name>`. Proj
 - Ghostty 1.2.x: fallback via `open -na` with `--quit-after-last-window-closed` and `--window-save-state=never`
 
 **Orchestration:**
-- `worker_list()` — lists active workers with status (working/idle/exited/unknown) for current project
-- `worker_status()` — returns status of a single worker (working/idle/exited/unknown); reads Monitor_CC menubar's `hooks.json` + applies the `#{window_activity}` demote (normalizes the internal `idle-demoted` sentinel to `idle`)
+- `worker_list()` — lists active workers with status (working/idle/limit reached/unknown) for current project
+- `worker_status()` — returns status of a single worker (working/idle/limit reached/unknown); reads Monitor_CC menubar's `hooks.json` + detects force-stops via `#{window_activity}` stale > 10s
 - `worker_capture()` — captures raw pane to `/tmp/worker-<name>-pane.txt`; legacy / `--raw` fallback
 - `worker_capture_clean()` — scoped+cleaned capture: slices to output since last real `❯` prompt, applies clean filter (strip: boot box, spinners, diff body, widget chrome; keep: tool headers, counters, prose, Bash output); prints to stdout. Default for `worker-cli capture`.
 - `worker_send()` — sends text input to worker's Claude session (tmux send-keys + Enter)
@@ -30,14 +30,11 @@ Architecture: one tmux session per worker, named `worker-<project>-<name>`. Proj
 Single authoritative source: `~/Library/Application Support/com.brunowinter.monitor-cc-menubar/hooks.json`.
 Schema: `{ "<session_id>": { "status": "working"|"idle", ... } }` — written by Monitor_CC lifecycle hooks.
 `_worker_detect_status` logic:
-- **exited** — local process checks: `pane_dead=1`, OR no child PIDs under pane PID, OR no `claude` descendant
+- **limit reached** — local process checks: `pane_dead=1`, OR no child PIDs under pane PID, OR no `claude` descendant (process gone: context-limit death, crash, quit); OR hook status `working` BUT `#{window_activity}` stale (> 10s) — forcefully stopped (ESC / crash / context-limit with alive process). Mirrors Monitor_CC menubar `discover.py:178-181`.
 - **working** — hook status `working` AND tmux `#{window_activity}` fresh (≤ 10s)
 - **idle** — hook status `idle` (Stop hook fired — normal finish)
-- **idle-demoted** (internal sentinel) — hook status `working` BUT `#{window_activity}` stale (> 10s): forcefully stopped (ESC / crash / context-limit with alive process). Mirrors Monitor_CC menubar `discover.py:178-181`. Display callers (`worker_status`, `worker_list`) normalize `idle-demoted`→`idle`; `context_pct` reads it raw to suppress the %.
 - **unknown** — honest: hooks.json missing, no entry for session_id, no JSONL yet, or pane unreadable
 Fail-open: `#{window_activity}` unreadable → no demote (status stays `working`). All paths return exit 0 (verdict, not error).
-
-**Context-% (`context_pct`, `bin/worker-cli`):** context-used = `input_tokens + cache_read_input_tokens + cache_creation_input_tokens` of the last usage entry (true occupied context — cache_read-only undercounted turn-1, where the input sits in cache_creation, → false 100%). `pct = 100*(170000-used)/170000`, clamp ≥ 0. Output: `—%` for exited/unknown/no-usage; empty (suppressed, NOT `—%`) for `idle-demoted`; `<pct>%` otherwise.
 
 **Signal:**
 - `.done` file written on Claude exit for manual checking (`ls /tmp/worker-*.done`)
@@ -72,7 +69,7 @@ Fail-open: `#{window_activity}` unreadable → no demote (status stays `working`
 
 **Shell-Ready Detection:** Keep (implemented) — Direct command arg to `tmux new-session`. Env vars inherited automatically (verified in dev/spawn/test_direct_command.sh). Polling loop eliminated.
 
-**Worker Status Detection:** Implemented — reads Monitor_CC's `hooks.json` (hyphen bundle-id path) AND demotes `working`→`idle-demoted` when tmux `#{window_activity}` is stale > 10s, mirroring the menubar (`discover.py:178-181`). This REVERSES the prior "no demote / verbatim" decision: the kill-while-working guard requires a forcefully-stopped worker (ESC / context-limit, CC alive, Stop never fired) to resolve to idle so it can be killed. The drift that motivated the earlier thin-client redesign was the hooks.json **path** (stable, unchanged here); the demote's only added signal is the rename-proof tmux `#{window_activity}`. `exited` from local pane/process checks; `unknown` when no authoritative data; `remain-on-exit on` keeps pane open for `exited` detection. See `OldThemes/worker_force_stop_detection.md`.
+**Worker Status Detection:** Keep (implemented) — reads Monitor_CC's `hooks.json` + detects force-stops via `#{window_activity}` stale > 10s. Three states + unknown: `limit reached` for all abnormally/forcefully stopped workers (pane_dead, no claude child, stale window_activity); `idle` for normal Stop-hook finish; `working` for active CC. `unknown` when no authoritative data. `remain-on-exit on` keeps pane open for detection. See `OldThemes/worker_force_stop_detection.md`.
 
 **Worker → Main Notification:** Pending — blockiert durch fehlendes `claude inject`. Kein Workaround möglich. `.done` File bleibt als manuelles Signal. Automatische Notification erst wenn #24947 implementiert ist.
 
@@ -82,7 +79,7 @@ Fail-open: `#{window_activity}` unreadable → no demote (status stays `working`
 
 ## Evidenz
 
-- Live repro 2026-06-19 (`status-demo`, ESC-interrupted, full context, claude alive): hooks.json=`working`, `#{window_activity}` age 384s→975s (≫10s) → pre-fix `worker-cli status` = `working`, menubar = `idle` (diverged); post-fix = `idle`. `context_pct`: status-demo last usage `{input:3, cache_read:0, cache_creation:19452}` → cache_read-only formula gave 100%, summed formula gives 88%. Post-publish verification: `status-demo`→`idle` (no %), `status-fix` (normal idle)→`idle 59%` (with %). Detail: `OldThemes/worker_force_stop_detection.md`.
+- Live repro 2026-06-19 (`status-demo`, ESC-interrupted, full context, claude alive): hooks.json=`working`, `#{window_activity}` age 384s→975s (≫10s) → pre-fix `worker-cli status` = `working`, menubar = `idle` (diverged); post-fix = `limit reached`. Detail: `OldThemes/worker_force_stop_detection.md`.
 - agent-of-empires: Shell-Ready Pattern + Status Detection
 - cmux: Community-Validierung tmux+worktree Pattern
 - recon: tmux-native Status Monitoring

@@ -101,19 +101,17 @@ _worker_session_name() {
 # --- Orchestration ---
 
 # _worker_detect_status SESSION
-#   Returns status: working, idle, idle-demoted, exited, or unknown.
+#   Returns status: working, idle, limit reached, or unknown.
 #   Shared logic used by worker_list and worker_status.
-#   Demotes 'working' → 'idle-demoted' when #{window_activity} is stale > 10s (ESC / crash /
-#   context-limit with alive process). Callers that only display normalize idle-demoted → idle;
-#   context_pct reads the sentinel raw to suppress the context % for force-stopped workers.
-#   exited detection (pane_dead + claude-descendant) is orthogonal and unchanged.
+#   'limit reached': process gone (pane_dead=1, no children, no claude descendant) OR
+#   hook_status=working but #{window_activity} stale > 10s (ESC / crash / context-limit).
 _worker_detect_status() {
     local session="$1"
 
     local dead
     dead=$(tmux display-message -t "${session}:^" -p "#{pane_dead}" 2>/dev/null || echo "?")
     if [ "$dead" = "1" ]; then
-        echo "exited"
+        echo "limit reached"
         return 0
     elif [ "$dead" != "0" ]; then
         echo "unknown"
@@ -123,7 +121,7 @@ _worker_detect_status() {
     # Process-tree check: pane_dead is 0 in our zsh/bash-wrapped CC setup even
     # after Claude exits (shell keeps the pane alive). The reliable signal is
     # whether a `claude` descendant of the pane PID still exists. If none →
-    # CC has exited (context-limit death, crash, manual quit) — return "exited"
+    # CC has exited (context-limit death, crash, manual quit) — return "limit reached"
     # instead of falsely reporting "idle".
     local pane_pid
     pane_pid=$(tmux display-message -t "${session}:^" -p "#{pane_pid}" 2>/dev/null)
@@ -131,7 +129,7 @@ _worker_detect_status() {
         local children
         children=$(pgrep -P "$pane_pid" 2>/dev/null || true)
         if [ -z "$children" ]; then
-            echo "exited"
+            echo "limit reached"
             return 0
         fi
         local has_claude=0
@@ -142,7 +140,7 @@ _worker_detect_status() {
             fi
         done
         if [ "$has_claude" = "0" ]; then
-            echo "exited"
+            echo "limit reached"
             return 0
         fi
     fi
@@ -180,7 +178,7 @@ _worker_detect_status() {
         if [[ "$wa" =~ ^[0-9]+$ ]] && [ "$wa" -gt 0 ]; then
             now_ts=$(date +%s)
             if [ $((now_ts - wa)) -gt 10 ]; then
-                echo "idle-demoted"
+                echo "limit reached"
                 return 0
             fi
         fi
@@ -191,7 +189,7 @@ _worker_detect_status() {
 
 # worker_list [PROJECT_PATH]
 #   Lists active worker sessions for the given project (default: pwd).
-#   Output: NAME  STATUS  SPAWNED  PURPOSE per line (STATUS: working/idle/exited/unknown).
+#   Output: NAME  STATUS  SPAWNED  PURPOSE per line (STATUS: working/idle/limit reached/unknown).
 worker_list() {
     local project_path="${1:-$(pwd)}"
     local project
@@ -209,7 +207,6 @@ worker_list() {
         local name="${session_name#$prefix}"
         local status
         status=$(_worker_detect_status "$session_name" 2>/dev/null || echo "unknown")
-        [ "$status" = "idle-demoted" ] && status="idle"
         local spawned
         spawned=$(tmux show-environment -t "$session_name" WORKER_SPAWNED 2>/dev/null | cut -d= -f2)
         [ -z "$spawned" ] && spawned="(?)"
@@ -221,10 +218,10 @@ worker_list() {
 }
 
 # worker_status NAME [PROJECT_PATH]
-#   Returns status: working, idle, exited, or unknown.
+#   Returns status: working, idle, limit reached, or unknown.
 #   working = Claude Code is actively processing
-#   idle = Claude Code is waiting for input (prompt visible)
-#   exited = pane process has terminated
+#   idle = Claude Code is waiting for input (Stop hook fired, normal finish)
+#   limit reached = process gone or forcefully stopped (pane_dead, no claude child, or window_activity stale > 10s)
 worker_status() {
     local name="$1"
     local project_path="${2:-$(pwd)}"
@@ -238,7 +235,7 @@ worker_status() {
 
     local raw
     raw=$(_worker_detect_status "$session")
-    [ "$raw" = "idle-demoted" ] && echo "idle" || echo "$raw"
+    echo "$raw"
 }
 
 # worker_capture NAME [LINES] [PROJECT_PATH]

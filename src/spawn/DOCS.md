@@ -24,7 +24,7 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 
 `worker_capture_clean NAME [PROJECT_PATH]` — captures pane, scopes to output since last real orchestrator `❯` prompt, applies clean filter (see `_capture_clean.py`), prints to stdout. Called by `worker-cli capture` (default). `worker_capture` (raw pane to file) called via `worker-cli capture --raw`.
 
-**Status detection (`_worker_detect_status`):** `exited` from local pane/process checks (`pane_dead`, child PIDs, `claude` descendant); reads `working`/`idle` from `hooks.json[session_id].status` then demotes `working`→`idle-demoted` when tmux `#{window_activity}` is stale > 10s (forcefully-stopped: ESC/crash/ctx-limit, CC alive) — mirrors menubar `discover.py:178-181`. Display callers normalize the `idle-demoted` sentinel→`idle`; `context_pct` reads it raw to suppress the % (force-stopped → `idle` with no number). `unknown` if no authoritative data. Fail-open: window_activity unreadable → no demote. All paths return exit 0. See `decisions/OldThemes/worker_force_stop_detection.md`.
+**Status detection (`_worker_detect_status`):** `limit reached` from local pane/process checks (`pane_dead=1`, no child PIDs, no `claude` descendant) OR hook_status=`working` with `#{window_activity}` stale > 10s (forcefully-stopped: ESC/crash/ctx-limit) — mirrors menubar `discover.py:178-181`; `idle` from `hooks.json[session_id].status` (Stop hook fired); `working` from hooks (activity fresh ≤ 10s); `unknown` if no authoritative data. Fail-open: window_activity unreadable → no demote. All paths return exit 0. See `decisions/OldThemes/worker_force_stop_detection.md`.
 
 **spawn_claude_worker — Prompt-Inject Flow:**
 claude starts bare (no positional prompt arg — prompt never touches the cmdline).
