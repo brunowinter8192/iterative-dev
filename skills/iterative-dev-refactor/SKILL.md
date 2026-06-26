@@ -574,31 +574,15 @@ Implementation goes through workers per `~/.claude/shared-rules/opus/workers-1.m
 
 ## Companion Check: Doc Drift (MANDATORY)
 
-This skill audits code structure. Documentation accuracy is a separate axis that MUST also be checked alongside any refactor session — the rules and the tool live in different places, but a real refactor cycle covers both before workers are dispatched.
-
-**Required reading before scoping refactor workers:**
-
-- `~/.claude/shared-rules/global/documentation.md` — documentation hierarchy, IST/Evidenz/SOLL format, Path & Symbol References convention, No-Bead-References rule
-- `~/.claude/shared-rules/opus/workers-3.md` § 1.3.3 — Recap-time DOCS Drift Check (script + manual checks)
-- `~/.claude/shared-rules/opus/workers-3.md` § 1.3.4 — Recap-time Decisions & Sources Check
-- `~/.claude/shared-rules/opus/workers-3.md` § Persistence Routing table — when decisions/ updates vs DOCS.md only vs OldThemes/
-
-**Required action — run the drift check before dispatching refactor workers:**
+Hard rule: a refactor cycle always checks the docs are current before dispatching workers. Run:
 
 ```bash
 docs-drift-check
 ```
 
-Universal binary at `~/.local/bin/docs-drift-check`, scans the current project (cwd) for: path-existence in indexed docs, LOC-drift in DOCS.md module headings, symbol-existence in src code (whitelist at `<cwd>/scripts/docs_drift_whitelist.txt` or `<cwd>/.drift-whitelist.txt`). Exit code 0 = clean, 1 = drift.
+Universal binary at `~/.local/bin/docs-drift-check`, scans the current project (cwd) for path-existence in indexed docs, LOC-drift in DOCS.md module headings, and symbol-existence in src code (whitelist at `<cwd>/scripts/docs_drift_whitelist.txt` or `<cwd>/.drift-whitelist.txt`). Exit 0 = clean → dispatch. Exit 1 = drift → fix FIRST (separate worker), then dispatch.
 
-**What to do with findings:**
-
-- Drift IS clean → proceed with refactor worker dispatch.
-- Drift found → fix the drift FIRST (worker fix, separate from refactor).
-
-Refactor workers MUST update affected DOCS.md per the file-move checklist (`~/.claude/shared-rules/opus/workers-1.md` § File-Move Checklist) and the Persistence Routing rule (pure refactor → DOCS.md only, no decisions/<step>.md touch unless functional behavior changes per SOLL→IST direction).
-
-The next Recap-time drift check verifies post-refactor state.
+Refactor workers update affected DOCS.md alongside the code change — a moved or renamed module updates its DOCS.md in the same commit.
 
 ## Companion Check: Symbol-Relocation Reference Audit
 
