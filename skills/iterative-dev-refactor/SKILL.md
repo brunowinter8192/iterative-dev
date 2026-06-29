@@ -13,7 +13,7 @@ Systematic audit of a codebase against codified standards. Produces concrete ref
 - Before a major feature addition, to clear technical debt first
 - After a long stretch of feature work, to catch accumulated drift
 
-NOT for routine code review — on-the-fly checks live in `~/.claude/shared-rules/worker/code-standards.md` and `code-organization.md` and fire automatically through worker prompts. This skill is the dedicated session-level audit.
+NOT for routine code review — on-the-fly checks live in the worker code-standards and code-organization rules and fire automatically through worker prompts. This skill is the dedicated session-level audit.
 
 ## Scope
 
@@ -33,7 +33,7 @@ For non-Python codebases adapt the AST scripts to the equivalent parser; the wor
 
 Confirm which standards apply BEFORE scanning.
 
-1. Read `~/.claude/shared-rules/worker/code-standards.md` and `code-organization.md` — the on-the-fly rules; the skill scans against them.
+1. The standards you scan against are the worker code-standards and code-organization rules — already in your context. Calibrate against them.
 2. Read the project's `CLAUDE.md` and `src/DOCS.md` — captures project-specific exceptions ("module-level state is documented and intended", "this entry-point lives at root by design").
 3. Note documented exceptions explicitly before Phase 2.
 
@@ -104,7 +104,7 @@ Read with: `python3 /tmp/refactor_funclen.py`
 
 #### 2.3 Argument-Mutation AST Scan
 
-Standard (per code-standards.md Immutability section): functions MUST NOT mutate their arguments. Detects the hidden-side-effect anti-pattern.
+Standard (Immutability): functions MUST NOT mutate their arguments. Detects the hidden-side-effect anti-pattern.
 
 ```python
 # /tmp/refactor_argmut.py
@@ -570,7 +570,7 @@ For each HARD item:
 - Estimate import-update impact (how many callers need updating)
 - Name the worker that will execute the refactor (one worker per coherent unit; do not bundle unrelated refactors)
 
-Implementation goes through workers per `~/.claude/shared-rules/opus/workers-1.md` — Opus does not edit source code.
+Implementation goes through workers — Opus does not edit source code.
 
 ## Companion Check: Doc Drift (MANDATORY)
 
@@ -613,7 +613,7 @@ A silent-fallback finding (2.8) cannot be auto-fixed by a worker. The fix is a r
 3. **Move the safety check from runtime to test.** Replace the runtime fallback with a test-time invariant: `source + recorded operations == produced output`, asserted over a real corpus and kept as a CI regression test. A failure there = a code site that forgot to record = fix the site.
 4. **Production runs one way.** After (1)–(3): one deterministic route, no fallback, no dedup-patch, no "best-effort". Any retained tripwire refuses-and-surfaces; it never guesses.
 
-**Validate in `dev/` before touching `src/`.** Build the redesign as a `dev/` probe, prove exact equivalence on real data across ALL operation types, THEN port to `src/` and delete the fallback chain. Do not modify `src/` during the exploration (dev/-first rule, `~/.claude/shared-rules/global/documentation.md`).
+**Validate in `dev/` before touching `src/`.** Build the redesign as a `dev/` probe, prove exact equivalence on real data across ALL operation types, THEN port to `src/` and delete the fallback chain. Do not modify `src/` during the exploration (dev/-first rule).
 
 **Anti-pattern — the self-defeating hedge:** prove the one-way path in `dev/` and then STILL ship a runtime fallback "just in case". After a passing `dev/` proof with the invariant in CI, production needs no fallback — at most a refuse-and-surface tripwire for genuinely-novel input.
 
@@ -646,7 +646,7 @@ For ad-hoc invocations (user asks for one specific dimension only), present that
 
 ## Anti-Patterns
 
-- Scanning before reading the project's code-standards files
+- Scanning before calibrating against the code-standards and code-organization rules
 - Cosmetic LOC shrinking (trim blanks, merge comments) treated as a split — never counts
 - Mixing rule-violations with personal style preferences — this skill audits against codified rules only
 - Refactoring without a worker — Opus reviews findings, workers implement
