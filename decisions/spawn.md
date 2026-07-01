@@ -7,6 +7,7 @@ Architecture: one tmux session per worker, named `worker-<project>-<name>`. Proj
 **Spawning:**
 - `spawn_claude_worker()` — creates tmux session with direct command arg (no shell-ready polling), writes prompt to temp file, launches `claude-patched --model <model>` with prompt from file
 - `spawn_claude_worker_from_file()` — same but reads prompt from existing file
+- Default model: `claude-sonnet-5` (Sonnet 5, native 1M context, no beta header / env var needed — model name alone selects it) — set in `spawn.py` argparse default, both `tmux_spawn.sh` shell defaults, and the `worker_revive` fallback. `opus` remains selectable via the `model` arg/param at every call site; `spawn.py`'s argparse carries no `choices=` allowlist — the value passes straight through to `claude --model '<model>'`.
 - Direct command execution: command passed as arg to `tmux new-session` — env vars inherited automatically
 - `remain-on-exit on` set atomically via `;` chain — pane stays open after process exit for status detection
 - `history-limit 50000` set at spawn and revive — ensures the prompt anchor (`❯ <non-whitespace>`) stays in scrollback even after a long worker turn

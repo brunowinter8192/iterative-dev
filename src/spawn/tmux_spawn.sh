@@ -515,7 +515,7 @@ spawn_claude_worker() {
     local _session_ignored="${1:-}"
     local name="$2"
     local project_path="$3"
-    local model="${4:-sonnet}"
+    local model="${4:-claude-sonnet-5}"
     local task_prompt="$5"
     local extra_flags="${6:---dangerously-skip-permissions}"
 
@@ -625,7 +625,7 @@ spawn_claude_worker_from_file() {
     local session="${1:-}"
     local name="$2"
     local project_path="$3"
-    local model="${4:-sonnet}"
+    local model="${4:-claude-sonnet-5}"
     local prompt_file="$5"
     local extra_flags="${6:---dangerously-skip-permissions}"
 
@@ -712,7 +712,7 @@ worker_revive() {
     # Restore stored env vars from the dead session BEFORE killing it
     local model purpose parent
     model=$(tmux show-environment -t "$session" WORKER_MODEL 2>/dev/null | cut -d= -f2-)
-    [ -z "$model" ] && model="sonnet"
+    [ -z "$model" ] && model="claude-sonnet-5"
     purpose=$(tmux show-environment -t "$session" WORKER_PURPOSE 2>/dev/null | cut -d= -f2-)
     [ -z "$purpose" ] && purpose="(?)"
     parent=$(tmux show-environment -t "$session" WORKER_PARENT 2>/dev/null | cut -d= -f2-)

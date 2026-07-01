@@ -111,7 +111,7 @@ if __name__ == "__main__":
     parser.add_argument("name", help="Worker name (branch + tmux session suffix)")
     parser.add_argument("prompt_file", help="Absolute path to prompt file")
     parser.add_argument("project_path", help="Absolute path to project directory")
-    parser.add_argument("model", nargs="?", default="sonnet", choices=["sonnet", "opus"])
+    parser.add_argument("model", nargs="?", default="claude-sonnet-5")
     parser.add_argument("--no-worktree", action="store_true", help="Skip worktree creation, spawn in project dir directly")
     args = parser.parse_args()
     spawn_workflow(args.name, args.prompt_file, args.project_path, args.model, not args.no_worktree)
