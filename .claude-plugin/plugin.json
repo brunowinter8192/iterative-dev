@@ -1,7 +1,7 @@
 {
   "name": "iterative-dev",
   "version": "1.0.0",
-  "description": "Plugin dev tooling \u2014 worker spawning, git automation, plus refactor skill",
+  "description": "Plugin dev tooling \u2014 worker spawning, git automation, plus refactor + doc-check skills",
   "author": {
     "name": "Bruno Winter"
   },
@@ -12,6 +12,7 @@
     "agent"
   ],
   "skills": [
-    "./skills/iterative-dev-refactor/"
+    "./skills/iterative-dev-refactor/",
+    "./skills/iterative-dev-doccheck/"
   ]
 }
