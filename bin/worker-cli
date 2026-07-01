@@ -26,7 +26,7 @@ usage: worker-cli <cmd> [args]
   worktree <name> <target-repo> [branch]                    — create + register cross-project worktree (default branch=<name>)
   worktree-rm <target-repo> <name> [branch]                 — remove cross-project worktree+branch (orphan cleanup, no registry needed)
 
-model: sonnet (default) | opus
+model: claude-sonnet-5 (default) | opus
 Worker names are globally unique (registry-tracked). Project path is required only for spawn;
 other commands auto-resolve via the registry.
 Project path: absolute, ~/, or 'c' (resolves to current git project root, worktree-aware).
@@ -361,7 +361,7 @@ case "$CMD" in
         else
             PROJECT="$REQUESTED"
         fi
-        MODEL="${4:-sonnet}"
+        MODEL="${4:-claude-sonnet-5}"
         WORKTREE_FLAG=""
         [ "${5:-}" = "--no-worktree" ] && WORKTREE_FLAG="--no-worktree"
         cd "$PLUGIN" && python3 -m src.spawn.spawn "$NAME" "$PROMPT_FILE" "$PROJECT" "$MODEL" $WORKTREE_FLAG
