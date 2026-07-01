@@ -24,6 +24,15 @@ Architecture: one tmux session per worker, named `worker-<project>-<name>`. Proj
 - `worker_capture_clean()` — scoped+cleaned capture: slices to output since last real `❯` prompt, applies clean filter (strip: boot box, spinners, diff body, widget chrome; keep: tool headers, counters, prose, Bash output); prints to stdout. Default for `worker-cli capture`.
 - `worker_send()` — sends text input to worker's Claude session (tmux send-keys + Enter)
 
+**Cross-project Worktree Tracking (`bin/worker-cli`):**
+Registry dir: `${WORKER_REGISTRY_DIR:-$HOME/.claude/.worker-registry}` — env-overridable (test isolation).
+- `worker-cli worktree <name> <target-repo> [branch]` — creates `.claude/worktrees/<name>` in target repo on `<branch>` (default `<name>`); validates target is a git repo and worktree doesn't already exist (fails non-zero); appends `<target-repo>\t<branch>` to `$REGISTRY_DIR/<name>.worktrees` (sidecar); echoes the absolute worktree path.
+- `worker-cli kill <name>` (extended) — after spawn-side cleanup, reads `$REGISTRY_DIR/<name>.worktrees` line-by-line; for each entry: `git worktree remove --force` + `git branch -D` in the target repo (both best-effort: `2>/dev/null || echo not-found`); deletes the sidecar file. `registry_delete` always executes regardless of sidecar results.
+- `worker-cli worktree-rm <target-repo> <name> [branch]` — removes cross-project worktree + branch directly (best-effort); for orphans predating sidecar registration.
+- `list` / `status --all` — skip `*.worktrees` files in registry dir loop; only plain-name files are treated as worker entries.
+
+Sidecar format: `$REGISTRY_DIR/<name>.worktrees`, one `<abs-target-path>\t<branch>` per line (tab-separated). Multiple cross-project worktrees for one worker = multiple lines.
+
 **`worker-cli capture` (IST):** defaults to `worker_capture_clean` (clean+scoped output to stdout). `--raw` falls back to `worker_capture` (raw pane to file, prints path). Implemented in `_capture_clean.py` (`src/spawn/`), called from `worker_capture_clean()` in `tmux_spawn.sh`.
 
 **Status Detection (IST):**
