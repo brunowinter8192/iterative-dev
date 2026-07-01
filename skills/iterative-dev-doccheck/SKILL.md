@@ -1,125 +1,155 @@
 ---
 name: iterative-dev-doccheck
-description: Systematic documentation & structure compliance check. Use when the user asks to check/audit a project's docs and folder structure against the documentation rules. Two passes: Opus runs all six steps solo — structure, then deep-dives into decisions, OldThemes, DOCS, dev, skills — fixing docs and folders and collecting source-touching fixes, then commits; a worker re-runs the six steps one at a time, reporting to Opus, who on agreement sends it to implement the source-touching fixes. Step 6, skills, is report-only and runs last — skill edits need the user's approval. The doc-side counterpart to iterative-dev-refactor.
+description: Systematic documentation & structure compliance check. Use when the user asks to check/audit a project's docs and folder structure against the documentation rules. Two passes that BOTH check everything — structure (decision↔OldThemes matching), decisions deep-dive, OldThemes assignment via RAG, dev, DOCS via pattern-scripts, a language sweep, and skills. Opus runs all steps solo and fixes decisions/ + OldThemes/; a worker re-runs all steps one at a time and fixes dev/ (and patches any decisions/OldThemes miss Opus left). Two user gates: Opus reports before spawning the worker, and again when the worker is done. Skills is report-only and runs last — skill edits need the user's approval. The doc-side counterpart to iterative-dev-refactor.
 ---
 
 # Doc & Structure Check
 
-Audit of a project's documentation and folder structure against the documentation rules, in two passes. In Pass 1, Opus runs all six steps solo — applying every doc-and-folder fix, collecting the source-touching ones, without reporting to the user between steps — then commits. In Pass 2, a worker re-runs the six steps one at a time on that commit, reporting to Opus after each; Opus reviews each report against its Pass-1 work and, where they agree, sends the worker to implement the source-touching fix. Opus never edits source; the worker does. Step 6, the skills check, is the exception: it runs last, report-only — its findings go to the user, and a SKILL.md is edited only after the user approves, since skills are prod-critical.
+Audit docs + folder structure against the documentation rules, in two passes. Both passes investigate EVERYTHING identically and flag the same findings; they differ only in who may APPLY a fix (§ What each agent does). Two user gates: Opus reports after Pass 1 (before spawning the worker) and after Pass 2. Step 7 (skills) is report-only — SKILL.md edits need user approval.
+
+## The rule is the fence
+
+The rules are the standard, not the project's current state. NEVER accept an existing structure as a "project convention" that excuses a deviation — "it's consistent everywhere" is not a defense; a consistent deviation is still a deviation. Diverges from a rule → the rule wins: flag it, bring it into line. A deviation stays only on an explicit user decision, never on your own "it already works".
 
 ## Scope
 
-Project root (cwd). Surfaces:
-- `decisions/` and `decisions/OldThemes/`
-- `dev/`
-- every `DOCS.md`
-- `skills/*/SKILL.md`
+Project root (cwd). Surfaces: `decisions/` + `decisions/OldThemes/`, `dev/`, every `DOCS.md`, `skills/*/SKILL.md`.
+Filter runtime artifacts every step: `__pycache__/`, `.git/`, `venv/`, `.venv/`, `node_modules/`, `.claude/worktrees/`.
 
-Filter runtime artifacts in every step: `__pycache__/`, `.git/`, `venv/`, `.venv/`, `node_modules/`, `.claude/worktrees/`.
+## What each agent does
+
+Investigation + flagging: IDENTICAL for both — same surfaces, same findings. They differ in one thing, who APPLIES a fix:
+
+- Documentation fixes (`decisions/`, `decisions/OldThemes/`, every `DOCS.md` incl. dev) — either agent; whoever finds it fixes it.
+- Source-code fixes (`dev/` scripts, `.py`, in-code paths, file/folder renames) — WORKER only; Opus never edits source.
+
+Pass 1: Opus fixes the docs it finds, flags the source fixes. Pass 2: the worker re-checks everything on Opus's committed state, fixes any doc miss, applies the flagged source fixes.
 
 ## Workflow
 
-### Pass 1 — Opus, solo
+### Pass 1 — Opus solo → Gate 1
 
-Run the six steps end to end. For Steps 1-5, apply every doc-and-folder fix as you go and note the source-touching fixes (script renames, in-code path changes, source moves or deletions) for Pass 2; Step 6 (skills) is REPORT-ONLY — check it, but never edit a SKILL.md. Do NOT stop to report to the user between steps — pull straight through. When done, COMMIT the doc-and-folder work: the worker's worktree branches from the last commit, so an uncommitted Pass 1 is invisible to it.
+Run all steps across every surface. Per step: read → state findings in chat → fix (docs you apply directly; source fixes you flag for the worker). Do NOT go idle between steps. Step 7 is report-only. Then COMMIT the doc work (the worker branches from it) → report fixes + what you flagged for the worker → **Gate 1**. Wait for approval before spawning the worker.
 
-### Pass 2 — Worker, step by step
+### Pass 2 — Worker step-by-step → Gate 2
 
-Spawn one worker on the committed state and have it activate this skill. It runs the six steps one at a time and reports to you after each — check 1, report; check 2, report; through six. For Steps 1-5: review the worker's findings against your Pass-1 work and, where you agree, send the worker to implement the source-touching fix (rename a report script with its `NN_` prefix, change an in-code path, move or delete a source file — confirm any deletion with the user first). For Step 6, the worker only reports — no skill edit. After each worker send, set a timer per the standard loop before the next.
+On approval, re-sync the docs RAG index yourself first — Opus updates docs, NOT the worker — so Step-3 RAG runs on the current structure. This mid-check sync is MANDATORY and overrides the global rule "RAG sync only at recap, never mid-session". Spawn one worker on the committed state, have it activate this skill. It branches from the Pass-1 commit: your doc fixes are already in place, it checks that fixed state. It runs the steps one at a time, reports after each. Left for it: doc misses you left + the flagged source fixes. Review each report vs your Pass-1 work; where you agree, send it to apply (rename a report script with its `NN_` prefix, change an in-code path, move/merge/delete a dev file — confirm deletions with the user). Converge first — never send a fix you and it disagree on. Step 3 RAG: this skill authorizes the worker to run `rag-cli` (Bash), the one place a worker uses RAG. Step 7: worker reports only, no skill edit. Timer after each send. At Step 7, read the skill yourself to judge its findings → report → **Gate 2**.
 
-Step 6 runs last, so skills are fresh in context. Skills are prod-critical: hand the skill findings to the user with the consolidated report, and edit a SKILL.md only after the user approves.
-
-The six steps, shared by both passes:
-
-1. Structure — the folder skeleton
+Steps (both passes):
+1. Structure — decision ↔ OldThemes matching
 2. decisions — deep dive
-3. OldThemes — deep dive
-4. DOCS — deep dive
-5. dev — deep dive
-6. skills — deep dive
+3. OldThemes — assignment (RAG) + content (grep)
+4. dev — deep dive
+5. DOCS — structural checks via scripts
+6. Language — non-English sweep
+7. skills — deep dive (report-only, last)
 
 ## Step 1 — Structure
 
-The folder skeleton only, not file contents. An area carries the SAME name in `decisions/<area>.md`, `decisions/OldThemes/<area>/`, and `dev/<area>/`; OldThemes is always a subfolder.
+One thematic area = one `decisions/<area>.md` + one same-named `decisions/OldThemes/<area>/` + same name in `dev/<area>/`. Splitting a decision file in two and moving its OldThemes with it is allowed. Target shape:
 
-Collect three name sets: the decision-file stems (every `*.md` directly in `decisions/`, excluding the `OldThemes/` subtree), the OldThemes folder names (the subdirectories of `decisions/OldThemes/`), and the dev area names (the subdirectories of `dev/`, excluding `cleanup/`). Compare the sets and flag:
+```
+decisions/
+├── auth.md
+├── delivery.md
+├── retrieval.md
+└── OldThemes/
+    ├── auth/
+    ├── retrieval/
+    └── ...
+```
 
-- a decision-file stem with no matching OldThemes folder
-- an OldThemes folder with no matching decision file
-- a dev area with no matching decision file
+A decision file with no process history needs no OldThemes folder (`delivery.md`). An OldThemes folder without a same-named decision file must never exist.
 
-Then hunt stragglers — anything hanging outside the area skeleton:
+Step 1 = match decision-file stems (every `*.md` directly in `decisions/`, excluding `OldThemes/`) against OldThemes folder names. Name matches → fine. Flag only:
 
-- any `.md` sitting directly in `decisions/OldThemes/` instead of inside an area subfolder — a stray OldThemes file
-- any loose file or folder in `dev/` that is neither an area subfolder nor `cleanup/` — a stray script or report with no area home
+- decision file with no same-named OldThemes folder
+- OldThemes folder with no same-named decision file
+- any `.md` loose directly in `decisions/OldThemes/` (straggler)
+
+Carry mismatches to Step 3. Do NOT read OldThemes files here. Do NOT look at `dev/` here — that is Step 4.
 
 ## Step 2 — decisions Deep-Dive
 
-Read each `decisions/<area>.md` against the decision-file rules:
+Read every `decisions/<area>.md` in full (few + small). Per file: check the rules, state findings, fix (decision files are docs). This also loads their content for Step 3.
 
-- Sections present appear in order: Status Quo (IST), Evidenz, Offene Fragen, Quellen. Sections are optional — an empty one is omitted, never padded with filler. Flag filler and out-of-order sections.
-- No SOLL — no `SOLL` token, no `Recommendation (SOLL)` section, nothing about a desired future state (that belongs in an issue). Ignore the German phrase "soll ich".
-- No issue references — no `#`-number, no `/issues/` URL.
-- Every IST claim that has evidence lists it in Evidenz — flag an IST assertion standing without any backing.
-- Evidenz cites the dev report (script, report-MD, dataset) and carries only the key result — flag a full report copied into the file.
+- Sections in order: IST, Evidenz, Offene Fragen, Quellen. Empty section omitted, never padded (`None.`, `No benchmarks run.`) — fix filler + out-of-order.
+- No SOLL — no `SOLL` token, no `Recommendation (SOLL)` section, no desired-future-state (→ issue). ("soll ich" chat phrase excepted.)
+- No issue references (`#`-number, `/issues/`).
+- IST resting on a measurement (benchmark, timing, "better/faster than X") cites it in Evidenz; plain behavioral/config description (readable from code) needs none. Fix only a measured claim missing its evidence.
+- Evidenz cites the dev report (script, report-MD, dataset), key result only — fix a full report pasted in.
 
 ## Step 3 — OldThemes Deep-Dive
 
-Read the files inside each `decisions/OldThemes/<area>/` folder:
+Two stages. Never read a whole OldThemes file — RAG chunks + grep only.
 
-- They hold the process trail — what was tried, rejected, superseded, the iteration history.
-- No issue references — not even for an issue that was part of the flow at the time.
-- Superseded measurements are kept as historical record, never presented as the current IST.
-- English throughout.
+### Stage 1 — assignment (RAG)
 
-## Step 4 — DOCS Deep-Dive
+Input = Step-1 mismatches (unmatched decision files, unmatched folders, stragglers). One decision file at a time:
 
-Read each `DOCS.md` against the DOCS.md format:
+1. Unmatched decision file (content known from Step 2).
+2. ONE RAG query, its topic/IST, scoped to STILL-UNASSIGNED folders — a paired folder drops out. Path scope: `--document "%OldThemes/<folder>/%"` includes, `--exclude "%OldThemes/<folder>/%"` drops:
+   `rag-cli search_hybrid "<topic>" <Project>-docs --exclude "%OldThemes/<already-paired>/%"`
+   (with `auth`/`retrieval`/`discovery`, `discovery` paired → include `auth`+`retrieval`, exclude `discovery`).
+3. Chunks (not whole files) → the folder dominating the top hits is the match.
+4. Rename that folder to the decision stem; drop it from the pool.
+5. Next decision file — one query each.
 
-- Placement — it sits at the level of the `.py` files it documents.
-- Structure — Role, Public Interface, Flow, Modules (each: Purpose, Reads, Writes, Called-by, Calls-out), State, Gotchas. Sections optional; entries are module-level, no function-level docs.
-- LOC numbers in module headings match the actual `wc -l` of each file.
-- Describes WHAT, not HOW. No issue references.
+Straggler `.md`: same query on its content → `git mv` into the best match, or a new area-named folder if none fits.
 
-Then run the `docs-drift-check` binary (`~/.local/bin/docs-drift-check`) in the project root: path-existence in indexed docs, LOC-drift in DOCS.md headings, symbol-existence in src, honoring the whitelist at `<cwd>/scripts/docs_drift_whitelist.txt` or `<cwd>/.drift-whitelist.txt`. Exit 0 = clean; exit 1 = drift → list the drifted entries.
+Never pull an `.md` OUT of a folder — files stay together. Only moves: rename a folder to its decision stem, create a folder for a straggler, drop a straggler into an existing folder. In Pass 2 the worker runs the same queries and moves what it agrees on.
 
-## Step 5 — dev Deep-Dive
+### Stage 2 — content (grep, never read files)
 
-Inside each `dev/<area>/`, check the report convention:
+Grep the OldThemes files (or act on Stage-1 RAG chunks). Check:
 
-- A report-producing script is numbered (`01_`, `02_`, …); a script that produces no report is not numbered.
-- Its report carries the same number and lives in a `md/`, `csv/`, or `png/` folder — flag a report file outside those type-folders, and a file inside them without a `NN_` number prefix.
-- Reports never go to console — open each numbered `[0-9]*_*.py` and confirm its results go to a file, not `print`.
-- dev scripts are documented at their own level (dev `DOCS.md`): purpose, usage, CLI flags, expected output.
+- issue references (`#`-number, `/issues/`)
+- present-tense "current"/"production" claims — OldThemes is historical, these go stale
+- a superseded measurement presented as current IST
 
-## Step 6 — skills Deep-Dive (report only, last)
+State findings, fix.
 
-`skills/*/SKILL.md` files are procedures, not essays. A skill states WHAT it does (capability + output) and HOW (steps, commands, thresholds, output formats, rules — including "do NOT X"). It does NOT explain WHY.
+## Step 4 — dev Deep-Dive
 
-Removability test (per sentence/clause): can the reader still execute exactly what the skill describes if this clause is removed? Yes → it is WHY → cut it. A concrete example stays only when it shows HOW to decide.
+Three sub-steps. Opus FLAGS only; the worker applies every source change (folder renames, in-code paths, report moves).
 
-For each `SKILL.md` under the repo's `skills/` tree, read it and flag WHY-content by signature:
+**4a — structure.** Match `dev/` folder names against decision stems. Flag: a dev folder with no same-named decision file; any file loose in `dev/` with no folder home — incl. a maintenance/utility script (reclean, one-shot fixer): it goes in its thematic `dev/<area>/`, unnumbered if it emits no report. No exempt catch-all folder — every dev file resolves to an area. Name-matches stay.
+
+**4b — assignment.** Per unassigned dev folder: read that folder's `DOCS.md` (or the root module docstring if none) — the dev RAG-replacement; its own doc states its area. Rename to the decision stem.
+
+**4c — report convention.** Report-producing script numbered (`01_`, …); non-report script unnumbered; every report in the area's `md/`/`csv/`/`png/` folder with its script's `NN_` prefix. A per-script `NN_<name>_reports/` folder is wrong → reports in the shared type-folder, script's in-code output path points there. Reports never to console — a numbered script writes to a file. Opus flags; the worker applies renames, moves, in-code paths.
+
+## Step 5 — DOCS Deep-Dive
+
+Three structural checks via heredoc / `/tmp` scripts — not by reading every `DOCS.md`:
+
+1. **Schema** — each `DOCS.md`: Role, Public Interface, Flow, Modules (each: Purpose, Reads, Writes, Called-by, Calls-out), State, Gotchas; module-level only.
+2. **References resolve** — every file a `DOCS.md` names exists on disk.
+3. **No orphans** — every `.py` at a `DOCS.md`'s level appears in it.
+
+State findings, fix the `DOCS.md` directly (all DOCS.md are documentation).
+
+## Step 6 — Language
+
+Grep every surface (`decisions/`, `OldThemes/`, every `DOCS.md`, `dev/` reports, code comments) for non-English — German tokens, any glossed `(German)` term. Found → translate to English, values + meaning exact (a superseded number stays historical, never silently updated). "soll ich" excepted only as chat, never in an artifact.
+
+## Step 7 — skills Deep-Dive (report-only, last)
+
+`skills/*/SKILL.md` = procedure, not essay: states WHAT (capability + output) and HOW (steps, commands, thresholds, formats, rules incl. "do NOT X"), never WHY.
+
+Removability test per clause: reader still executes exactly the same without it? Yes → WHY → cut. A concrete example stays only when it shows HOW to decide.
+
+Read each `SKILL.md` under `skills/`, flag WHY-content by signature:
 
 | Signature | Example | Action |
 |---|---|---|
-| Justification clause | "raw and maximal — content not captured here is gone for good" | cut the clause, keep the instruction |
-| Cause / mechanism explanation | "the plugin cache has NO venv, so a plugin-relative path fails" | cut |
-| Rationale section | a section titled "Why X matters" | delete the whole section |
-| Historical / evidence note | "(verified on 278 files)", "previous runs failed here" | cut the note |
-| Illustrative "what happens otherwise" | "the same anchor on every query just returns the same top sources" | cut |
-| `because` / `so that` / `in order to` / `which means` | any clause led by these | cut the clause |
+| Justification clause | "raw and maximal — content not captured is gone for good" | cut clause, keep instruction |
+| Cause / mechanism | "the plugin cache has NO venv, so a plugin-relative path fails" | cut |
+| Rationale section | a "Why X matters" section | delete section |
+| Historical / evidence note | "(verified on 278 files)", "previous runs failed here" | cut |
+| Illustrative "what happens otherwise" | "the same anchor just returns the same top sources" | cut |
+| `because` / `so that` / `in order to` / `which means` | any clause led by these | cut clause |
 
-Keep — never flag as why: commands, file paths, thresholds, output formats, parameter tables, ordering rules, prohibitions ("do NOT X"), behavior facts the procedure depends on, and decision-examples.
+Keep — never flag: commands, paths, thresholds, output formats, parameter tables, ordering rules, prohibitions, behavior facts the procedure depends on, decision-examples.
 
-Findings are REPORT-ONLY: skills are prod-critical, so neither Opus nor the worker edits a SKILL.md here. Hand the WHY-content findings to the user with the consolidated report; the stripping happens only after the user approves it.
-
-## Anti-Patterns
-
-- Opus stopping to report to the user between steps — Pass 1 pulls straight through
-- Spawning the Pass-2 worker before committing Pass 1 — it would branch from the pre-Pass-1 state
-- Opus editing source to fix a finding — source-touching fixes are the worker's, on agreement
-- Sending the worker to implement a fix you and it do not agree on — converge first
-- Treating a stray root-level OldThemes `.md` as acceptable — it must live inside an area subfolder
-- Lifting a full dev report into a decision file — key evidence only; the report stays in `dev/<area>/`
-- "Fixing" a flagged empty section by writing filler — empty beats invented
-- Editing a SKILL.md during the check — skills are prod-critical; report the findings and let the user approve the edit
+REPORT-ONLY: neither agent edits a SKILL.md here. Hand WHY-findings to the user with the Gate-2 report; strip only after user approval.
