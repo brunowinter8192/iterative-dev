@@ -572,15 +572,9 @@ For each HARD item:
 
 Implementation goes through workers — Opus does not edit source code.
 
-## Companion Check: Doc Drift (MANDATORY)
+## Companion Check: Doc Drift Gate (MANDATORY)
 
-Hard rule: a refactor cycle always checks the docs are current before dispatching workers. Run:
-
-```bash
-docs-drift-check
-```
-
-Universal binary at `~/.local/bin/docs-drift-check`, scans the current project (cwd) for path-existence in indexed docs, LOC-drift in DOCS.md module headings, and symbol-existence in src code (whitelist at `<cwd>/scripts/docs_drift_whitelist.txt` or `<cwd>/.drift-whitelist.txt`). Exit 0 = clean → dispatch. Exit 1 = drift → fix FIRST (separate worker), then dispatch.
+Before dispatching refactor workers, run `docs-drift-check` (cwd). Exit 0 = clean → dispatch. Exit 1 = drift → fix FIRST (separate worker), then dispatch. Full doc/structure verification lives in the `iterative-dev-doccheck` skill.
 
 Refactor workers update affected DOCS.md alongside the code change — a moved or renamed module updates its DOCS.md in the same commit.
 
@@ -597,7 +591,7 @@ grep -rnE "\b<old_owner>\b\.?_?<symbol>\b" <affected_tree>
 # Expected: references only via the new owner/module; zero via the old path.
 ```
 
-Whitelist symbols deliberately left in place (e.g. shared state intentionally kept on the original owner — name them so they are not false-flagged). Belongs in the Phase 4 Refactor Plan deliverables for any relocation-type refactor, alongside the doc-drift companion.
+Whitelist symbols deliberately left in place (e.g. shared state intentionally kept on the original owner — name them so they are not false-flagged). Belongs in the Phase 4 Refactor Plan deliverables for any relocation-type refactor, alongside the doc-drift gate.
 
 ## Companion Check: One-Way Redesign Evaluation (Silent-Fallback findings)
 
@@ -616,27 +610,6 @@ A silent-fallback finding (2.8) cannot be auto-fixed by a worker. The fix is a r
 **Validate in `dev/` before touching `src/`.** Build the redesign as a `dev/` probe, prove exact equivalence on real data across ALL operation types, THEN port to `src/` and delete the fallback chain. Do not modify `src/` during the exploration (dev/-first rule).
 
 **Anti-pattern — the self-defeating hedge:** prove the one-way path in `dev/` and then STILL ship a runtime fallback "just in case". After a passing `dev/` proof with the invariant in CI, production needs no fallback — at most a refuse-and-surface tripwire for genuinely-novel input.
-
-## Companion Check: Skill Prose — What + How, No Why
-
-`skills/*/SKILL.md` files are procedures, not essays. A skill states WHAT it does (capability + output) and HOW to do it (steps, commands, thresholds, output formats, rules — including "do NOT X"). It does NOT explain WHY.
-
-**Removability test (apply per sentence/clause):** can the reader still execute exactly what the skill describes if this clause is removed? If yes → it is WHY → cut it. A concrete example stays only when it shows HOW to decide, not why a choice was made.
-
-**Audit procedure:** for each `SKILL.md` under the repo's `skills/` tree, read it and flag WHY-content by signature:
-
-| Signature | Example | Action |
-|---|---|---|
-| Justification clause | "raw and maximal — content not captured here is gone for good" | cut the clause, keep the instruction |
-| Cause / mechanism explanation | "the plugin cache has NO venv, so a plugin-relative path fails" | cut |
-| Rationale section | a section titled "Why X matters" | delete the whole section |
-| Historical / evidence note | "(verified on 278 files)", "previous runs failed here" | cut the note |
-| Illustrative "what happens otherwise" | "the same anchor on every query just returns the same top sources" | cut |
-| `because` / `so that` / `in order to` / `which means` | any clause led by these | cut the clause |
-
-**Keep — never flag as why:** commands, file paths, thresholds, output formats, parameter tables, ordering rules, prohibitions ("do NOT X"), behavior facts the procedure depends on (e.g. "`rag-cli index` is incremental — re-running only embeds new/changed files"), and decision-examples (e.g. "drop off-topic sections — e.g. a REST capture aimed at `search` does not need `enterprise-admin`").
-
-**What to do with findings:** strip the why in place — keep every procedure, command, threshold, and rule intact. `SKILL.md` is documentation-class — Opus edits it directly (no worker). Re-read each edited skill end-to-end to confirm it still reads as an executable procedure.
 
 ## Output Format
 
