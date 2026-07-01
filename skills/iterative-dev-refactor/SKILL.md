@@ -19,7 +19,9 @@ Every scan honors this SKIP scope. Opus writes each scan itself from the descrip
 
 ## Workflow
 
-Run the phases in order, one at a time. For each phase: run its scan, present the findings, dispatch the refactor through workers (one worker per coherent unit — do not bundle unrelated refactors), and only once that phase's refactors are merged move to the next phase. Never scan all phases up front — Phase N's fixes land before Phase N+1 starts. Part 2 runs last, with the same rhythm.
+Run the phases in order, one at a time. For each phase: run its scan, dispatch the refactor through workers (one worker per coherent unit — do not bundle unrelated refactors), and only once that phase's refactors are merged move to the next phase. Never scan all phases up front — Phase N's fixes land before Phase N+1 starts. Part 2 runs last, with the same rhythm.
+
+**Run autonomously — report once at the end.** Do NOT stop for user remarks after each phase. Drive the whole scan end-to-end with the worker step by step (scan → dispatch → cross-model evaluate → Go → review → recap → merge → next phase), and surface ONE consolidated summary to the user at the very end: what each phase found and which refactors were implemented and merged. The single exception is a Phase 4 genuine-fallback finding routed to the One-Way Redesign Evaluation — that redesign is a scope decision worked through WITH the user, so it interrupts the autonomous run.
 
 Before dispatching ANY worker, run the doc-drift gate (below). Opus does the analysis and the dispatch; workers refactor; Opus does not edit source code.
 
@@ -138,11 +140,12 @@ A silent-fallback finding cannot be auto-fixed by a worker. The fix is a redesig
 
 ## Output Format
 
-Findings inline in chat, per phase — Opus runs the scan, presents the findings, dispatches the refactor, then moves on. No file is written. For ad-hoc invocations (one phase or one dimension only), present that finding and skip the rest.
+One consolidated summary at the END of the run — not per phase. Opus runs each phase's scan, dispatches, reviews, and merges autonomously, and only at the very end presents the user a single prose summary: per phase what was found, and which refactors were implemented and merged. No file is written. For ad-hoc invocations (one phase or one dimension only), present that single finding and skip the rest.
 
 ## Anti-Patterns
 
 - Scanning all phases up front instead of findings-then-refactor, one phase at a time
+- Stopping to ask the user after each phase — the run is autonomous with one end-of-run summary (except a Phase 4 fallback redesign, which is worked through with the user)
 - Softening a threshold to fit a project — the numbers are fixed; only the way the scan is written adapts
 - Cosmetic LOC shrinking (trim blanks, merge comments) treated as a split — never counts
 - Mixing rule-violations with personal style preferences — this skill audits against codified rules only
