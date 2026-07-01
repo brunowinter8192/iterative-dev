@@ -1,11 +1,11 @@
 ---
 name: iterative-dev-doccheck
-description: Systematic documentation & structure compliance check. Use when the user asks to check/audit a project's docs and folder structure against the documentation rules. Runs six sequential steps — structure, then deep-dives into decisions, OldThemes, DOCS, dev, skills — findings and fixes one step at a time. The doc-side counterpart to iterative-dev-refactor.
+description: Systematic documentation & structure compliance check. Use when the user asks to check/audit a project's docs and folder structure against the documentation rules. Two passes: Opus runs all six steps solo — structure, then deep-dives into decisions, OldThemes, DOCS, dev, skills — fixing docs and folders and collecting source-touching fixes, then commits; a worker re-runs the six steps one at a time, reporting to Opus, who on agreement sends it to implement the source-touching fixes. Step 6, skills, is report-only and runs last — skill edits need the user's approval. The doc-side counterpart to iterative-dev-refactor.
 ---
 
 # Doc & Structure Check
 
-Audit of a project's documentation and folder structure against the documentation rules. The whole skill is executed by Opus — findings and fixes, doc content and folders alike. It dispatches no workers.
+Audit of a project's documentation and folder structure against the documentation rules, in two passes. In Pass 1, Opus runs all six steps solo — applying every doc-and-folder fix, collecting the source-touching ones, without reporting to the user between steps — then commits. In Pass 2, a worker re-runs the six steps one at a time on that commit, reporting to Opus after each; Opus reviews each report against its Pass-1 work and, where they agree, sends the worker to implement the source-touching fix. Opus never edits source; the worker does. Step 6, the skills check, is the exception: it runs last, report-only — its findings go to the user, and a SKILL.md is edited only after the user approves, since skills are prod-critical.
 
 ## Scope
 
@@ -19,7 +19,17 @@ Filter runtime artifacts in every step: `__pycache__/`, `.git/`, `venv/`, `.venv
 
 ## Workflow
 
-Six steps, run ONE AT A TIME. For each step: gather the findings, present them, apply the fixes, then move to the next step. Never run all six at once — Step N's fixes land before Step N+1 starts. Findings go inline in chat; no file is written.
+### Pass 1 — Opus, solo
+
+Run the six steps end to end. For Steps 1-5, apply every doc-and-folder fix as you go and note the source-touching fixes (script renames, in-code path changes, source moves or deletions) for Pass 2; Step 6 (skills) is REPORT-ONLY — check it, but never edit a SKILL.md. Do NOT stop to report to the user between steps — pull straight through. When done, COMMIT the doc-and-folder work: the worker's worktree branches from the last commit, so an uncommitted Pass 1 is invisible to it.
+
+### Pass 2 — Worker, step by step
+
+Spawn one worker on the committed state and have it activate this skill. It runs the six steps one at a time and reports to you after each — check 1, report; check 2, report; through six. For Steps 1-5: review the worker's findings against your Pass-1 work and, where you agree, send the worker to implement the source-touching fix (rename a report script with its `NN_` prefix, change an in-code path, move or delete a source file — confirm any deletion with the user first). For Step 6, the worker only reports — no skill edit. After each worker send, set a timer per the standard loop before the next.
+
+Step 6 runs last, so skills are fresh in context. Skills are prod-critical: hand the skill findings to the user with the consolidated report, and edit a SKILL.md only after the user approves.
+
+The six steps, shared by both passes:
 
 1. Structure — the folder skeleton
 2. decisions — deep dive
@@ -82,7 +92,7 @@ Inside each `dev/<area>/`, check the report convention:
 - Reports never go to console — open each numbered `[0-9]*_*.py` and confirm its results go to a file, not `print`.
 - dev scripts are documented at their own level (dev `DOCS.md`): purpose, usage, CLI flags, expected output.
 
-## Step 6 — skills Deep-Dive
+## Step 6 — skills Deep-Dive (report only, last)
 
 `skills/*/SKILL.md` files are procedures, not essays. A skill states WHAT it does (capability + output) and HOW (steps, commands, thresholds, output formats, rules — including "do NOT X"). It does NOT explain WHY.
 
@@ -101,11 +111,15 @@ For each `SKILL.md` under the repo's `skills/` tree, read it and flag WHY-conten
 
 Keep — never flag as why: commands, file paths, thresholds, output formats, parameter tables, ordering rules, prohibitions ("do NOT X"), behavior facts the procedure depends on, and decision-examples.
 
-Findings: strip the why in place — keep every procedure, command, threshold, and rule intact. `SKILL.md` is documentation-class — Opus edits it directly. Re-read each edited skill end-to-end to confirm it still reads as an executable procedure.
+Findings are REPORT-ONLY: skills are prod-critical, so neither Opus nor the worker edits a SKILL.md here. Hand the WHY-content findings to the user with the consolidated report; the stripping happens only after the user approves it.
 
 ## Anti-Patterns
 
-- Running all six steps at once instead of findings-then-fix, one step at a time
+- Opus stopping to report to the user between steps — Pass 1 pulls straight through
+- Spawning the Pass-2 worker before committing Pass 1 — it would branch from the pre-Pass-1 state
+- Opus editing source to fix a finding — source-touching fixes are the worker's, on agreement
+- Sending the worker to implement a fix you and it do not agree on — converge first
 - Treating a stray root-level OldThemes `.md` as acceptable — it must live inside an area subfolder
 - Lifting a full dev report into a decision file — key evidence only; the report stays in `dev/<area>/`
 - "Fixing" a flagged empty section by writing filler — empty beats invented
+- Editing a SKILL.md during the check — skills are prod-critical; report the findings and let the user approve the edit
