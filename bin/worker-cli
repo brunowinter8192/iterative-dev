@@ -6,7 +6,7 @@ set -e
 
 PLUGIN="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/cache/brunowinter-plugins/iterative-dev/1.0.0}"
 SPAWN="$PLUGIN/src/spawn/tmux_spawn.sh"
-REGISTRY_DIR="$HOME/.claude/.worker-registry"
+REGISTRY_DIR="${WORKER_REGISTRY_DIR:-$HOME/.claude/.worker-registry}"
 
 usage() {
     cat <<'EOF'
@@ -18,17 +18,21 @@ usage: worker-cli <cmd> [args]
   capture <name> [--raw]                                     — clean output since last prompt (--raw: raw pane to file)
   response <name> [N]                                        — clean last N assistant turns from session JSONL (default 1)
   merge <name>                                               — log + merge branch into current
-  kill <name>                                                — tmux + worktree + branch cleanup
+  kill <name>                                                — tmux + worktree + branch cleanup (spawn + all registered cross-project)
   send <name> <message>                                      — send message to running worker
   spawn <name> <prompt_file> <project_path> [model] [--no-worktree]
                                                              — spawn worker in git worktree
   revive <name>                                              — re-launch dead worker with --resume (full prior context)
+  worktree <name> <target-repo> [branch]                    — create + register cross-project worktree (default branch=<name>)
+  worktree-rm <target-repo> <name> [branch]                 — remove cross-project worktree+branch (orphan cleanup, no registry needed)
 
 model: sonnet (default) | opus
 Worker names are globally unique (registry-tracked). Project path is required only for spawn;
 other commands auto-resolve via the registry.
 Project path: absolute, ~/, or 'c' (resolves to current git project root, worktree-aware).
   'c' works from any directory: project root, subdirectory, or inside a worktree.
+Cross-project flow: spawn (creates spawn-side worktree) → worktree <name> <target> (creates + registers
+  target-side worktree) → worker works there → kill <name> (cleans both sides).
 EOF
 }
 
@@ -70,6 +74,20 @@ registry_read() {
 registry_delete() {
     local name="$1"
     rm -f "$REGISTRY_DIR/$name"
+}
+
+# --- Sidecar helpers (cross-project worktrees) ---
+# File: $REGISTRY_DIR/<name>.worktrees — one "<target-repo>\t<branch>" per line
+
+sidecar_append() {
+    local name="$1" target="$2" branch="$3"
+    mkdir -p "$REGISTRY_DIR"
+    printf '%s\t%s\n' "$target" "$branch" >> "$REGISTRY_DIR/$name.worktrees"
+}
+
+sidecar_delete() {
+    local name="$1"
+    rm -f "$REGISTRY_DIR/$name.worktrees"
 }
 
 # Tmux scan fallback: derive project_path from session name pattern worker-<basename>-<name>.
@@ -160,6 +178,7 @@ case "$CMD" in
             else
                 for _f in "$REGISTRY_DIR"/*; do
                     [ -f "$_f" ] || continue
+                    [[ "$_f" == *.worktrees ]] && continue
                     _wname=$(basename "$_f")
                     _proj=$(cat "$_f")
                     _status=$(bash -c "source \"$SPAWN\" && worker_status \"\$1\" \"\$2\"" \
@@ -196,6 +215,7 @@ case "$CMD" in
                 else
                     for _f in "$REGISTRY_DIR"/*; do
                         [ -f "$_f" ] || continue
+                        [[ "$_f" == *.worktrees ]] && continue
                         _wname=$(basename "$_f")
                         _proj=$(cat "$_f")
                         _status=$(bash -c "source \"$SPAWN\" && worker_status \"\$1\" \"\$2\"" \
@@ -300,6 +320,22 @@ case "$CMD" in
         git -C "$PROJECT" branch -D "$NAME" 2>/dev/null && echo "  branch: deleted" || echo "  branch: not found"
         # Best-effort signal cleanup so the menubar doesn't keep a stale grace entry around
         bash -c "source \"$SPAWN\" && _orchestrator_signal_delete \"$SESSION\"" 2>/dev/null || true
+        # Clean cross-project worktrees registered in sidecar (best-effort — never blocks registry_delete)
+        _SIDECAR="$REGISTRY_DIR/$NAME.worktrees"
+        if [ -f "$_SIDECAR" ]; then
+            while IFS=$'\t' read -r _xrepo _xbranch; do
+                [ -z "$_xrepo" ] && continue
+                [ -z "$_xbranch" ] && _xbranch="$NAME"
+                git -C "$_xrepo" worktree remove --force ".claude/worktrees/$NAME" 2>/dev/null \
+                    && echo "  cross-project worktree ($_xrepo): removed" \
+                    || echo "  cross-project worktree ($_xrepo): not found"
+                git -C "$_xrepo" branch -D "$_xbranch" 2>/dev/null \
+                    && echo "  cross-project branch $_xbranch ($_xrepo): deleted" \
+                    || echo "  cross-project branch $_xbranch ($_xrepo): not found"
+            done < "$_SIDECAR"
+            rm -f "$_SIDECAR"
+            echo "  cross-project sidecar: removed"
+        fi
         registry_delete "$NAME"
         echo "  registry: removed"
         ;;
@@ -345,6 +381,40 @@ case "$CMD" in
         # prefix on the Anthropic side matches what the worker had before death — without that
         # the entire conversation context would be re-uploaded on resume (cache miss).
         bash -c "source \"$SPAWN\" && worker_revive \"\$1\" \"\$2\"" _ "$NAME" "$PROJECT"
+        ;;
+    worktree)
+        [ $# -lt 2 ] && { echo "worker-cli worktree: need <name> <target-repo> [branch]" >&2; exit 2; }
+        NAME="$1"
+        TARGET=$(resolve_project_path "$2")
+        BRANCH="${3:-$NAME}"
+        # Validate target is a git repo
+        if ! git -C "$TARGET" rev-parse --git-dir >/dev/null 2>&1; then
+            echo "worker-cli worktree: '$TARGET' is not a git repo" >&2
+            exit 1
+        fi
+        # Fail cleanly if worktree already exists
+        WT_PATH="$TARGET/.claude/worktrees/$NAME"
+        if [ -d "$WT_PATH" ]; then
+            echo "worker-cli worktree: worktree already exists at $WT_PATH" >&2
+            exit 1
+        fi
+        # Create worktree — git's own error message surfaces on failure
+        if ! git -C "$TARGET" worktree add ".claude/worktrees/$NAME" -b "$BRANCH"; then
+            echo "worker-cli worktree: failed to create worktree in $TARGET" >&2
+            exit 1
+        fi
+        sidecar_append "$NAME" "$TARGET" "$BRANCH"
+        echo "$WT_PATH"
+        ;;
+    worktree-rm)
+        [ $# -lt 2 ] && { echo "worker-cli worktree-rm: need <target-repo> <name> [branch]" >&2; exit 2; }
+        TARGET=$(resolve_project_path "$1")
+        NAME="$2"
+        BRANCH="${3:-$NAME}"
+        git -C "$TARGET" worktree remove --force ".claude/worktrees/$NAME" 2>/dev/null \
+            && echo "  worktree removed" || echo "  worktree not found"
+        git -C "$TARGET" branch -D "$BRANCH" 2>/dev/null \
+            && echo "  branch '$BRANCH' deleted" || echo "  branch '$BRANCH' not found"
         ;;
     -h|--help|help)
         usage

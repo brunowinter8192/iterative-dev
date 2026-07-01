@@ -67,6 +67,35 @@ worker-cli spawn <name> <prompt_file> <project_path> [model] [--no-worktree]
 python3 -m src.spawn.spawn <name> <prompt_file> <project_path> [model] [--no-worktree]
 ```
 
+### Cross-project Lifecycle
+
+When a worker needs to operate in a DIFFERENT repo from the one it was spawned into:
+
+```bash
+# 1. Spawn worker in the spawn project (creates spawn-side worktree + registry entry)
+worker-cli spawn <name> <prompt_file> <spawn-project> [model]
+
+# 2. Create + register a worktree in the target project (default branch = <name>)
+worker-cli worktree <name> <target-repo> [branch]
+# → creates <target-repo>/.claude/worktrees/<name> on branch <name>
+# → appends "<target-repo>\t<branch>" to $REGISTRY_DIR/<name>.worktrees (sidecar)
+# → echoes the absolute worktree path for use in the worker prompt
+
+# 3. Worker does its work in the target worktree (path echoed above)
+
+# 4. Kill cleans BOTH sides (spawn-side + all entries in the sidecar)
+worker-cli kill <name>
+```
+
+**Sidecar format:** `$REGISTRY_DIR/<name>.worktrees` — one `<target-repo>\t<branch>` per line (tab-separated). Multiple cross-project worktrees for the same worker are each on their own line. `kill` reads and deletes this file automatically; `list`/`status --all` skip `*.worktrees` files so they are never treated as worker names.
+
+**Orphan cleanup** (worktrees that predate registration — no sidecar exists):
+```bash
+worker-cli worktree-rm <target-repo> <name> [branch]
+# → removes <target-repo>/.claude/worktrees/<name> + deletes branch (best-effort)
+# → no registry/sidecar involvement
+```
+
 ## Gotchas
 
 - `spawn.py` derives `PLUGIN_DIR` from `__file__` — call `python3 -m` from any cwd, `TMUX_SPAWN_SH` resolves correctly.
