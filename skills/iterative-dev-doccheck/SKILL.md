@@ -7,6 +7,8 @@ description: Systematic documentation & structure compliance check. Use when the
 
 Audit docs + folder structure against the documentation rules, in two passes. Both passes investigate EVERYTHING identically and flag the same findings; they differ only in who may APPLY a fix (§ What each agent does). Two user gates: Opus reports after Pass 1 (before spawning the worker) and after Pass 2. Step 7 (skills) is report-only — SKILL.md edits need user approval.
 
+**Report language: German.** Every report to the user — both gate reports and any interim status — is written in German. This governs the chat surface only; all ARTIFACTS (docs, decisions/, DOCS.md, code) stay English per the documentation rules, regardless of the German chat.
+
 ## The rule is the fence
 
 The rules are the standard, not the project's current state. NEVER accept an existing structure as a "project convention" that excuses a deviation — "it's consistent everywhere" is not a defense; a consistent deviation is still a deviation. Diverges from a rule → the rule wins: flag it, bring it into line. A deviation stays only on an explicit user decision, never on your own "it already works".
