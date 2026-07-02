@@ -73,11 +73,11 @@ Carry mismatches to Step 3. Do NOT read OldThemes files here. Do NOT look at `de
 
 Read every `decisions/<area>.md` in full (few + small). Per file: check the rules, state findings, fix (decision files are docs). This also loads their content for Step 3.
 
-- Sections in order: IST, Evidenz, Offene Fragen, Quellen. Empty section omitted, never padded (`None.`, `No benchmarks run.`) — fix filler + out-of-order.
-- No SOLL — no `SOLL` token, no `Recommendation (SOLL)` section, no desired-future-state (→ issue). ("soll ich" chat phrase excepted.)
+- Sections in order: Current State, Evidence, Open Questions, Sources. Empty section omitted, never padded (`None.`, `No benchmarks run.`) — fix filler + out-of-order.
+- No desired-future-state — flag any `Target` or (legacy) `SOLL` token, any `Recommendation (...)` section, anything about what SHOULD change; it belongs in an issue. ("soll ich" chat phrase excepted.)
 - No issue references (`#`-number, `/issues/`).
-- IST resting on a measurement (benchmark, timing, "better/faster than X") cites it in Evidenz; plain behavioral/config description (readable from code) needs none. Fix only a measured claim missing its evidence.
-- Evidenz cites the dev report (script, report-MD, dataset), key result only — fix a full report pasted in.
+- Current State resting on a measurement (benchmark, timing, "better/faster than X") cites it in Evidence; plain behavioral/config description (readable from code) needs none. Fix only a measured claim missing its evidence.
+- Evidence cites the dev report (script, report-MD, dataset), key result only — fix a full report pasted in.
 
 ## Step 3 — OldThemes Deep-Dive
 
@@ -88,7 +88,7 @@ Two stages. Never read a whole OldThemes file — RAG chunks + grep only.
 Input = Step-1 mismatches (unmatched decision files, unmatched folders, stragglers). One decision file at a time:
 
 1. Unmatched decision file (content known from Step 2).
-2. ONE RAG query, its topic/IST, scoped to STILL-UNASSIGNED folders — a paired folder drops out. Path scope: `--document "%OldThemes/<folder>/%"` includes, `--exclude "%OldThemes/<folder>/%"` drops:
+2. ONE RAG query, its topic/Current State, scoped to STILL-UNASSIGNED folders — a paired folder drops out. Path scope: `--document "%OldThemes/<folder>/%"` includes, `--exclude "%OldThemes/<folder>/%"` drops:
    `rag-cli search_hybrid "<topic>" <Project>-docs --exclude "%OldThemes/<already-paired>/%"`
    (with `auth`/`retrieval`/`discovery`, `discovery` paired → include `auth`+`retrieval`, exclude `discovery`).
 3. Chunks (not whole files) → the folder dominating the top hits is the match.
@@ -105,7 +105,7 @@ Grep the OldThemes files (or act on Stage-1 RAG chunks). Check:
 
 - issue references (`#`-number, `/issues/`)
 - present-tense "current"/"production" claims — OldThemes is historical, these go stale
-- a superseded measurement presented as current IST
+- a superseded measurement presented as the Current State
 
 State findings, fix.
 
@@ -121,13 +121,20 @@ Three sub-steps. Opus FLAGS only; the worker applies every source change (folder
 
 ## Step 5 — DOCS Deep-Dive
 
-Three structural checks via heredoc / `/tmp` scripts — not by reading every `DOCS.md`:
+Two stages, both run. Use heredoc / `/tmp` scripts — not by reading every `DOCS.md`. Do NOT be timid — flag every deviation.
 
-1. **Schema** — each `DOCS.md`: Role, Public Interface, Flow, Modules (each: Purpose, Reads, Writes, Called-by, Calls-out), State, Gotchas; module-level only.
-2. **References resolve** — every file a `DOCS.md` names exists on disk.
-3. **No orphans** — every `.py` at a `DOCS.md`'s level appears in it.
+### Stage 1 — placement & coverage
 
-State findings, fix the `DOCS.md` directly (all DOCS.md are documentation).
+- Every `DOCS.md` sits at the level of the `.py` files it documents (a module-bearing directory). A `DOCS.md` at a level with no `.py`, or `.py` modules at a level with no `DOCS.md`, is a deviation.
+- Each `DOCS.md` documents EXACTLY the modules at its own level — no more, no less. Every `.py` at the level appears in it (no orphan module); it names no module that lives at a different level. A root `DOCS.md` that describes the whole project — pipeline overviews, other directories, a project tree — instead of only the modules at its own level is wrong.
+
+### Stage 2 — internal structure
+
+- **Schema** — each `DOCS.md` follows the format exactly: Role, Public Interface, Flow, Modules (each: Purpose, Reads, Writes, Called-by, Calls-out), State, Gotchas; module-level only. Anything OUTSIDE the format is a deviation → flag it: a project-structure tree, an overview / "Pipeline Components" section, "Key Files" tables, any free-form section. The whole file must conform, not only individual entries.
+- **References resolve** — every file a `DOCS.md` names exists on disk.
+- **LOC** — each module heading's `<LOC>` matches the file's `wc -l`.
+
+State findings, fix the `DOCS.md` directly (all `DOCS.md` are documentation).
 
 ## Step 6 — Language
 

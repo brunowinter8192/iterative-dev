@@ -1,6 +1,6 @@
 ---
 name: iterative-dev-refactor
-description: Systematic codebase refactor scan in two parts — the architectural form of the whole project (placement, coupling, cohesion/splitting, control-flow, operational, structure), then per-module conformance against the worker coding rules. Runs phase by phase, findings then worker-refactor per phase. Opus analyzes, workers implement. NOT for on-the-fly code review (those checks fire through worker rules); this is the heavyweight session-level audit.
+description: Systematic codebase refactor scan in two parts — the architectural form of the whole project (placement, coupling, cohesion/splitting, control-flow, operational), then per-module conformance against the worker coding rules. Runs phase by phase, findings then worker-refactor per phase. Opus analyzes, workers implement. NOT for on-the-fly code review (those checks fire through worker rules); this is the heavyweight session-level audit.
 ---
 
 # Refactor Scan
@@ -15,7 +15,7 @@ Python codebases. Source root is the project's `src/` (or equivalent). Filter ou
 - `.claude/worktrees/` (in-flight worker copies)
 - `venv/`, `.venv/`, `node_modules/`
 
-Every scan honors this SKIP scope. Opus writes each scan itself from the description below — AST walk, grep, or `wc` as fits. Keep the thresholds exact: they are the deterministic part that makes findings comparable across projects; only the way the scan is written adapts to the project. For non-Python codebases, use the equivalent parser.
+Every scan honors this SKIP scope. Opus writes each scan itself from the description below — AST walk, grep, or `wc` as fits. Keep the thresholds exact; only the way the scan is written adapts to the project. For non-Python codebases, use the equivalent parser.
 
 ## Workflow
 
@@ -87,10 +87,6 @@ Prototype-to-prod readiness at the project level.
 
 **Scattered application state.** Count entries in `$HOME` matching `.<project-prefix>*` (prefix defaults to the lowercased project dir name). At ≥3, list them and recommend grouping under `~/.config/<project>/`.
 
-## Phase 6 — Structure Mapping
-
-Does the dev/ tree mirror the active source tree? For each `src/<module>/` with a git commit in the last 30 days, flag it if there is no `dev/<module>*` counterpart (script or subdir). Heuristic — not every module needs one.
-
 # Part 2 — Module Standards Conformance
 
 The worker coding rules — `code-organization`, `code-standards`, `dev-convention` (in `shared-rules/worker/`) — define how a single module is written. Opus does NOT get these rules in context; READ all three, extract the concrete standards, and check each module against them. This catches what the worker was supposed to do but did not.
@@ -102,9 +98,8 @@ Per module, verify against the standards the rules define, among them:
 - **Constants** — module-specific in the module, shared in the config module, no constant duplicated across files.
 - **Immutability** — no function mutates its arguments.
 - **Error handling** — no bare `except`, no `except Exception: pass`, no silent swallow of business-logic failures.
-- **Naming & markers** — snake_case folders/modules, `__init__.py` present, one `DOCS.md` per domain.
+- **Naming & markers** — snake_case folders/modules, `__init__.py` present.
 - **Artifacts** — no test files in root, no git-tracked `debug/` or `logs/`, no emojis in production code/docs/logs.
-- **dev/ reports** — report-producing scripts numbered, reports in `md/`/`csv/`/`png/` with the same number prefix, never console.
 
 The rules are the source of truth — re-read them each run, since they change. Most standards are mechanical; a few need judgment (orchestrator "calls only", one-responsibility-per-function, console conciseness) — read the code and decide.
 
@@ -112,7 +107,7 @@ The rules are the source of truth — re-read them each run, since they change. 
 
 ## Doc-Drift Gate (MANDATORY, before every dispatch)
 
-Before dispatching a phase's refactor workers, run `docs-drift-check` (cwd). Exit 0 = clean → dispatch. Exit 1 = drift → fix FIRST (separate worker), then dispatch. Full doc/structure verification lives in the `iterative-dev-doccheck` skill. Refactor workers update affected DOCS.md alongside the code change.
+Before dispatching a phase's refactor workers, run `docs-drift-check` (cwd). Exit 0 = clean → dispatch. Exit 1 = drift → fix FIRST (separate worker), then dispatch. Refactor workers update affected DOCS.md alongside the code change.
 
 ## Symbol-Relocation Reference Audit
 
