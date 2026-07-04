@@ -130,6 +130,8 @@ Two stages, both run. Use heredoc / `/tmp` scripts — not by reading every `DOC
 - Every `DOCS.md` sits at the level of the `.py` files it documents (a module-bearing directory). A `DOCS.md` at a level with no `.py`, or `.py` modules at a level with no `DOCS.md`, is a deviation.
 - Each `DOCS.md` documents EXACTLY the modules at its own level — no more, no less. Every `.py` at the level appears in it (no orphan module); it names no module that lives at a different level. A root `DOCS.md` that describes the whole project — pipeline overviews, other directories, a project tree — instead of only the modules at its own level is wrong.
 
+**Root files.** `README.md` → flag for removal. A root `DOCS.md` that is a project overview (not module docs for own-level `.py`) → flag for removal. A root `CLAUDE.md` documenting project-only interactive working areas (Claude + user run workflow or working-area steps together) → allowed, do not flag.
+
 ### Stage 2 — internal structure
 
 - **Schema** — each `DOCS.md` follows the format exactly: Role, Public Interface, Flow, Modules (each: Purpose, Reads, Writes, Called-by, Calls-out), State, Gotchas; module-level only. Anything OUTSIDE the format is a deviation → flag it: a project-structure tree, an overview / "Pipeline Components" section, "Key Files" tables, any free-form section. The whole file must conform, not only individual entries.
