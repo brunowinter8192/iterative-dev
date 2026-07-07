@@ -68,11 +68,18 @@ Grep the tree — never read whole files. Per invariant: grep, state findings, f
 
 Three sub-steps. Opus FLAGS only; the worker applies every source change (folder renames, in-code paths, report moves).
 
-**3a — structure.** Match `dev/` folder names against `process-docs/<area>/` area folders where they exist. Flag: a dev folder or a file loose in `dev/` with no area home — incl. a maintenance/utility script (reclean, one-shot fixer): it goes in its thematic `dev/<area>/`, unnumbered if it emits no report. No exempt catch-all folder.
+**3a — structure.** Match `dev/` folder names against `process-docs/<area>/` area folders where they exist. Flag: a dev folder or a file loose in `dev/` with no area home — incl. a maintenance/utility script (reclean, one-shot fixer): it goes in its thematic `dev/<area>/`, unnumbered if it emits no report. No exempt catch-all folder. A loose `.md` in `dev/` that **no script produces** (a hand-written run summary / analysis) is NOT a dev report → it belongs in `process-docs/` if still relevant, or is deleted if stale — never left loose at dev root.
 
 **3b — assignment.** Per unassigned dev folder: read that folder's `DOCS.md` (or the root module docstring if none) — its own doc states its area. Rename to the area name.
 
 **3c — report convention.** Report-producing script numbered (`01_`, …); non-report script unnumbered; every report in the area's shared `md/` / `csv/` / `png/` folder with its script's `NN_` prefix. A per-script `NN_<name>_reports/` folder is wrong → reports in the shared type-folder, script's in-code output path points there. Reports never to console — a numbered script writes to a file. Opus flags; the worker applies renames, moves, in-code paths.
+
+Clarifications (recurring cases):
+- **Report vs DATA.** The convention governs REPORTS — a human-readable analysis a script emits (`.md` summary, `.csv` table, `.png` chart; a JSON *analysis* output counts, → `md/`). It does NOT govern bulk DATA outputs (scraped-page corpora, raw sweep dumps, per-URL review dumps, cached job data). Data-output folders stay put — never moved into `md/`. Distinguish by content: a report is a readable analysis; data is the run's raw payload.
+- **Type → type-folder.** `.md`→`md/`, `.csv`→`csv/`, `.png`→`png/`. Never mix report + data in one output folder — a folder holding both `.md` reports and `.json` data is split (reports → `md/`, data stays separate).
+- **Cumulative logs stay.** An append-only log tracked + compared across runs (institutional history, not a single-run analysis) is NOT a report → leave in place.
+- **Sub-suite own `md/`.** A self-contained sub-eval folder with its own numbered scripts (`garbage_eval/`, `browser_eval/`) gets its OWN `md/`, not the parent area's.
+- **Number report-producers even when independent.** A report-producing script is numbered even if it is a one-off with no pipeline sequence — number deterministically (alphabetical). Renaming a script → grep and update every reference to it.
 
 ## Step 4 — DOCS Deep-Dive
 
