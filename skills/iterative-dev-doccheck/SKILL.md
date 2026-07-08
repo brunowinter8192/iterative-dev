@@ -39,7 +39,7 @@ Run all steps across every surface. Per step: read/grep → state findings in ch
 
 ### Pass 2 — Worker step-by-step → Gate 2
 
-On approval, spawn one worker on the committed state, have it activate this skill. It branches from the Pass-1 commit: your doc fixes are already in place, it checks that fixed state. It runs the steps one at a time, reports after each. Left for it: doc misses you left + the flagged source fixes. Review each report vs your Pass-1 work; where you agree, send it to apply (rename a report script with its `NN_` prefix, change an in-code path, move/merge/delete a dev file — confirm deletions with the user). Converge first — never send a fix you and it disagree on. Step 6: worker reports only, no skill edit. Timer after each send. At Step 6, read the skill yourself to judge its findings → report → **Gate 2**.
+On approval, spawn one worker on the committed state, have it activate this skill. It branches from the Pass-1 commit: your doc fixes are already in place, it checks that fixed state. It runs the steps one at a time, reports after each. Left for it: doc misses you left + the flagged source fixes. Review each report vs your Pass-1 work; where you agree, send it to apply (move a report into the area's `md/` and repoint its in-code path, move/merge/delete a dev file — confirm deletions with the user). Converge first — never send a fix you and it disagree on. Step 6: worker reports only, no skill edit. Timer after each send. At Step 6, read the skill yourself to judge its findings → report → **Gate 2**.
 
 Steps (both passes):
 1. Legacy & Structure
@@ -68,18 +68,18 @@ Grep the tree — never read whole files. Per invariant: grep, state findings, f
 
 Three sub-steps. Opus FLAGS only; the worker applies every source change (folder renames, in-code paths, report moves).
 
-**3a — structure.** Match `dev/` folder names against `process-docs/<area>/` area folders where they exist. Flag: a dev folder or a file loose in `dev/` with no area home — incl. a maintenance/utility script (reclean, one-shot fixer): it goes in its thematic `dev/<area>/`, unnumbered if it emits no report. No exempt catch-all folder. A loose `.md` in `dev/` that **no script produces** (a hand-written run summary / analysis) is NOT a dev report → it belongs in `process-docs/` if still relevant, or is deleted if stale — never left loose at dev root.
+**3a — structure.** Match `dev/` folder names against `process-docs/<area>/` area folders where they exist. Flag: a dev folder or a file loose in `dev/` with no area home — incl. a maintenance/utility script (reclean, one-shot fixer): it goes in its thematic `dev/<area>/`. No exempt catch-all folder. A loose `.md` in `dev/` that **no script produces** (a hand-written run summary / analysis) is NOT a dev report → it belongs in `process-docs/` if still relevant, or is deleted if stale — never left loose at dev root.
 
 **3b — assignment.** Per unassigned dev folder: read that folder's `DOCS.md` (or the root module docstring if none) — its own doc states its area. Rename to the area name.
 
-**3c — report convention.** Report-producing script numbered (`01_`, …); non-report script unnumbered; every report in the area's shared `md/` / `csv/` / `png/` folder with its script's `NN_` prefix. A per-script `NN_<name>_reports/` folder is wrong → reports in the shared type-folder, script's in-code output path points there. Reports never to console — a numbered script writes to a file. Opus flags; the worker applies renames, moves, in-code paths.
+**3c — report convention.** Every report goes in the area's shared `md/` / `csv/` / `png/` folder (by output type) with a DESCRIPTIVE name traceable to its producing script — **dev scripts are NOT numbered**. A per-script `NN_<name>_reports/` folder (or a shared `NN_reports/` dump) is wrong → reports move into the shared type-folder, the script's in-code output path points there. Reports never to console — a report-producing script writes to a file. Opus flags; the worker applies the moves + in-code paths.
 
 Clarifications (recurring cases):
 - **Report vs DATA.** The convention governs REPORTS — a human-readable analysis a script emits (`.md` summary, `.csv` table, `.png` chart; a JSON *analysis* output counts, → `md/`). It does NOT govern bulk DATA outputs (scraped-page corpora, raw sweep dumps, per-URL review dumps, cached job data). Data-output folders stay put — never moved into `md/`. Distinguish by content: a report is a readable analysis; data is the run's raw payload.
 - **Type → type-folder.** `.md`→`md/`, `.csv`→`csv/`, `.png`→`png/`. Never mix report + data in one output folder — a folder holding both `.md` reports and `.json` data is split (reports → `md/`, data stays separate).
 - **Cumulative logs stay.** An append-only log tracked + compared across runs (institutional history, not a single-run analysis) is NOT a report → leave in place.
-- **Sub-suite own `md/`.** A self-contained sub-eval folder with its own numbered scripts (`garbage_eval/`, `browser_eval/`) gets its OWN `md/`, not the parent area's.
-- **Number report-producers even when independent.** A report-producing script is numbered even if it is a one-off with no pipeline sequence — number deterministically (alphabetical). Renaming a script → grep and update every reference to it.
+- **Sub-suite own `md/`.** A self-contained sub-eval folder (`garbage_eval/`, `browser_eval/`) gets its OWN `md/`, not the parent area's.
+- **Existing `NN_` script names.** No numbering is required or added. Pre-existing number prefixes on script/report names are just part of the name — neither a violation to keep nor mandated; do not add new ones, and strip them only if the user asks for a normalization pass.
 
 ## Step 4 — DOCS Deep-Dive
 
