@@ -1,13 +1,13 @@
 ---
 name: iterative-dev-doccheck
-description: Systematic documentation & structure compliance check. Use when the user asks to check/audit a project's docs and folder structure against the documentation rules. Two passes that BOTH check everything — legacy/structure, process-docs invariants (no doc cross-refs, no issue refs, English, no present-tense current-state claims), dev report convention, DOCS.md placement/schema/coverage, a language sweep, and skills. Opus runs all steps solo and fixes process-docs/ + DOCS.md; a worker re-runs all steps and applies dev/source fixes (and patches any doc miss). Two user gates: Opus reports before spawning the worker, and again when the worker is done. Skills is report-only and runs last — skill edits need the user's approval. The doc-side counterpart to iterative-dev-refactor.
+description:
 ---
 
 # Doc & Structure Check
 
 Audit docs + folder structure against the documentation rules, in two passes. Both passes investigate EVERYTHING identically and flag the same findings; they differ only in who may APPLY a fix (§ What each agent does). Two user gates: Opus reports after Pass 1 (before spawning the worker) and after Pass 2. Step 6 (skills) is report-only — SKILL.md edits need user approval.
 
-**Model.** Current state lives in CODE, not docs. There is no `decisions/` layer. `process-docs/` (project root) is write-once process history — one folder per area, never maintained after writing. `DOCS.md` is the ONLY continuously-maintained doc surface (module map, in lockstep with code). Issues carry targets / open questions; docs never reference issues.
+**Model.** Current state lives in CODE, not docs. `process-docs/` (project root) is write-once process history — one folder per area, never maintained after writing. `DOCS.md` is the ONLY continuously-maintained doc surface (module map, in lockstep with code). Issues carry targets / open questions; docs never reference issues.
 
 **Report language: German.** Every report to the user — both gate reports and any interim status — is written in German. This governs the chat surface only; all ARTIFACTS (process-docs, DOCS.md, code) stay English per the documentation rules, regardless of the German chat.
 
@@ -42,16 +42,15 @@ Run all steps across every surface. Per step: read/grep → state findings in ch
 On approval, spawn one worker on the committed state, have it activate this skill. It branches from the Pass-1 commit: your doc fixes are already in place, it checks that fixed state. It runs the steps one at a time, reports after each. Left for it: doc misses you left + the flagged source fixes. Review each report vs your Pass-1 work; where you agree, send it to apply (move a report into the area's `md/` and repoint its in-code path, move/merge/delete a dev file — confirm deletions with the user). Converge first — never send a fix you and it disagree on. Step 6: worker reports only, no skill edit. Timer after each send. At Step 6, read the skill yourself to judge its findings → report → **Gate 2**.
 
 Steps (both passes):
-1. Legacy & Structure
+1. Structure
 2. process-docs — invariants (grep)
 3. dev — deep dive
 4. DOCS — placement / schema / coverage via scripts
 5. Language — non-English sweep
 6. skills — deep dive (report-only, last)
 
-## Step 1 — Legacy & Structure
+## Step 1 — Structure
 
-- **No `decisions/`.** The decisions/ layer is retired. A `decisions/` dir anywhere → flag; migrate its content into `process-docs/` (hoist any `OldThemes/` up one level; former decision files become dated snapshot entries), then remove the dir.
 - **No current-state doc mirror.** No doc may duplicate live config/state as an authoritative "current state" — that is the code's job. A doc asserting present-tense production state as if maintained (anything outside DOCS.md's module map) → flag.
 - **process-docs shape.** `process-docs/` sits at project root, one folder per thematic area, no loose top-level `.md`. Loose top-level `.md` → home it into an area folder. An area split across differently-named folders → flag as a consolidation candidate (report only; consolidation is a user call, not an auto-move).
 
@@ -107,6 +106,8 @@ Grep every surface (`process-docs/`, every `DOCS.md`, `dev/` reports, code comme
 ## Step 6 — skills Deep-Dive (report-only, last)
 
 `skills/*/SKILL.md` = procedure, not essay: states WHAT (capability + output) and HOW (steps, commands, thresholds, formats, rules incl. "do NOT X"), never WHY.
+
+**Frontmatter.** `description:` is present but empty — flag any non-empty `description` and blank it.
 
 Removability test per clause: reader still executes exactly the same without it? Yes → WHY → cut. A concrete example stays only when it shows HOW to decide.
 
