@@ -5,13 +5,11 @@ description:
 
 # Doc & Structure Check
 
-Audit docs + folder structure against § Documentation Hierarchy. Run the steps in order; per step read/grep, state findings, fix what you find.
+**Subject.** A project's documentation surface: `process-docs/**`, every `DOCS.md`, `dev/` reports, `skills/*/SKILL.md`. The skill systematically verifies this surface complies with the rules defined in § Documentation Hierarchy.
+
+**Reference.** § Documentation Hierarchy is THE standard — the sole source of what correct docs + structure look like, and it wins over the project's current state. NEVER accept an existing structure as a "project convention" that excuses a deviation — "it's consistent everywhere" is not a defense; a consistent deviation is still a deviation. Diverges from a rule → flag it, bring it into line; a deviation stays only on an explicit user decision, never on your own "it already works". The Workflow below adds no rules of its own; its Steps and Stages only fix the ORDER of what to check, mirroring the split of § Documentation Hierarchy. Work Step by Step: read/grep across all a Step's Stages, state findings, then fix at the end of the Step — one fix pass per Step, not per Stage. Exception: Step 4 (skills) is flag-only — report the findings, never fix.
 
 **Report language: German.** Every report is written in German. This governs the chat surface only; all ARTIFACTS (process-docs, DOCS.md, code) stay English per § Documentation Hierarchy, regardless of the German chat.
-
-## The rule is the fence
-
-The rules are the standard, not the project's current state. NEVER accept an existing structure as a "project convention" that excuses a deviation — "it's consistent everywhere" is not a defense; a consistent deviation is still a deviation. Diverges from a rule → the rule wins: flag it, bring it into line. A deviation stays only on an explicit user decision, never on your own "it already works".
 
 ## Workflow
 
@@ -19,67 +17,53 @@ The rules are the standard, not the project's current state. NEVER accept an exi
 
 #### Stage 1 — structure
 
-`process-docs/` sits at project root, one folder per thematic area, no loose top-level `.md`. Loose top-level `.md` → home it into an area folder. An area split across differently-named folders → flag as a consolidation candidate (report only; consolidation is a user call, not an auto-move).
+Check § process docs (Root-anchored, one fixed name).
 
 #### Stage 2 — invariants
 
-Grep the tree — never read whole files. Check every process-docs entry complies with § Language, § No Issue References, and § process docs (no present-tense current/production claims, dense/dated/thematic, no cross-references to another process-docs entry, evidence inline). State findings, fix directly — editing a write-once entry for compliance is one-time normalization, allowed here. Non-English is flagged here, fixed in Step 4.
+Check § No Issue References and § process docs (no present-tense current/production claims, dense/dated/thematic, no cross-references to another process-docs entry, evidence inline).
 
-### Step 2 — dev Deep-Dive
+#### Stage 3 — language
 
-Three stages, all source-level (folder renames, in-code paths, report moves).
+Check § Language across every `process-docs/` entry.
 
-#### Stage 1 — structure
+### Step 2 — dev
 
-Match `dev/` folder names against `process-docs/<area>/` area folders where they exist. Flag: a dev folder or a file loose in `dev/` with no area home — incl. a maintenance/utility script (reclean, one-shot fixer): it goes in its thematic `dev/<area>/`. No exempt catch-all folder. A loose `.md` in `dev/` that **no script produces** (a hand-written run summary / analysis) is NOT a dev report → it belongs in `process-docs/` if still relevant, or is deleted if stale — never left loose at dev root.
+Check § dev reports. Beyond the rule, apply on invocation:
 
-#### Stage 2 — assignment
-
-Per unassigned dev folder: read that folder's `DOCS.md` (or the root module docstring if none) — its own doc states its area. Rename to the area name.
-
-#### Stage 3 — report convention
-
-Every report goes in the area's shared `md/` / `csv/` / `png/` folder (by output type) with a DESCRIPTIVE name traceable to its producing script — **dev scripts are NOT numbered**. A per-script `NN_<name>_reports/` folder (or a shared `NN_reports/` dump) is wrong → reports move into the shared type-folder, the script's in-code output path points there. Reports never to console — a report-producing script writes to a file.
-
-Clarifications (recurring cases):
-- **Report vs DATA.** The convention governs REPORTS — a human-readable analysis a script emits (`.md` summary, `.csv` table, `.png` chart; a JSON *analysis* output counts, → `md/`). It does NOT govern bulk DATA outputs (scraped-page corpora, raw sweep dumps, per-URL review dumps, cached job data). Data-output folders stay put — never moved into `md/`. Distinguish by content: a report is a readable analysis; data is the run's raw payload.
-- **Type → type-folder.** `.md`→`md/`, `.csv`→`csv/`, `.png`→`png/`. Never mix report + data in one output folder — a folder holding both `.md` reports and `.json` data is split (reports → `md/`, data stays separate).
+- A maintenance/utility script (reclean, one-shot fixer) goes in its thematic `dev/<area>/` — no exempt catch-all folder. A loose `.md` in `dev/` that **no script produces** (a hand-written run summary / analysis) is NOT a dev report → it belongs in `process-docs/` if still relevant, or is deleted if stale.
+- Assign each dev folder to its area (determine the fit from its `DOCS.md` / module docstring / contents). Belongs to ONE area → rename the folder to that area name. Contents spanning MULTIPLE areas is the real fix and the hard one → split the folder, routing each part into its own `dev/<area>/`.
+- **Report vs DATA** — distinguish by content: a report is a readable analysis (a JSON *analysis* output counts → `md/`); data is the run's raw payload (scraped corpora, raw dumps, cached job data).
 - **Cumulative logs stay.** An append-only log tracked + compared across runs (institutional history, not a single-run analysis) is NOT a report → leave in place.
 - **Sub-suite own `md/`.** A self-contained sub-eval folder (`garbage_eval/`, `browser_eval/`) gets its OWN `md/`, not the parent area's.
-- **Existing `NN_` script names.** No numbering is required or added. Pre-existing number prefixes on script/report names are just part of the name — neither a violation to keep nor mandated; do not add new ones, and strip them only if the user asks for a normalization pass.
 
-### Step 3 — DOCS Deep-Dive
+### Step 3 — DOCS
 
-The central maintained surface. Two stages, both run. Use heredoc / `/tmp` scripts — not by reading every `DOCS.md`. Do NOT be timid — flag every deviation.
+Use heredoc / `/tmp` scripts — do not read every `DOCS.md` by hand.
 
-#### Stage 1 — placement & coverage
+#### Stage 1 — placement
 
-- Every `DOCS.md` sits at the level of the `.py` files it documents (a module-bearing directory). A `DOCS.md` at a level with no `.py`, or `.py` modules at a level with no `DOCS.md`, is a deviation.
-- Each `DOCS.md` documents EXACTLY the modules at its own level — every `.py` at the level appears; it names no module from a different level. A root `DOCS.md` describing the whole project — pipeline overview, project tree, other directories — instead of only its own-level `.py` → flag for removal (or reduction to own-level module docs).
+Check § docs (Placement). Beyond the rule: **Root files** — `README.md` → flag for removal; a root `DOCS.md` that is a project overview → flag for removal; a root `CLAUDE.md` documenting project-only interactive working areas → allowed, do not flag.
 
-**Root files.** `README.md` → flag for removal. A root `DOCS.md` that is a project overview → flag for removal. A root `CLAUDE.md` documenting project-only interactive working areas → allowed, do not flag.
+#### Stage 2 — format
 
-#### Stage 2 — internal structure
+Check § docs (DOCS.md Format). Beyond the rule: **References resolve** — every file a `DOCS.md` names exists on disk.
 
-- **Schema** — each `DOCS.md` follows the format exactly: Role, Public Interface, Flow, Modules (each: Purpose, Reads, Writes, Called-by, Calls-out), State, Gotchas; module-level only. Anything OUTSIDE the format is a deviation → flag it (project-structure tree, overview / "Pipeline Components" section, "Key Files" table, any free-form section).
-- **References resolve** — every file a `DOCS.md` names exists on disk.
-- **LOC** — each module heading's `<LOC>` matches the file's `wc -l`.
+#### Stage 3 — language
 
-State findings, fix the `DOCS.md` directly.
+Check § Language across every `DOCS.md`.
 
-### Step 4 — Language
+### Step 4 — skills (flag-only)
 
-Grep every surface (`process-docs/`, every `DOCS.md`, `dev/` reports, code comments) for non-English — German tokens, any glossed `(German)` term. Found → translate to English, values + meaning exact (a superseded number stays historical, never silently updated). "soll ich" excepted only as chat, never in an artifact.
+Check § Artifact Density against each `skills/*/SKILL.md`. Beyond the rule:
 
-### Step 5 — skills Deep-Dive (report-only)
-
-`skills/*/SKILL.md` = procedure, not essay: states WHAT (capability + output) and HOW (steps, commands, thresholds, formats, rules incl. "do NOT X"), never WHY.
+`skills/*/SKILL.md` = procedure, not essay: WHAT (capability + output) and HOW (steps, commands, thresholds, formats, rules incl. "do NOT X"), never WHY.
 
 **Frontmatter.** `description:` is present but empty — flag any non-empty `description` and blank it.
 
 Removability test per clause: reader still executes exactly the same without it? Yes → WHY → cut. A concrete example stays only when it shows HOW to decide.
 
-Read each `SKILL.md` under `skills/`, flag WHY-content by signature:
+Flag WHY-content by signature:
 
 | Signature | Example | Action |
 |---|---|---|
@@ -92,8 +76,6 @@ Read each `SKILL.md` under `skills/`, flag WHY-content by signature:
 
 Keep — never flag: commands, paths, thresholds, output formats, parameter tables, ordering rules, prohibitions, behavior facts the procedure depends on, decision-examples.
 
-REPORT-ONLY: do not edit a SKILL.md here — hand the WHY-findings over; strip only after user approval.
-
-### Step 6 — Hand off
+### Step 5 — Hand off
 
 Report your findings. Then, if you are Opus: commit your doc fixes, sync them to RAG (`rag-cli update_docs`), and spawn a worker to activate this skill (`iterative-dev-doccheck`) — it re-runs the audit on the committed state and applies the flagged source fixes. If you are a worker, you're done — no spawn.
