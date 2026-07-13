@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# gcommit: stage all (tracked mods + untracked, minus skip-list) + commit, worktree-correct
+# Source: iterative-dev/bin/gcommit (install/symlink to ~/.local/bin is the orchestrator's concern)
+# Usage: gcommit "<message>" [repo_path]
+# repo_path: absolute or relative path, used as-is (no worktree stripping). Defaults to caller's cwd.
+
+PLUGIN="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/cache/brunowinter-plugins/iterative-dev/1.0.0}"
+
+if [ $# -lt 1 ]; then
+  echo "Usage: gcommit \"<message>\" [repo_path]" >&2
+  exit 1
+fi
+
+MESSAGE="$1"
+REPO="${2:-$(pwd)}"
+
+cd "$PLUGIN" && python3 -m src.git.commit "$MESSAGE" "$REPO"
