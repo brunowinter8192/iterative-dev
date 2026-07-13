@@ -63,3 +63,7 @@ python3 -m src.git.commit "<message>" [repo-path]   # stage-all + commit, one ca
 ## Gotchas
 
 `check.py`'s `resolve_project_path` (in the `bin/git-check` wrapper, not this module) strips `.claude/worktrees/…` back to the parent repo — worktree-hostile. `commit.py`'s wrapper (`bin/gcommit`) deliberately does NOT do this: `repo_path` defaults to the caller's `pwd` (captured before the wrapper `cd`s into the plugin root) and is passed through unresolved — `git` itself finds the correct worktree branch from `cwd`.
+
+`run()` must `rstrip()`, NOT `strip()`. `git status --porcelain`'s first line carries a leading status-column space (e.g. `" M file.py"` = unstaged modification); a whole-blob `.strip()` eats that space when it's the first char of the captured stdout, shifting `parse_status`'s `line[:2]`/`line[3:]` split and silently dropping the file from staging. Any future `run()`-consuming parser that reads leading characters needs this same care.
+
+`SKIP_PATTERNS` includes bare `"venv"`/`".venv"`/`"node_modules"` — catches worktree dependency symlinks (e.g. `venv -> ../real/venv`), which `git status` reports without a trailing slash (unlike real directories), so the repo's `.gitignore` `venv/` entry doesn't match them.
