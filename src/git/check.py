@@ -40,10 +40,10 @@ def check_workflow(repo_path: str, auto_stage: bool = False) -> None:
 
 # FUNCTIONS
 
-# Run git command and return stdout
+# Run git command and return stdout, trailing whitespace only
 def run(cmd: list, cwd: str) -> str:
     result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
-    return result.stdout.strip()
+    return result.stdout.rstrip()
 
 
 # Parse git status --porcelain output into raw lines
