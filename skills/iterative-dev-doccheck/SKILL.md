@@ -7,13 +7,15 @@ description:
 
 **Subject.** A project's documentation surface: `process-docs/**`, every `DOCS.md`, `dev/` reports, `skills/*/SKILL.md`. The skill systematically verifies this surface complies with the rules defined in § Documentation Hierarchy.
 
-**Reference.** § Documentation Hierarchy is THE standard — the sole source of what correct docs + structure look like, and it wins over the project's current state. NEVER accept an existing structure as a "project convention" that excuses a deviation — "it's consistent everywhere" is not a defense; a consistent deviation is still a deviation. Diverges from a rule → flag it, bring it into line; a deviation stays only on an explicit user decision, never on your own "it already works". The Workflow below adds no rules of its own; its Steps and Stages only fix the ORDER of what to check, mirroring the split of § Documentation Hierarchy. Work Step by Step: read/grep across all a Step's Stages, state findings, then fix at the end of the Step — one fix pass per Step, not per Stage. Exception: Step 4 (skills) is flag-only — report the findings, never fix.
+**Reference.** § Documentation Hierarchy is THE standard — the sole source of what correct docs + structure look like, and it wins over the project's current state. NEVER accept an existing structure as a "project convention" that excuses a deviation — "it's consistent everywhere" is not a defense; a consistent deviation is still a deviation. Diverges from a rule → flag it, bring it into line; a deviation stays only on an explicit user decision, never on your own "it already works". The Workflow below adds no rules of its own; its Steps and Stages only fix the ORDER of what to check, mirroring the split of § Documentation Hierarchy. Work Step by Step: read/grep across all a Step's Stages, then fix at the end of the Step — one fix pass per Step, not per Stage. Run the whole audit through without pausing: apply the fixes and move on, NEVER stop to ask per finding — the size of a fix, or that it is not purely mechanical, is no reason to pause; a fix that follows from the rules gets applied in full, however substantial the reshaping. A fix that triggers a second violation is not a dilemma to report — resolve that one too in the same pass, the rules compose to a fully compliant surface. Report ONCE, at the very end (Step 5 — Hand off). "A deviation stays only on an explicit user decision" governs KEEPING a deviation, not fixing one — fixing is the default and needs no confirmation. Exception: Step 4 (skills) is flag-only — collect the findings there, never fix.
 
 **Report language: German.** Every report is written in German. This governs the chat surface only; all ARTIFACTS (process-docs, DOCS.md, code) stay English per § Documentation Hierarchy, regardless of the German chat.
 
 ## Workflow
 
 ### Step 1 — process-docs
+
+Touch ONLY process-docs in this Step — NEVER migrate its content into a `DOCS.md` or any other surface. process-docs are write-once, potentially-stale snapshots; `DOCS.md` is maintained from the CODE, not copied from process-docs prose. "In process-docs but not in DOCS.md" is NOT a portable gap. A present-tense "current state" entry (§ process docs violation) is fixed within process-docs and needs no code — it is binary: reframe it as a dated snapshot in its thematic area folder, or delete it if it holds no historical value. process-docs MAY be historical, so its currency is irrelevant here.
 
 #### Stage 1 — structure
 
@@ -78,4 +80,4 @@ Keep — never flag: commands, paths, thresholds, output formats, parameter tabl
 
 ### Step 5 — Hand off
 
-Report your findings. Then, if you are Opus: commit your doc fixes, sync them to RAG (`rag-cli update_docs`), and spawn a worker to activate this skill (`iterative-dev-doccheck`) — it re-runs the audit on the committed state and applies the flagged source fixes. If you are a worker, you're done — no spawn.
+Report your findings. Then, if you are Opus: commit your doc fixes, sync them to RAG (`rag-cli update_docs`), and spawn a worker to activate this skill (`iterative-dev-doccheck`) — it re-runs the audit on the committed state and applies the flagged source fixes (source edits are worker-only). Hand the worker, in its prompt, every source fix you already established — concrete file, location, and change — so it carries them through for certain instead of leaving them to re-discovery. If you are a worker, you're done — no spawn.
