@@ -56,13 +56,13 @@ Prototype-to-prod readiness at the project level.
 
 ## Phase 2 — Module Standards Conformance
 
-The worker coding rules (`shared-rules/worker/`: `code-organization`, `code-standards`, `dev-convention`) define how a single module is written. Opus does NOT get these rules in context — READ all three each run (they change), extract the concrete standards, and check every module against them. This catches what the worker was supposed to do but did not. Among the standards:
+The worker coding standard (`shared-rules/worker/code-standards`) defines how a single module is written. Opus does NOT get it in context — READ it each run (it changes), extract the concrete standards, and check every module against them. This catches what the worker was supposed to do but did not. Among the standards:
 
 - **Section order** — INFRASTRUCTURE → ORCHESTRATOR → FUNCTIONS; exactly one orchestrator; every function reachable from it.
 - **Comments** — only section markers, one-line function headers, cross-module import comments; NO inline comments.
 - **Imports** — absolute style; cross-module imports carry `# From <module>.py: …`; no stray relative imports (flag only when the project is absolute-consistent).
 - **Constants** — module-specific in the module, shared in the config module, none duplicated across files.
-- **Immutability** — no function mutates its arguments.
+- **Immutability** — no function mutates its arguments; module-level mutable state has ONE owner (only it mutates), read by others only via accessor functions.
 - **Error handling** — no bare `except`, no `except Exception: pass`, no silent swallow of business-logic failures.
 - **Naming & markers** — snake_case folders/modules, `__init__.py` present.
 - **Artifacts** — no test files in root, no git-tracked `debug/` or `logs/`, no emojis in production code/docs/logs.
