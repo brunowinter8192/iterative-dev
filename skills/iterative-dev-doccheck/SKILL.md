@@ -5,19 +5,26 @@ description:
 
 # Doc & Structure Check
 
-**Subject.** A project's documentation surface: `process-docs/**`, every `DOCS.md`, `dev/` reports, `skills/*/SKILL.md`. The skill systematically verifies this surface complies with the rules defined in § Documentation Hierarchy.
+**Subject.**
+A project's documentation surface: `process-docs/**`, every `DOCS.md`, `dev/` reports, `skills/*/SKILL.md`. The skill systematically verifies this surface complies with the rules defined in § Documentation Hierarchy.
 
-**Reference.** § Documentation Hierarchy is THE standard — the sole source of what correct docs + structure look like, and it wins over the project's current state. NEVER accept an existing structure as a "project convention" that excuses a deviation — "it's consistent everywhere" is not a defense; a consistent deviation is still a deviation. Diverges from a rule → flag it, bring it into line; a deviation stays only on an explicit user decision made LIVE in the current session — activating this skill IS that instruction to enforce the standard, so a past artifact (a historical note, a code comment, an old doc that records a prior choice) NEVER counts as a deviation-preserving decision. The sole sanctioned carve-out is the Step 0 contact-layer exclusion — never your own "it already works". "A deviation stays only on an explicit user decision" governs KEEPING a deviation, not fixing one — fixing is the default and needs no confirmation.
+**Reference.**
+§ Documentation Hierarchy is THE standard — the sole source of what correct docs + structure look like, and it wins over the project's current state. NEVER accept an existing structure as a "project convention" that excuses a deviation — "it's consistent everywhere" is not a defense; a consistent deviation is still a deviation. Diverges from a rule → flag it, bring it into line; a deviation stays only on an explicit user decision made LIVE in the current session — activating this skill IS that instruction to enforce the standard, so a past artifact (a historical note, a code comment, an old doc that records a prior choice) NEVER counts as a deviation-preserving decision. The sole sanctioned carve-out is the Step 0 contact-layer exclusion — never your own "it already works". "A deviation stays only on an explicit user decision" governs KEEPING a deviation, not fixing one — fixing is the default and needs no confirmation.
 
-**Work Step by Step.** The Workflow below adds no rules of its own; its Steps and Stages only fix the ORDER of what to check, mirroring the split of § Documentation Hierarchy. Read/grep across all a Step's Stages, then fix at the end of the Step — one fix pass per Step, not per Stage.
+**Work Step by Step.**
+The Workflow below adds no rules of its own; its Steps and Stages only fix the ORDER of what to check, mirroring the split of § Documentation Hierarchy. Read/grep across all a Step's Stages, then fix at the end of the Step — one fix pass per Step, not per Stage.
 
-**Run the whole audit through without pausing.** Apply the fixes and move on, NEVER stop to ask per finding — the size of a fix, or that it is not purely mechanical, is no reason to pause; a fix that follows from the rules gets applied in full, however substantial the reshaping. A fix that triggers a second violation is not a dilemma to report — resolve that one too in the same pass, the rules compose to a fully compliant surface. Report ONCE, at the very end (Step 5 — Hand off). Exception: Step 4 (skills) is flag-only — collect the findings there, never fix.
+**Run the whole audit through without pausing.**
+Apply the fixes and move on, NEVER stop to ask per finding — the size of a fix, or that it is not purely mechanical, is no reason to pause; a fix that follows from the rules gets applied in full, however substantial the reshaping. A fix that triggers a second violation is not a dilemma to report — resolve that one too in the same pass, the rules compose to a fully compliant surface. Report ONCE, at the very end (Step 5 — Hand off). Exception: Step 4 (skills) is flag-only — collect the findings there, never fix.
 
-**Volume is never a scope argument — assume an infinite token budget.** NEVER sample, shortcut, or do only "part" because the rework spans many files; every rule-driven fix is carried through in full, however many files it takes. A context limit is not a stop and not grounds to declare partial work "done": commit incrementally (after each Step/area) so nothing is lost, and the run resumes from the last commit — where a worker hit its limit, the orchestrator spawns a successor that picks up from there. Binds worker and orchestrator alike: a worker NEVER trims a task for size, commits per area, and works until done or until its limit.
+**Volume is never a scope argument — assume an infinite token budget.**
+NEVER sample, shortcut, or do only "part" because the rework spans many files; every rule-driven fix is carried through in full, however many files it takes. A context limit is not a stop and not grounds to declare partial work "done": commit incrementally (after each Step/area) so nothing is lost, and the run resumes from the last commit — where a worker hit its limit, the orchestrator spawns a successor that picks up from there. Binds worker and orchestrator alike: a worker NEVER trims a task for size, commits per area, and works until done or until its limit.
 
-**Report language: German.** Every report is written in German. This governs the chat surface only; all ARTIFACTS (process-docs, DOCS.md, code) stay English per § Documentation Hierarchy, regardless of the German chat.
+**Report language: German.**
+Every report is written in German. This governs the chat surface only; all ARTIFACTS (process-docs, DOCS.md, code) stay English per § Documentation Hierarchy, regardless of the German chat.
 
-**Step blinders — the Steps are separate layers, never cross-fed.** Each Step's scope is deliberately narrow: look ONLY at that Step's surface (Step 1 process-docs; Step 2 dev; Step 3 DOCS.md; Step 4 skills). The aperture widens Step by Step — knowledge gathered earlier may inform a later Step, but only within the frame the CURRENT Step defines; never reach back to re-open a closed Step. The surfaces do not source each other: process-docs is write-once history, DOCS.md is current state maintained from the CODE. The question "does layer A carry content layer B needs?" must NOT arise — it is a category error; a fix in one layer NEVER ports content into another. "In process-docs but not in DOCS.md" is not a portable gap; a reframed process-docs entry has zero bearing on DOCS.md completeness, which is judged only against the code.
+**Step blinders — the Steps are separate layers, never cross-fed.**
+Each Step's scope is deliberately narrow: look ONLY at that Step's surface (Step 1 process-docs; Step 2 dev; Step 3 DOCS.md; Step 4 skills). The aperture widens Step by Step — knowledge gathered earlier may inform a later Step, but only within the frame the CURRENT Step defines; never reach back to re-open a closed Step. The surfaces do not source each other: process-docs is write-once history, DOCS.md is current state maintained from the CODE. The question "does layer A carry content layer B needs?" must NOT arise — it is a category error; a fix in one layer NEVER ports content into another. "In process-docs but not in DOCS.md" is not a portable gap; a reframed process-docs entry has zero bearing on DOCS.md completeness, which is judged only against the code.
 
 ## Workflow
 
@@ -25,8 +32,10 @@ description:
 
 If you are Opus (orchestrator), ask the user ONE upfront question before Step 1: "Besides this chat, does the project have a user-facing contact layer — a directory of files authored FOR or delivered TO the user, not the internal doc surface?" (Standard project: the chat is the only contact layer → no. Non-standard: e.g. an exported-concepts / deliverables directory where the user is the recipient → yes, plus its path.)
 
-- **No** → every directory is in scope; the standard applies to all of it.
-- **Yes** → the named directory is a user-owned surface: EXCLUDE it entirely from every Step — never relocate, rename, translate, reframe, or reformat anything inside it; leave it exactly as-is.
+- **No**
+  every directory is in scope; the standard applies to all of it.
+- **Yes**
+  the named directory is a user-owned surface: EXCLUDE it entirely from every Step — never relocate, rename, translate, reframe, or reformat anything inside it; leave it exactly as-is.
 
 A WORKER never asks this. The orchestrator passes any excluded contact-layer path in the worker's prompt (as with handoff); the worker excludes exactly what the prompt names, nothing more.
 
@@ -52,9 +61,12 @@ Check § dev reports. Beyond the rule, apply on invocation:
 
 - A maintenance/utility script (reclean, one-shot fixer) goes in its thematic `dev/<area>/` — no exempt catch-all folder. A loose `.md` in `dev/` that **no script produces** (a hand-written run summary / analysis) is NOT a dev report → it belongs in `process-docs/` if still relevant, or is deleted if stale.
 - Assign each dev folder to its area (determine the fit from its `DOCS.md` / module docstring / contents). Belongs to ONE area → rename the folder to that area name. Contents spanning MULTIPLE areas is the real fix and the hard one → split the folder, routing each part into its own `dev/<area>/`.
-- **Report vs DATA** — distinguish by content: a report is a readable analysis (a JSON *analysis* output counts → `md/`); data is the run's raw payload (scraped corpora, raw dumps, cached job data).
-- **Cumulative logs stay.** An append-only log tracked + compared across runs (institutional history, not a single-run analysis) is NOT a report → leave in place.
-- **Sub-suite own `md/`.** A self-contained sub-eval folder (`garbage_eval/`, `browser_eval/`) gets its OWN `md/`, not the parent area's.
+- **Report vs DATA**
+  distinguish by content: a report is a readable analysis (a JSON *analysis* output counts → `md/`); data is the run's raw payload (scraped corpora, raw dumps, cached job data).
+- **Cumulative logs stay.**
+  An append-only log tracked + compared across runs (institutional history, not a single-run analysis) is NOT a report → leave in place.
+- **Sub-suite own `md/`.**
+  A self-contained sub-eval folder (`garbage_eval/`, `browser_eval/`) gets its OWN `md/`, not the parent area's.
 
 ### Step 3 — DOCS
 
@@ -66,7 +78,7 @@ Check § docs (Placement). Beyond the rule: **Root files** — `README.md` → f
 
 #### Stage 2 — format
 
-Check § docs (DOCS.md Format). Beyond the rule: **References resolve** — every file a `DOCS.md` names exists on disk.
+Check § docs (DOCS.md Format). Beyond the rule: **References resolve** — every file a `DOCS.md` names exists on disk; a reference to a nonexistent file → delete it from the `DOCS.md`.
 
 #### Stage 3 — language
 
@@ -78,7 +90,8 @@ Check § Artifact Density against each `skills/*/SKILL.md`. Beyond the rule:
 
 `skills/*/SKILL.md` = procedure, not essay: WHAT (capability + output) and HOW (steps, commands, thresholds, formats, rules incl. "do NOT X"), never WHY.
 
-**Frontmatter.** `description:` is present but empty — flag any non-empty `description` and blank it.
+**Frontmatter.**
+`description:` is present but empty — flag any non-empty `description` and blank it.
 
 Removability test per clause: reader still executes exactly the same without it? Yes → WHY → cut. A concrete example stays only when it shows HOW to decide.
 
