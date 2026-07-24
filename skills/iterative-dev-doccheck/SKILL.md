@@ -55,6 +55,16 @@ Check § No Issue References and § process docs (no present-tense current/produ
 
 Check § Language across every `process-docs/` entry.
 
+#### Stage 4 — RAG manifest
+
+Check `.rag-docs.json` at project root:
+
+- `include` MUST cover the full docs surface: every `DOCS.md` AND `process-docs/**/*.md`. A manifest missing the `process-docs` layer → add the pattern.
+- Every `include` pattern matches ≥1 file on disk → a dead pattern (matches nothing) is removed.
+- `collection` follows `<Project>-docs` naming.
+- No manifest present → flag in the report; do not create one.
+- Do NOT run `rag-cli update_docs` here — index sync is a session-recap action.
+
 ### Step 2 — dev
 
 Check § dev reports. Beyond the rule, apply on invocation:
