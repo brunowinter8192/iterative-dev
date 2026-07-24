@@ -15,7 +15,7 @@ A project's documentation surface: `process-docs/**`, every `DOCS.md`, `dev/` re
 The Workflow below adds no rules of its own; its Steps and Stages only fix the ORDER of what to check, mirroring the split of § Documentation Hierarchy. Read/grep across all a Step's Stages, then fix at the end of the Step — one fix pass per Step, not per Stage.
 
 **Run the whole audit through without pausing.**
-Apply the fixes and move on, NEVER stop to ask per finding — the size of a fix, or that it is not purely mechanical, is no reason to pause; a fix that follows from the rules gets applied in full, however substantial the reshaping. A fix that triggers a second violation is not a dilemma to report — resolve that one too in the same pass, the rules compose to a fully compliant surface. Report ONCE, at the very end (Step 5 — Hand off). Exception: Step 4 (skills) is flag-only — collect the findings there, never fix.
+Apply the fixes and move on, NEVER stop to ask per finding — the size of a fix, or that it is not purely mechanical, is no reason to pause; a fix that follows from the rules gets applied in full, however substantial the reshaping. A fix that triggers a second violation is not a dilemma to report — resolve that one too in the same pass, the rules compose to a fully compliant surface. Report ONCE, at the very end (Step 6 — Hand off). Exception: Step 4 (skills) is flag-only — collect the findings there, never fix.
 
 **Volume is never a scope argument — assume an infinite token budget.**
 NEVER sample, shortcut, or do only "part" because the rework spans many files; every rule-driven fix is carried through in full, however many files it takes. A context limit is not a stop and not grounds to declare partial work "done": commit incrementally (after each Step/area) so nothing is lost, and the run resumes from the last commit — where a worker hit its limit, the orchestrator spawns a successor that picks up from there. Binds worker and orchestrator alike: a worker NEVER trims a task for size, commits per area, and works until done or until its limit.
@@ -24,7 +24,7 @@ NEVER sample, shortcut, or do only "part" because the rework spans many files; e
 Every report is written in German. This governs the chat surface only; all ARTIFACTS (process-docs, DOCS.md, code) stay English per § Documentation Hierarchy, regardless of the German chat.
 
 **Step blinders — the Steps are separate layers, never cross-fed.**
-Each Step's scope is deliberately narrow: look ONLY at that Step's surface (Step 1 process-docs; Step 2 dev; Step 3 DOCS.md; Step 4 skills). The aperture widens Step by Step — knowledge gathered earlier may inform a later Step, but only within the frame the CURRENT Step defines; never reach back to re-open a closed Step. The surfaces do not source each other: process-docs is write-once history, DOCS.md is current state maintained from the CODE. The question "does layer A carry content layer B needs?" must NOT arise — it is a category error; a fix in one layer NEVER ports content into another. "In process-docs but not in DOCS.md" is not a portable gap; a reframed process-docs entry has zero bearing on DOCS.md completeness, which is judged only against the code.
+Each Step's scope is deliberately narrow: look ONLY at that Step's surface (Step 1 process-docs; Step 2 dev; Step 3 DOCS.md; Step 4 skills; Step 5 issues). The aperture widens Step by Step — knowledge gathered earlier may inform a later Step, but only within the frame the CURRENT Step defines; never reach back to re-open a closed Step. The surfaces do not source each other: process-docs is write-once history, DOCS.md is current state maintained from the CODE. The question "does layer A carry content layer B needs?" must NOT arise — it is a category error; a fix in one layer NEVER ports content into another. "In process-docs but not in DOCS.md" is not a portable gap; a reframed process-docs entry has zero bearing on DOCS.md completeness, which is judged only against the code.
 
 ## Workflow
 
@@ -122,6 +122,16 @@ Flag WHY-content by signature:
 
 Keep — never flag: commands, paths, thresholds, output formats, parameter tables, ordering rules, prohibitions, behavior facts the procedure depends on, decision-examples.
 
-### Step 5 — Hand off
+### Step 5 — issues (orchestrator only)
 
-Report your findings. Then, if you are Opus: commit your doc fixes and spawn a worker to activate this skill (`iterative-dev-doccheck`) — it re-runs the audit on the committed state and applies the flagged source fixes (source edits are worker-only). Hand the worker, in its prompt, every source fix you already established — concrete file, location, and change — so it carries them through for certain instead of leaving them to re-discovery. Review + merge each worker's branch; where a worker hits its context limit mid-work, spawn a successor from the last commit and continue until the chain reports done. Do NOT sync RAG here — the RAG sync is a session-recap action on the final merged state, not the skill's concern. If you are a worker, you're done — no spawn.
+Runs LAST — after Steps 1-4 the area structure is final. A WORKER skips this Step entirely (no gh-cli).
+
+Check every OPEN issue of the project (`gh-cli list_issues`, owner/repo from `git remote get-url origin`) against § GitHub Issues (Issue Format). Bring every body into that format via `update_issue --body` (full-replace):
+
+- Rewrite `What it is:` to 2-3 sentences if it carries iteration history or decision rationale.
+- Replace any Source-Inventory / file-path list with the `Area:` line — the area per the POST-audit folder structure (Steps 1-2 may have renamed/merged the folder the issue pointed to).
+- Set the `Resume:` line to the area-scoped RAG search.
+
+### Step 6 — Hand off
+
+Report your findings (Step 4 flags + Step 5 issue rewrites included). Then, if you are Opus: commit your doc fixes and spawn a worker to activate this skill (`iterative-dev-doccheck`) — it re-runs the audit on the committed state and applies the flagged source fixes (source edits are worker-only). Hand the worker, in its prompt, every source fix you already established — concrete file, location, and change — so it carries them through for certain instead of leaving them to re-discovery. Review + merge each worker's branch; where a worker hits its context limit mid-work, spawn a successor from the last commit and continue until the chain reports done. Do NOT sync RAG here — the RAG sync is a session-recap action on the final merged state, not the skill's concern. If you are a worker, you're done — no spawn.
