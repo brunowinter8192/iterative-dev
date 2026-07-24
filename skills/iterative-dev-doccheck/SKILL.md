@@ -47,15 +47,24 @@ Touch ONLY process-docs in this Step — NEVER migrate its content into a `DOCS.
 
 Check § process docs (Root-anchored, one fixed name).
 
-#### Stage 2 — invariants
+#### Stage 2 — area assignment
+
+Check every `process-docs/<area>/` folder against § process docs (Area = work strand with its own driving question; New area vs existing area). Folder level, not entry level:
+
+- A folder whose question a single entry settles → fold its entries into the area it continues (per the new-vs-existing questions).
+- A folder whose entries split into separate strands under the questions → split it, one folder per strand.
+- A folder that is a maintained list (backlog, inventory) → dissolve; its open items are issue material, flag them in the report.
+- Folder merges/splits rename `<area>` → apply the same rename to `dev/<area>/` and the CLAUDE.md area section (one area name across surfaces).
+
+#### Stage 3 — invariants
 
 Check § No Issue References and § process docs (no present-tense current/production claims, dense/dated/thematic, no cross-references to another process-docs entry, evidence inline).
 
-#### Stage 3 — language
+#### Stage 4 — language
 
 Check § Language across every `process-docs/` entry.
 
-#### Stage 4 — RAG manifest
+#### Stage 5 — RAG manifest
 
 Check `.rag-docs.json` at project root:
 
