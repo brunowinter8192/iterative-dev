@@ -49,7 +49,16 @@ Check § process docs (Root-anchored, one fixed name).
 
 #### Stage 2 — area assignment
 
-Check every `process-docs/<area>/` folder against § process docs (Area = work strand with its own driving question, New area vs existing area). Folder level, not entry level: fold, split, or dissolve folders accordingly; a rename propagates to `dev/<area>/`. Open items from a dissolved maintained-list folder are issue material — flag them in the report.
+Check every `process-docs/<area>/` folder against § process docs (Area = work strand with its own driving question, New area vs existing area). NOT a glance-over: produce an explicit per-folder verdict — no folder is skipped, no verdict is implicit.
+
+Per folder, in order:
+
+1. **State its driving question in one sentence.** Cannot state one → the folder is not an area → dissolve, route entries to their true areas.
+2. **Single-settled-question test.** The folder's content is one question that one entry (or one session) settled → not an area → fold the entry into the area whose strand it belongs to.
+3. **Entry-membership test.** Per entry: does THIS entry answer THIS folder's driving question? An entry answering a DIFFERENT area's question moves there — a folder can be a valid area and still hold misfiled entries.
+4. **Overlap test.** Two folders whose driving questions are one question → merge.
+
+Fold, split, or dissolve accordingly; a rename propagates to `dev/<area>/`. Open items from a dissolved maintained-list folder are issue material — flag them in the report. The Step-6 report lists every folder with its verdict (`valid: <driving question>` / `folded into X` / `split into X+Y` / `dissolved`) and every entry that moved.
 
 #### Stage 3 — invariants
 
