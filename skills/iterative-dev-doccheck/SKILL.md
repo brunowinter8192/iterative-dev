@@ -49,12 +49,7 @@ Check § process docs (Root-anchored, one fixed name).
 
 #### Stage 2 — area assignment
 
-Check every `process-docs/<area>/` folder against § process docs (Area = work strand with its own driving question; New area vs existing area). Folder level, not entry level:
-
-- A folder whose question a single entry settles → fold its entries into the area it continues (per the new-vs-existing questions).
-- A folder whose entries split into separate strands under the questions → split it, one folder per strand.
-- A folder that is a maintained list (backlog, inventory) → dissolve; its open items are issue material, flag them in the report.
-- Folder merges/splits rename `<area>` → apply the same rename to `dev/<area>/` and the CLAUDE.md area section (one area name across surfaces).
+Check every `process-docs/<area>/` folder against § process docs (Area = work strand with its own driving question, New area vs existing area). Folder level, not entry level: fold, split, or dissolve folders accordingly; a rename propagates to `dev/<area>/` and the CLAUDE.md area section. Open items from a dissolved maintained-list folder are issue material — flag them in the report.
 
 #### Stage 3 — invariants
 
