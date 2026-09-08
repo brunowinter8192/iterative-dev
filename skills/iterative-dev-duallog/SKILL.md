@@ -35,8 +35,8 @@ START                PROJECT                                      SESSION
 
 `turns <session> [N]`
 
-- `session` — unambiguous substring of a stem, e.g. `reldist-power`; two matches exit with an error, so add more of the stem, e.g. `reldist-power_1788`.
-- `N` — a turn number from the bare listing; given, the output switches to one line per request of that turn.
+- `session` — a SESSION value from sessions, or a unique substring of it.
+- `N` — a turn number from the output below; switches to one line per request of that turn.
 
 #### Output
 
