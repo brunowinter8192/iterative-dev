@@ -12,10 +12,11 @@ description:
 - The worker never scans and never classifies.
 - The worker receives one concrete refactor and implements it.
 
-**One Step at a time.**
+**One Step at a time, one Phase at a time.**
 - Per Step: scan, dispatch, evaluate the worker's plan, Go, review the diff, recap, merge.
 - One worker per coherent unit, never a bundle of unrelated refactors.
 - Step N is merged before Step N+1 is scanned.
+- Phase N is closed before Phase N+1 starts; its worker prompt template is the one at the end of that Phase.
 
 **The run is autonomous and reports once.**
 - No user stop between Steps.
@@ -56,10 +57,6 @@ description:
 - Top-level UPPER_CASE constants are grouped by leading `PREFIX_` token.
 - A prefix with three or more constants is a cluster.
 - Two or more clusters in one file split, one module per cluster.
-
-**A split re-points every reference before recap.**
-- The worker greps every reference to each moved symbol and confirms the new access path.
-- Names deliberately left in place are whitelisted in the recap.
 
 ### Step 3 — Control-Flow Integrity
 
