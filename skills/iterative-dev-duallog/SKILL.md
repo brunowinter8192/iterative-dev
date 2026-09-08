@@ -1,6 +1,6 @@
 ---
 name: iterative-dev-duallog
-description: Read the proxy dual logs of past Claude Code sessions (main and worker) with the duallog CLI — find a session, list its turns and requests, locate slow turns, cache rebuilds or gaps, and read any message in full. Use when investigating what a session or worker actually did, how long its turns took, or why the prompt cache was rebuilt.
+description: 
 ---
 
 # Dual-Log Reading — Skill
