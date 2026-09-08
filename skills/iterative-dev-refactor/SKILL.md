@@ -44,13 +44,10 @@ description:
 
 **File size.**
 - Over 400 LOC is a split.
-- 300 to 400 LOC is a watch.
-- Largest first.
 
 **Function size.**
 - 50 LOC or more extracts a helper.
 - 100 LOC or more is a hard target.
-- Longest first, reported with file and line.
 
 **Class state.**
 - Ten or more distinct `self.<attr>` splits the class by concern.
@@ -89,6 +86,28 @@ description:
 - Replace the runtime fallback with a test-time invariant over a real corpus, kept as a regression.
 - Validate in `dev/` on real data across all cases, then port and delete the fallback chain.
 
+### Worker Prompt — Phase 1
+
+```markdown
+You are a WORKER.
+
+Your worktree is `<project>/.claude/worktrees/<name>/`. Read, edit, test, and commit here.
+
+## Task
+<one refactor, abstractly: what is split, moved, or eliminated, and the desired end state>
+
+## Files
+<the modules involved, plus the DOCS.md of their directory; read every one completely>
+
+## Scope
+Do NOT add features or improvements beyond this refactor. Do NOT touch other modules except to re-point references.
+
+## Completion Checklist
+- Every reference to each moved symbol re-pointed; names deliberately left in place listed.
+- Existing tests pass; one real invocation per affected entry point before/after identical.
+- Touched DOCS.md updated, LOC per touched module.
+```
+
 ## Phase 2 — Module Standards Conformance
 
 **The worker code standard is read each run.**
@@ -114,6 +133,28 @@ description:
 - The worker receives one module's hit list with the triage target per hit.
 - After merge, Opus re-scans the module. Zero hits closes the Step.
 
+### Worker Prompt — Phase 2
+
+```markdown
+You are a WORKER.
+
+Your worktree is `<project>/.claude/worktrees/<name>/`. Read, edit, test, and commit here.
+
+## Task
+Bring `<module>` to the worker code standard: relocate or delete every listed hit. Decide nothing; the triage target per hit is given.
+
+## Hits
+<line: text → target>  (target is one of: process-docs/<area>/<entry>.md, DOCS.md Gotchas, DOCS.md module entry, delete)
+
+## Scope
+Do NOT change behavior. Do NOT touch lines not in the list.
+
+## Completion Checklist
+- Zero docstrings and zero comment lines outside the allowed set in `<module>`.
+- Each relocated hit present at its target, quoted.
+- Tests pass; module compiles.
+```
+
 ## Phase 3 — Doc-Drift Check
 
 **Workers update the touched DOCS.md with their change.**
@@ -121,3 +162,24 @@ description:
 **One drift check closes the run.**
 - After the last merge, `docs-drift-check` runs once in the cwd.
 - Residual drift goes to a worker, then the run is done.
+
+### Worker Prompt — Phase 3
+
+```markdown
+You are a WORKER.
+
+Your worktree is `<project>/.claude/worktrees/<name>/`. Read, edit, test, and commit here.
+
+## Task
+Close the residual doc drift listed below in the named DOCS.md files.
+
+## Drift
+<file: finding>
+
+## Scope
+Do NOT edit source code. Do NOT rewrite sections not named.
+
+## Completion Checklist
+- Every listed finding resolved, quoted.
+- LOC per module heading matches `wc -l`.
+```
