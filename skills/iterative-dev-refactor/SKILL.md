@@ -62,12 +62,10 @@ description:
 - The worker greps every reference to each moved symbol and confirms the new access path.
 - Names deliberately left in place are listed in the recap.
 
-
 ## Phase 2 — Module Standards Conformance
 
 **The worker code standard is read each run.**
 - Opus reads `shared-rules/worker/code-standards`, extracts the concrete standards, and checks every module.
-- A deviating module gets a worker.
 
 **Docstrings and comments are violations.**
 - Every module, class, and function docstring.
@@ -76,7 +74,6 @@ description:
 **Opus scans per file.**
 - `ast.get_docstring` on the module node and on every `FunctionDef`, `AsyncFunctionDef`, `ClassDef`.
 - Line walk for every line whose stripped form starts with `#`, minus the allowed set.
-- Files sorted by violation lines, largest first, is the dispatch order.
 
 **Opus triages every hit before dispatch.**
 - Substance recorded nowhere else goes into a new dated `process-docs/<area>/` entry, one entry per module.
@@ -88,7 +85,6 @@ description:
 - The worker relocates and deletes, and decides nothing.
 - After merge, Opus re-scans the module. Zero hits closes the Step.
 
-
 ## Phase 3 — Doc-Drift Check
 
 **Workers update the touched DOCS.md with their change.**
@@ -99,14 +95,11 @@ description:
 
 **The drift findings, file by file, belong in the worker prompt.**
 
-
 ## Phase 4 — Control-Flow Integrity
 
 **Scan only, then iterate with the user.**
 - Opus scans first, the worker scans second, both report findings and classify nothing.
 - The combined list goes to the user; every step from there is decided with the user.
-
-**The three passes and "classify nothing, fix nothing" belong in the worker prompt.**
 
 **The classifying question comes from the global testing rule.**
 - A branch that produces derived output a second way is a fallback and is eliminated.
@@ -116,3 +109,5 @@ description:
 - Textual: grep comments and names for `fallback`, `legacy path`, `old path`, `best-effort`, `backward-compat`, and function names containing `fallback`, `legacy`, `dedup`, `gated`.
 - Structural: AST for `except` handlers that return a non-`None` value without re-raising.
 - Cross-module, manual: one value or effect derived or read in two or more places that can diverge.
+
+**The three passes and "classify nothing, fix nothing" belong in the worker prompt.**
