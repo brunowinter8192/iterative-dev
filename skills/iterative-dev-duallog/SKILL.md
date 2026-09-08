@@ -11,7 +11,8 @@ Run via `duallog <command>` (in PATH). Every clock is LOCAL time.
 
 **A session is one CC process, named by its log stem.**
 - `api_requests_worker_<sid8>_<name>_<epoch>` for a worker, `api_requests_opus_<project>_<epoch>` for a main session.
-- Any unambiguous substring of the stem selects it, usually the worker name.
+- Every `session` argument accepts a substring of the stem instead of the full name, e.g. `reldist-power`.
+- The substring must match exactly one session; on two matches the command exits with an error, so add more of the stem, e.g. `reldist-power_1788`.
 
 **A REQ is one API request.**
 - Numbered like the proxy pane's `#n`; re-fires collapse into their owner.
