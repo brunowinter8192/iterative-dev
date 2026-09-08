@@ -18,10 +18,10 @@ description:
 - Step N is merged before Step N+1 is scanned.
 - Phase N is closed before Phase N+1 starts; its worker prompt template is the one at the end of that Phase.
 
-**The run is autonomous and reports once.**
-- No user stop between Steps.
-- One consolidated summary at the end, per Step: what was found, what was refactored and merged.
-- The summary is German, every artifact stays English.
+**Execution is autonomous up to Phase 4.**
+- No user stop between Steps in Phases 1 to 3.
+- One consolidated summary before Phase 4, per Step: what was found, what was refactored and merged.
+- Phase 4 is iterated with the user.
 
 **Thresholds are fixed.**
 - No number below is softened to fit a project.
@@ -57,31 +57,6 @@ description:
 - Top-level UPPER_CASE constants are grouped by leading `PREFIX_` token.
 - A prefix with three or more constants is a cluster.
 - Two or more clusters in one file split, one module per cluster.
-
-### Step 3 — Control-Flow Integrity
-
-**The classifying question comes from the global testing rule.**
-- A branch that produces derived output a second way is a fallback and is eliminated.
-- A branch that refuses and surfaces the failure is a tripwire and stays.
-
-**Three passes.**
-- Textual: grep comments and names for `fallback`, `legacy path`, `old path`, `best-effort`, `backward-compat`, and function names containing `fallback`, `legacy`, `dedup`, `gated`.
-- Structural: AST for `except` handlers that return a non-`None` value without re-raising.
-- Cross-module, manual: one value or effect derived or read in two or more places that can diverge.
-
-**Verification precedes classification.**
-- Both paths are read and confirmed to derive the same value.
-- Library behavior is read in the vendored source, never inferred.
-- Where cheap, a live probe confirms it.
-
-**A genuine fallback is never auto-fixed.**
-- It goes through a one-way redesign with the user.
-- The redesign makes one deterministic route produce the output.
-
-**One-way redesign procedure.**
-- Record once at the source, with position, identity, and order.
-- Replace the runtime fallback with a test-time invariant over a real corpus, kept as a regression.
-- Validate in `dev/` on real data across all cases, then port and delete the fallback chain.
 
 ### Worker Prompt — Phase 1
 
@@ -156,9 +131,9 @@ Do NOT change behavior. Do NOT touch lines not in the list.
 
 **Workers update the touched DOCS.md with their change.**
 
-**One drift check closes the run.**
-- After the last merge, `docs-drift-check` runs once in the cwd.
-- Residual drift goes to a worker, then the run is done.
+**One drift check closes the autonomous part.**
+- After the last Phase 2 merge, `docs-drift-check` runs once in the cwd.
+- Residual drift goes to a worker, then the consolidated summary goes to the user and Phase 4 begins.
 
 ### Worker Prompt — Phase 3
 
@@ -179,4 +154,42 @@ Do NOT edit source code. Do NOT rewrite sections not named.
 ## Completion Checklist
 - Every listed finding resolved, quoted.
 - LOC per module heading matches `wc -l`.
+```
+
+## Phase 4 — Control-Flow Integrity
+
+**Scan only, then iterate with the user.**
+- Opus scans first, the worker scans second, both report findings and classify nothing.
+- The combined list goes to the user; every step from there is decided with the user.
+
+**The classifying question comes from the global testing rule.**
+- A branch that produces derived output a second way is a fallback and is eliminated.
+- A branch that refuses and surfaces the failure is a tripwire and stays.
+
+**Three passes.**
+- Textual: grep comments and names for `fallback`, `legacy path`, `old path`, `best-effort`, `backward-compat`, and function names containing `fallback`, `legacy`, `dedup`, `gated`.
+- Structural: AST for `except` handlers that return a non-`None` value without re-raising.
+- Cross-module, manual: one value or effect derived or read in two or more places that can diverge.
+
+### Worker Prompt — Phase 4
+
+```markdown
+You are a WORKER.
+
+Your worktree is `<project>/.claude/worktrees/<name>/`. Read here; do not edit.
+
+## Task
+Scan `<source root>` for control-flow findings and report them. Classify nothing, fix nothing.
+
+## Passes
+- Textual: `fallback`, `legacy path`, `old path`, `best-effort`, `backward-compat`; function names containing `fallback`, `legacy`, `dedup`, `gated`.
+- Structural: `except` handlers returning a non-`None` value without re-raising.
+- Cross-module: one value or effect derived or read in two or more places.
+
+## Files
+<the modules in scope; read every one completely>
+
+## Completion Checklist
+- One line per finding: file, line, the two paths or the handler, quoted.
+- Findings already listed in the attached Opus scan marked as confirmed.
 ```
