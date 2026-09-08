@@ -13,26 +13,26 @@ Run via `duallog <command>` (in PATH). Every clock is LOCAL time.
 
 #### Input args
 
-`sessions [context] [--since D] [--until D]`
+`sessions [project] [--since D] [--until D]`
 
-- `context` — substring of the CONTEXT column, e.g. `trading` or `reldist-power`; omitted lists every session.
+- `project` — substring of the project path or the stem, e.g. `trading`, `ai/trading` or a worker name; omitted lists every session.
 - `--since D` / `--until D` — start day, `YYYY-MM-DD`, inclusive.
 
 #### Output
 
 ```
-START                CONTEXT                       SESSION
-2026-09-06 22:27:49  worker/trading/reldist-power  api_requests_worker_1dda1c81_reldist-power_1788726467
-2026-09-06 14:47:46  worker/trading/k-ratio        api_requests_worker_1dda1c81_k-ratio_1788698865
-2026-09-06 10:10:25  opus/trading                  api_requests_opus_trading_1788682222
+START                PROJECT                                      SESSION
+2026-09-06 22:27:49  /Users/brunowinter2000/Documents/ai/trading  api_requests_worker_reldist-power_1788726467
+2026-09-06 14:47:46  /Users/brunowinter2000/Documents/ai/trading  api_requests_worker_k-ratio_1788698865
+2026-09-06 10:10:25  /Users/brunowinter2000/Documents/ai/trading  api_requests_opus_trading_1788682222
 
 3 sessions
 ```
 
 - One row per session, newest first, then a count line.
 - `START` — local time of the first request.
-- `CONTEXT` — `opus/<project>` for a main session, `worker/<project>/<worker-name>` for a worker.
-- `SESSION` — the stem; any unambiguous substring of it is the `session` argument of turns, msgs and expand.
+- `PROJECT` — the project directory the session ran in; a worker's project, not its worktree.
+- `SESSION` — `api_requests_worker_<name>_<epoch>` or `api_requests_opus_<project>_<epoch>`; any unambiguous substring of it is the `session` argument of turns, msgs and expand.
 
 ### turns
 
@@ -81,9 +81,9 @@ REQ 77  23:09:03  model      12s  tool        ?        973 tok
 
 `reqs [scope] [--since D] [--until D] [--main | --worker] [--gap MIN] [--merged] [--rebuild] [--drop]`
 
-- `scope` — substring of CONTEXT or stem; omitted covers every session.
+- `scope` — substring of the project path or the stem; omitted covers every session.
 - `--since D` / `--until D` — start day, `YYYY-MM-DD`, inclusive.
-- `--main` / `--worker` — keep only `opus/` or `worker/` sessions.
+- `--main` / `--worker` — keep only main (opus) or worker sessions.
 - `--gap MIN` — keep only the two requests bracketing a pause of at least MIN whole minutes.
 - `--merged` — one chronological chain across every session in scope instead of one listing per session.
 - `--rebuild` — keep only requests where the cache write exceeded the cache read.
@@ -202,7 +202,7 @@ recap
 `search <term> [scope] [--since D] [--until D] [--only classifier] [--case-sensitive]`
 
 - `term` — literal substring, no regex; case-insensitive unless `--case-sensitive`.
-- `scope` — substring of CONTEXT or stem; omitted searches every session.
+- `scope` — substring of the project path or the stem; omitted searches every session.
 - `--since D` / `--until D` — start day, `YYYY-MM-DD`, inclusive.
 - `--only classifier` — as in expand.
 
