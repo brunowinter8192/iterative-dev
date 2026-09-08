@@ -29,113 +29,36 @@ START                PROJECT                                      SESSION
 3 sessions
 ```
 
-### turns
-
-#### Input args
-
-`turns <session> [N]`
-
-- `session` — a SESSION value from sessions, or a unique substring of it.
-- `N` — a turn number from the output below; switches to one line per request of that turn.
-
-#### Output
-
-```
-turn 1   22:27:49    41m27s  model   20m23s  tool   21m04s   77 reqs    102,389 tok  You are a WORKER.
-turn 2   23:10:14     1m04s  model    1m03s  tool       0s    2 reqs      5,115 tok  recap
-```
-
-- One line per turn. A turn runs from one typed prompt (human, or orchestrator via `worker-cli send`) to the model's idle text reply; pauses between turns belong to no turn.
-- clock — send time of the turn's first request.
-- duration — that send to the stream end of the turn's last request.
-- `model` — summed generation time (send → stream end) over the turn's requests.
-- `tool` — summed time between one stream end and the next send, i.e. tool execution plus hooks.
-- `reqs` — request count.
-- `tok` — summed output tokens.
-- trailing text — first line of the prompt that opened the turn.
-- `?` — the transcript join failed for that turn; clock and `reqs` are always real.
-- `tool` near `model` → shell commands drove the turn; `model` dominant with high `tok` → generation drove it.
-
-With `N`:
-
-```
-REQ 24  22:36:15  model    3m56s  tool       0s     30,097 tok  Write
-REQ 42  22:43:38  model       5s  tool    9m42s        193 tok  Bash
-REQ 77  23:09:03  model      12s  tool        ?        973 tok
-```
-
-- One line per request of turn N, same REQ numbers as reqs and msgs.
-- `model`, `tool`, `tok` — this request's own values.
-- trailing names — the tool_use calls in this request's reply, empty for a text-only reply.
-- The turn's last request shows `?` for `tool` by design.
-- The command behind a slow `tool` sits under the NEXT request's separator: `msgs <session> --req N+1`, then `expand` that msg.
-
 ### reqs
 
 #### Input args
 
-`reqs [scope] [--since D] [--until D] [--main | --worker] [--gap MIN] [--merged] [--rebuild] [--drop]`
+`reqs [scope] [--since D] [--until D] [--main | --worker] [--turn N] [--gap MIN] [--merged] [--rebuild] [--drop]`
 
 - `scope` — substring of the project path or the stem; omitted covers every session.
 - `--since D` / `--until D` — start day, `YYYY-MM-DD`, inclusive.
 - `--main` / `--worker` — keep only main (opus) or worker sessions.
-- `--gap MIN` — keep only the two requests bracketing a pause of at least MIN whole minutes.
-- `--merged` — one chronological chain across every session in scope instead of one listing per session.
-- `--rebuild` — keep only requests where the cache write exceeded the cache read.
-- `--drop` — keep only requests that read back less than the previous request had cached.
-- The flags combine.
+- `--turn N` — keep only turn N of each session.
+- `--gap MIN` — keep only the two REQs around a pause of at least MIN minutes.
+- `--merged` — one chronological chain across all sessions in scope, each line tagged with its worker; the cache-health view, since all workers of a project share the prompt cache.
+- `--rebuild` — keep only REQs where `CC > CR`, i.e. the prefix was rebuilt.
+- `--drop` — keep only REQs that read back less than the previous REQ had cached, i.e. the cache expired in between.
+- The flags combine; none adds a column.
 
 #### Output
 
 ```
 session api_requests_worker_1dda1c81_k-ratio_1788698865
-REQ 1   14:47:46
-REQ 2   14:47:50
+── turn 4  14:57:29  50s  recap ──
+REQ 46  14:58:19  CR 149,518  CC 228
+── turn 5  18:02:18  8m18s  NEW TASK (same worktree, same area). Read this fully before doing anything. ──
+REQ 47  18:02:18  CR 0        CC 152,851
+REQ 48  18:02:23  CR 152,851  CC 7,889
 ```
 
-- One `session` line, then one line per request: REQ number and send clock.
-
-With `--gap 60`:
-
-```
-session api_requests_worker_1dda1c81_k-ratio_1788698865
-REQ 46  14:58:19
-REQ 47  18:02:18  +183m
-```
-
-- `+Nm` — minutes since the previous printed request.
-- A session with no qualifying pause prints only its `session` line.
-
-With `--merged --gap 60`:
-
-```
-merged 2 sessions
-REQ 46  14:58:19  k-ratio
-REQ 47  18:02:18  k-ratio  +183m
-```
-
-- Each line carries its worker or project as tag.
-- This is the cache-health view: the prompt cache is shared by all workers of a project, so only a pause with NO request from ANY of them counts.
-
-With `--rebuild`:
-
-```
-REQ 3   14:47:54  CR 23,882  CC 34,029
-REQ 47  18:02:18  CR 0  CC 152,851
-```
-
-- `CR` — cache_read_input_tokens, `CC` — cache_creation_input_tokens of that request.
-- Printed when `CC > CR`, i.e. the prefix had to be rebuilt.
-
-With `--drop`:
-
-```
-REQ 47  18:02:18  CR 0  CC 152,851  −149,746
-```
-
-- Printed when `CR(n) < CR(n-1) + CC(n-1)`; the tail is the shortfall.
-- Here REQ 47 read 0 tokens from cache although ~150k were cached before: the cache expired during the 183-minute pause.
-- The predecessor is always the same session's previous request, also under `--merged`.
+- A turn runs from one typed prompt (human, or orchestrator via `worker-cli send`) to the model's idle text reply; the separator shows its first send, its span and the prompt.
+- `CR` — cache_read_input_tokens, `CC` — cache_creation_input_tokens of that request; `?` when the transcript join failed.
+- Under `--merged` the session tag follows the clock on a REQ line and the span on a separator.
 
 ### msgs
 
@@ -143,7 +66,7 @@ REQ 47  18:02:18  CR 0  CC 152,851  −149,746
 
 `msgs <session> [from] [to]` or `msgs <session> --req F [T]`
 
-- `session` — as in turns.
+- `session` — a SESSION value from sessions, or a unique substring of it.
 - `from` / `to` — inclusive msg indices; omitted prints the whole session.
 - `--req F [T]` — inclusive REQ range instead; `T` defaults to `F`. Not combinable with `from`/`to`.
 
@@ -173,7 +96,7 @@ REQ 47  18:02:18  CR 0  CC 152,851  −149,746
 
 `expand <session> <msg> [--before N] [--after N] [--only classifier]`
 
-- `session` — as in turns.
+- `session` — a SESSION value from sessions, or a unique substring of it.
 - `msg` — a msg index from msgs or search.
 - `--before N` / `--after N` — widen the window by N msgs on either side.
 - `--only classifier` — keep only msgs matching a role (`user`), a block type (`tool_result`), or both (`user/text`); a msg matches when its role matches and ANY block matches the type, and it always shows ALL its blocks.
@@ -235,5 +158,5 @@ session   api_requests_worker_1dda1c81_reldist-power_1788726467
 **The final text reply of a turn is only visible in the NEXT request's delta.**
 - The first request of turn N+1 lists turn N's closing reply under its separator.
 
-**Time inside a request cannot be split further.**
-- The proxy records send time and first-byte time only; stream end comes from CC's transcript.
+**The gap between two REQ clocks is model time plus tool time together.**
+- The proxy records send times only; where the split lies is not in the logs.
