@@ -16,7 +16,7 @@ description:
 - Per Step: scan, dispatch, evaluate the worker's plan, Go, review the diff, recap, merge.
 - One worker per coherent unit, never a bundle of unrelated refactors.
 - Step N is merged before Step N+1 is scanned.
-- Phase N is closed before Phase N+1 starts; its worker prompt template is the one at the end of that Phase.
+- Phase N is closed before Phase N+1 starts.
 
 **Execution is autonomous up to Phase 4.**
 - No user stop between Steps in Phases 1 to 3.
@@ -58,27 +58,10 @@ description:
 - A prefix with three or more constants is a cluster.
 - Two or more clusters in one file split, one module per cluster.
 
-### Worker Prompt — Phase 1
+**Re-pointing every reference belongs in the worker prompt.**
+- The worker greps every reference to each moved symbol and confirms the new access path.
+- Names deliberately left in place are listed in the recap.
 
-```markdown
-You are a WORKER.
-
-Your worktree is `<project>/.claude/worktrees/<name>/`. Read, edit, test, and commit here.
-
-## Task
-<one refactor, abstractly: what is split, moved, or eliminated, and the desired end state>
-
-## Files
-<the modules involved, plus the DOCS.md of their directory; read every one completely>
-
-## Scope
-Do NOT add features or improvements beyond this refactor. Do NOT touch other modules except to re-point references.
-
-## Completion Checklist
-- Every reference to each moved symbol re-pointed; names deliberately left in place listed.
-- Existing tests pass; one real invocation per affected entry point before/after identical.
-- Touched DOCS.md updated, LOC per touched module.
-```
 
 ## Phase 2 — Module Standards Conformance
 
@@ -101,31 +84,10 @@ Do NOT add features or improvements beyond this refactor. Do NOT touch other mod
 - A module's purpose, reads, writes, callers, and grounding entry go into the module's `DOCS.md` entry.
 - Content already covered by process-docs or `DOCS.md` is deleted.
 
-**The worker relocates and deletes, and decides nothing.**
-- The worker receives one module's hit list with the triage target per hit.
+**The hit list with its triage target per hit belongs in the worker prompt.**
+- The worker relocates and deletes, and decides nothing.
 - After merge, Opus re-scans the module. Zero hits closes the Step.
 
-### Worker Prompt — Phase 2
-
-```markdown
-You are a WORKER.
-
-Your worktree is `<project>/.claude/worktrees/<name>/`. Read, edit, test, and commit here.
-
-## Task
-Bring `<module>` to the worker code standard: relocate or delete every listed hit. Decide nothing; the triage target per hit is given.
-
-## Hits
-<line: text → target>  (target is one of: process-docs/<area>/<entry>.md, DOCS.md Gotchas, DOCS.md module entry, delete)
-
-## Scope
-Do NOT change behavior. Do NOT touch lines not in the list.
-
-## Completion Checklist
-- Zero docstrings and zero comment lines outside the allowed set in `<module>`.
-- Each relocated hit present at its target, quoted.
-- Tests pass; module compiles.
-```
 
 ## Phase 3 — Doc-Drift Check
 
@@ -135,32 +97,16 @@ Do NOT change behavior. Do NOT touch lines not in the list.
 - After the last Phase 2 merge, `docs-drift-check` runs once in the cwd.
 - Residual drift goes to a worker, then the consolidated summary goes to the user and Phase 4 begins.
 
-### Worker Prompt — Phase 3
+**The drift findings, file by file, belong in the worker prompt.**
 
-```markdown
-You are a WORKER.
-
-Your worktree is `<project>/.claude/worktrees/<name>/`. Read, edit, test, and commit here.
-
-## Task
-Close the residual doc drift listed below in the named DOCS.md files.
-
-## Drift
-<file: finding>
-
-## Scope
-Do NOT edit source code. Do NOT rewrite sections not named.
-
-## Completion Checklist
-- Every listed finding resolved, quoted.
-- LOC per module heading matches `wc -l`.
-```
 
 ## Phase 4 — Control-Flow Integrity
 
 **Scan only, then iterate with the user.**
 - Opus scans first, the worker scans second, both report findings and classify nothing.
 - The combined list goes to the user; every step from there is decided with the user.
+
+**The three passes and "classify nothing, fix nothing" belong in the worker prompt.**
 
 **The classifying question comes from the global testing rule.**
 - A branch that produces derived output a second way is a fallback and is eliminated.
@@ -170,26 +116,3 @@ Do NOT edit source code. Do NOT rewrite sections not named.
 - Textual: grep comments and names for `fallback`, `legacy path`, `old path`, `best-effort`, `backward-compat`, and function names containing `fallback`, `legacy`, `dedup`, `gated`.
 - Structural: AST for `except` handlers that return a non-`None` value without re-raising.
 - Cross-module, manual: one value or effect derived or read in two or more places that can diverge.
-
-### Worker Prompt — Phase 4
-
-```markdown
-You are a WORKER.
-
-Your worktree is `<project>/.claude/worktrees/<name>/`. Read here; do not edit.
-
-## Task
-Scan `<source root>` for control-flow findings and report them. Classify nothing, fix nothing.
-
-## Passes
-- Textual: `fallback`, `legacy path`, `old path`, `best-effort`, `backward-compat`; function names containing `fallback`, `legacy`, `dedup`, `gated`.
-- Structural: `except` handlers returning a non-`None` value without re-raising.
-- Cross-module: one value or effect derived or read in two or more places.
-
-## Files
-<the modules in scope; read every one completely>
-
-## Completion Checklist
-- One line per finding: file, line, the two paths or the handler, quoted.
-- Findings already listed in the attached Opus scan marked as confirmed.
-```
