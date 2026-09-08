@@ -29,11 +29,6 @@ START                PROJECT                                      SESSION
 3 sessions
 ```
 
-- One row per session, newest first, then a count line.
-- `START` — local time of the first request.
-- `PROJECT` — the project directory the session ran in; a worker's project, not its worktree.
-- `SESSION` — `api_requests_worker_<name>_<epoch>` or `api_requests_opus_<project>_<epoch>`; any unambiguous substring of it is the `session` argument of turns, msgs and expand.
-
 ### turns
 
 #### Input args
