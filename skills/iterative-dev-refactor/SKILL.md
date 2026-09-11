@@ -7,8 +7,8 @@ description:
 
 ## Core Rules
 
-**Opus scans, workers fix.**
-- Opus runs every scan and every classification itself, by AST walk, grep, or `wc`.
+**Main scans, workers fix.**
+- Main runs every scan and every classification itself, by AST walk, grep, or `wc`.
 - The worker never scans and never classifies.
 - The worker receives one concrete refactor and implements it.
 
@@ -65,17 +65,17 @@ description:
 ## Phase 2 — Module Standards Conformance
 
 **The worker code standard is read each run.**
-- Opus reads `shared-rules/worker/code-standards`, extracts the concrete standards, and checks every module.
+- Main reads `shared-rules/worker/code-standards`, extracts the concrete standards, and checks every module.
 
 **Docstrings and comments are violations.**
 - Every module, class, and function docstring.
 - Every comment line except the shebang and the three section markers.
 
-**Opus scans per file.**
+**Main scans per file.**
 - `ast.get_docstring` on the module node and on every `FunctionDef`, `AsyncFunctionDef`, `ClassDef`.
 - Line walk for every line whose stripped form starts with `#`, minus the allowed set.
 
-**Opus triages every hit before dispatch.**
+**Main triages every hit before dispatch.**
 - Substance recorded nowhere else goes into a new dated `process-docs/<area>/` entry, one entry per module.
 - A guard on a calibrated value goes into the module's `DOCS.md` Gotchas.
 - A module's purpose, reads, writes, callers, and grounding entry go into the module's `DOCS.md` entry.
@@ -83,7 +83,7 @@ description:
 
 **The hit list with its triage target per hit belongs in the worker prompt.**
 - The worker relocates and deletes, and decides nothing.
-- After merge, Opus re-scans the module. Zero hits closes the Step.
+- After merge, Main re-scans the module. Zero hits closes the Step.
 
 ## Phase 3 — Doc-Drift Check
 
@@ -98,7 +98,7 @@ description:
 ## Phase 4 — Control-Flow Integrity
 
 **Scan only, then iterate with the user.**
-- Opus scans first, the worker scans second, both report findings and classify nothing.
+- Main scans first, the worker scans second, both report findings and classify nothing.
 - The combined list goes to the user; every step from there is decided with the user.
 
 **The classifying question comes from the global testing rule.**
