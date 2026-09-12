@@ -7,6 +7,11 @@ description:
 
 ## Core Rules
 
+**The rules are the standard, and they win over the project's current state.**
+- An existing structure is never a project convention that excuses a deviation.
+   - A consistent deviation is still a deviation.
+- Every review judges against the rule, never against the neighbouring code or the neighbouring entry.
+
 **Main scans, workers fix.**
 - Main runs every scan and every classification itself, by AST walk, grep, or `wc`.
 - The worker never scans and never classifies.
@@ -77,9 +82,14 @@ description:
 
 **Main triages every hit before dispatch.**
 - Substance recorded nowhere else goes into a new dated `process-docs/<area>/` entry, one entry per module.
-- A guard on a calibrated value goes into the module's `DOCS.md` Gotchas.
-- A module's purpose, reads, writes, callers, and grounding entry go into the module's `DOCS.md` entry.
+- A module's purpose, reads, writes, callers and calls-out go into the module's `DOCS.md` entry, within § DOCS.md Format.
+- Everything else goes into the process-docs entry, including guards on calibrated values and grounding.
 - Content already covered by process-docs or `DOCS.md` is deleted.
+
+**The module's `DOCS.md` is rewritten to § DOCS.md Format in the same Step.**
+- The existing entries of that directory are brought into the format alongside the relocated hits.
+- Everything cut to reach the format goes verbatim into the same process-docs entry, under one `## Salvage from <path>` heading.
+- A directory's `DOCS.md` ends the Step shorter than it started.
 
 **The hit list with its triage target per hit belongs in the worker prompt.**
 - The worker relocates and deletes, and decides nothing.
