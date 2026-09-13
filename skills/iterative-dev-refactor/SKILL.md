@@ -61,10 +61,11 @@ description:
 
 **Main scans per file.**
 - `ast.get_docstring` on the module node and on every `FunctionDef`, `AsyncFunctionDef`, `ClassDef`.
-- Line walk for every line whose stripped form starts with `#`, minus the allowed set.
+- `tokenize.COMMENT` for every comment token, minus the shebang and the three section markers.
+   - A `#` inside a string literal is not a comment, and a raw line-prefix test reports it as one.
 
 **Main triages every hit before dispatch.**
-- Substance recorded nowhere else goes into a new dated `process-docs/<area>/` entry, one entry per module.
+- Substance recorded nowhere else goes into the author's own dated `process-docs/<area>/` file, one entry per module.
 - A module's purpose, reads, writes, callers and calls-out go into the module's `DOCS.md` entry, within § DOCS.md Format.
 - Everything else goes into the process-docs entry, including guards on calibrated values and grounding.
 - Content already covered by process-docs or `DOCS.md` is deleted.
