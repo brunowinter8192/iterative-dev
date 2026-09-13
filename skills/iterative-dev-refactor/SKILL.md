@@ -43,12 +43,16 @@ description:
 
 ## Phase 1 — Cohesion and Concern-Splitting
 
-**File size.**
-- Over 400 LOC is a split.
+### Step 1 — Scan
 
-**Function size.**
-- 50 LOC or more extracts a helper.
-- 100 LOC or more is a hard target.
+**Main scans every module against the two size thresholds.**
+- File size: over 400 LOC is a split.
+- Function size: 50 LOC or more extracts a helper, and 100 LOC or more is a hard target.
+
+### Step 2 — Dispatch
+
+**The worker splits along the concerns it finds, and Main names no target modules.**
+- After merge, Main re-scans. Zero hits closes the Phase.
 
 ## Phase 2 — Module Standards Conformance
 
