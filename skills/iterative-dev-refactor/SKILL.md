@@ -131,17 +131,19 @@ description:
 
 ## Phase 4 — Control-Flow Integrity
 
-**Scan only, then iterate with the user.**
-- Main scans first, the worker scans second, both report findings and classify nothing.
-- The combined list goes to the user; every step from there is decided with the user.
+### Step 1 — Main scans
 
-**The classifying question comes from the global testing rule.**
-- A branch that produces derived output a second way is a fallback and is eliminated.
-- A branch that refuses and surfaces the failure is a tripwire and stays.
-
-**Three passes.**
-- Textual: grep comments and names for `fallback`, `legacy path`, `old path`, `best-effort`, `backward-compat`, and function names containing `fallback`, `legacy`, `dedup`, `gated`.
+**Main runs three passes and classifies nothing.**
+- Textual: grep names and report strings for `fallback`, `legacy path`, `old path`, `best-effort`, `backward-compat`, and function names containing `fallback`, `legacy`, `dedup`, `gated`.
 - Structural: AST for `except` handlers that return a non-`None` value without re-raising.
 - Cross-module, manual: one value or effect derived or read in two or more places that can diverge.
 
-**The three passes and "classify nothing, fix nothing" belong in the worker prompt.**
+### Step 2 — The worker scans
+
+**The worker runs the same three passes independently.**
+- The prompt carries the three passes, § Fallback and Tripwire as the standard, and "classify nothing, fix nothing".
+
+### Step 3 — Report
+
+**The combined list goes to the user.**
+- Every step from there is decided with the user.
