@@ -83,25 +83,25 @@ description:
 
 ## Phase 3 — Doc Structure
 
-### Step 1 — Placement
+### Step 1 — Check
 
-**Phase 2 is merged before the placement scan runs.**
-- Every line count and every closure is measured on the post-rewrite state.
+**Phase 2 is merged before the check runs, and is merged now if it is not.**
 
-**A `DOCS.md` of 400 lines or more splits its directory into unit subfolders.**
-- Under 400 lines the directory stays flat and the Phase closes with no finding.
-- `__init__.py` is skipped.
+**Every `DOCS.md` in scope is checked against the 400-line threshold.**
+- 400 lines or more splits its directory into unit subfolders.
+- Under 400 lines the directory stays flat.
 
 **A unit is one entry script plus the modules reached only by that script's import closure.**
 - An entry script is a module that no other module in the directory imports.
-- Main computes every closure by AST walk over the directory's own imports.
 - A module reached by two or more closures is shared.
-- A module reached by no closure is reported as unowned, and the user decides it.
+- A module reached by no closure is unowned, and the user decides it.
+- `__init__.py` is skipped.
 
-**The split.**
+### Step 2 — Plan
+
+**Main plans the split before any file moves.**
 - A unit holding one or more exclusive modules moves into `<unit>/`, named after its entry script without the number prefix.
-- A unit holding no exclusive module stays as a single file at the area root.
-- Every shared module stays at the area root.
+- A unit holding no exclusive module stays as a single file at the area root, and so does every shared module.
 - The entry script keeps its number.
 
 **Output directories stay at the area root and never move.**
@@ -111,15 +111,20 @@ description:
 - Every `parents[N]` walk on `__file__` is replaced by a resolution independent of the module's depth.
 - Every output path is anchored at the area root, never at the module's own directory.
 
-**Each new subfolder gets its own `DOCS.md` in the same Step.**
+**Every new subfolder gets its own `DOCS.md`.**
 - The area `DOCS.md` keeps Role, Flow, the shared modules, the single-file units, and one line per subfolder.
 
-### Step 2 — Doc-Drift Check
+### Step 3 — Dispatch
+
+**The worker executes the plan.**
+- After merge, Main re-checks. Every `DOCS.md` under 400 lines closes the Step.
+
+### Step 4 — Doc-Drift Check
 
 **Workers update the touched DOCS.md with their change.**
 
 **One drift check closes the autonomous part.**
-- After Step 1 is merged, `docs-drift-check` runs once in the cwd.
+- After Step 3 is merged, `docs-drift-check` runs once in the cwd.
 - Residual drift goes to a worker, then the consolidated summary goes to the user and Phase 4 begins.
 
 **The drift findings, file by file, belong in the worker prompt.**
