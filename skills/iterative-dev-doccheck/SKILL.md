@@ -53,6 +53,11 @@ description:
 **Check every `dev/` folder and file against every block of § dev and the dev convention, and enforce.**
 - The blocks are the checklist; nothing is repeated here.
 
+**Every `dev/` directory at level 1 carries the exact name of a `process-docs/<area>/` folder.**
+- A dev directory with no matching area is renamed to its area, or folded into that area's dev directory.
+- An area with no dev directory is left alone.
+- Below level 1 the naming is free; that level belongs to § iterative-dev-refactor Phase 1 Step 1.
+
 **Placements the rules do not carry.**
 - A maintenance or utility script goes in its thematic `dev/<area>/`; there is no exempt catch-all folder.
 - A loose `.md` in `dev/` that no script produces is not a dev report.
