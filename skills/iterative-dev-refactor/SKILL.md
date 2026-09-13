@@ -52,32 +52,30 @@ description:
 
 ## Phase 2 — Module Standards Conformance
 
+### Step 1 — Read the standard
+
 **The worker code standard is read each run.**
 - Main reads `shared-rules/worker/code-standards`, extracts the concrete standards, and checks every module.
 
-**Docstrings and comments are violations.**
-- Every module, class, and function docstring.
-- Every comment line except the shebang and the three section markers.
+### Step 2 — Scan
 
-**Main scans per file.**
+**Main scans per file, and every docstring and every comment is a violation.**
 - `ast.get_docstring` on the module node and on every `FunctionDef`, `AsyncFunctionDef`, `ClassDef`.
 - `tokenize.COMMENT` for every comment token, minus the shebang and the three section markers.
    - A `#` inside a string literal is not a comment, and a raw line-prefix test reports it as one.
 
-**Main triages every hit before dispatch.**
-- Substance recorded nowhere else goes into the author's own dated `process-docs/<area>/` file, one entry per module.
-- A module's purpose, reads, writes, callers and calls-out go into the module's `DOCS.md` entry, within § DOCS.md Format.
-- Everything else goes into the process-docs entry, including guards on calibrated values and grounding.
-- Content already covered by process-docs or `DOCS.md` is deleted.
+### Step 3 — Triage
 
-**The module's `DOCS.md` is rewritten to § DOCS.md Format in the same Step.**
-- The existing entries of that directory are brought into the format alongside the relocated hits.
-- Everything cut to reach the format goes verbatim into the same process-docs entry, under one `## Salvage from <path>` heading.
-- A directory's `DOCS.md` ends the Step shorter than it started.
+**Main checks every hit against process-docs and `DOCS.md`.**
+- A hit already covered there is deleted.
+- Every other hit is relocated into the author's own dated `process-docs/<area>/` file, then deleted.
 
-**The hit list with its triage target per hit belongs in the worker prompt.**
-- The worker relocates and deletes, and decides nothing.
-- After merge, Main re-scans the module. Zero hits closes the Step.
+### Step 4 — Dispatch
+
+**The worker relocates and deletes, and decides nothing.**
+- The prompt also carries the directory's `DOCS.md` rewrite to § DOCS.md Format, in the same run.
+   - Everything cut to reach the format goes verbatim into the same process-docs file, under one `## Salvage from <path>` heading.
+- After merge, Main re-scans the directory. Zero hits closes the Phase.
 
 ## Phase 3 — Doc Structure
 
