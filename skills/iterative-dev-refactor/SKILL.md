@@ -59,7 +59,7 @@ description:
 ### Step 1 — Read the standard
 
 **The worker code standard is read each run.**
-- Main reads `shared-rules/worker/code-standards`, extracts the concrete standards, and checks every module.
+- Main reads `shared-rules/global/code-standards`, extracts the concrete standards, and checks every module.
 
 ### Step 2 — Scan
 
