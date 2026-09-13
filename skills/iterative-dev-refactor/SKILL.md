@@ -50,14 +50,6 @@ description:
 - 50 LOC or more extracts a helper.
 - 100 LOC or more is a hard target.
 
-**Class state.**
-- Ten or more distinct `self.<attr>` splits the class by concern.
-
-**Constant clustering.**
-- Top-level UPPER_CASE constants are grouped by leading `PREFIX_` token.
-- A prefix with three or more constants is a cluster.
-- Two or more clusters in one file split, one module per cluster.
-
 **Re-pointing every reference belongs in the worker prompt.**
 - The worker greps every reference to each moved symbol and confirms the new access path.
 - Names deliberately left in place are listed in the recap.
