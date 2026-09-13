@@ -43,7 +43,31 @@ description:
 
 ## Phase 1 — Architectural Form
 
-### Step 1 — Placement
+### Step 1 — Cohesion and Concern-Splitting
+
+**File size.**
+- Over 400 LOC is a split.
+
+**Function size.**
+- 50 LOC or more extracts a helper.
+- 100 LOC or more is a hard target.
+
+**Class state.**
+- Ten or more distinct `self.<attr>` splits the class by concern.
+
+**Constant clustering.**
+- Top-level UPPER_CASE constants are grouped by leading `PREFIX_` token.
+- A prefix with three or more constants is a cluster.
+- Two or more clusters in one file split, one module per cluster.
+
+**Re-pointing every reference belongs in the worker prompt.**
+- The worker greps every reference to each moved symbol and confirms the new access path.
+- Names deliberately left in place are listed in the recap.
+
+### Step 2 — Placement
+
+**Step 1 is merged before the placement scan runs.**
+- Every line count and every closure is measured on the post-split state.
 
 **A `DOCS.md` of 400 lines or more splits its directory into unit subfolders.**
 - Under 400 lines the directory stays flat and the Step closes with no finding.
@@ -70,27 +94,6 @@ description:
 
 **Each new subfolder gets its own `DOCS.md` in the same Step.**
 - The area `DOCS.md` keeps Role, Flow, the shared modules, the single-file units, and one line per subfolder.
-
-### Step 2 — Cohesion and Concern-Splitting
-
-**File size.**
-- Over 400 LOC is a split.
-
-**Function size.**
-- 50 LOC or more extracts a helper.
-- 100 LOC or more is a hard target.
-
-**Class state.**
-- Ten or more distinct `self.<attr>` splits the class by concern.
-
-**Constant clustering.**
-- Top-level UPPER_CASE constants are grouped by leading `PREFIX_` token.
-- A prefix with three or more constants is a cluster.
-- Two or more clusters in one file split, one module per cluster.
-
-**Re-pointing every reference belongs in the worker prompt.**
-- The worker greps every reference to each moved symbol and confirms the new access path.
-- Names deliberately left in place are listed in the recap.
 
 ## Phase 2 — Module Standards Conformance
 
