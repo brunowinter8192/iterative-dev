@@ -133,15 +133,12 @@ description:
 
 ### Step 1 — Main scans
 
-**Main runs three passes and classifies nothing.**
-- Textual: grep names and report strings for `fallback`, `legacy path`, `old path`, `best-effort`, `backward-compat`, and function names containing `fallback`, `legacy`, `dedup`, `gated`.
-- Structural: AST for `except` handlers that return a non-`None` value without re-raising.
-- Cross-module, manual: one value or effect derived or read in two or more places that can diverge.
+**Main finds every branch § Fallback and Tripwire covers, and classifies nothing.**
 
 ### Step 2 — The worker scans
 
-**The worker runs the same three passes independently.**
-- The prompt carries the three passes, § Fallback and Tripwire as the standard, and "classify nothing, fix nothing".
+**The worker scans the same scope independently.**
+- The prompt carries § Fallback and Tripwire as the standard, and "classify nothing, fix nothing".
 
 ### Step 3 — Report
 
