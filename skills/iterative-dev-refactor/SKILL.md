@@ -50,10 +50,6 @@ description:
 - 50 LOC or more extracts a helper.
 - 100 LOC or more is a hard target.
 
-**Re-pointing every reference belongs in the worker prompt.**
-- The worker greps every reference to each moved symbol and confirms the new access path.
-- Names deliberately left in place are listed in the recap.
-
 ## Phase 2 — Module Standards Conformance
 
 **The worker code standard is read each run.**
