@@ -17,7 +17,7 @@ sys.path.insert(0, str(_HERE.parents[1]))
 
 from src.poread_cli.__main__ import main
 
-_PINNED_MAX_BYTES = 500_000
+_PINNED_MAX_BYTES = 50_000
 _PINNED_HASH_LEN = 16
 _PINNED_MARKER_PREFIX = '<poread-export '
 _PINNED_NOTICE = (
