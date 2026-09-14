@@ -79,3 +79,24 @@ repo's own resolution convention, test suite moved and re-pinned, DOCS.md update
 package level and the directory-map level. See `process-docs/poread/` in the monitor-cc repo for
 the other half of this same milestone (the proxy-side constant-copy adaptation and its own test
 rewrite).
+
+## Recap close-out
+
+Self-audit: `git diff integration --name-only` on this worktree returns files from other,
+unrelated prior work already sitting on branch `identity` (`bin/worker-cli`,
+`dev/worker_merge/*`, `process-docs/worker_merge/*`, `skills/*`) — not mine, out of this recap's
+scope. The actual scope is this task's own commit (`git show --stat 7e91fb6 --name-only`):
+`bin/poread`, `dev/DOCS.md`, `dev/poread_cli/DOCS.md`, `dev/poread_cli/test_poread_cli.py`,
+`process-docs/poread/2026-09-14_poread_cli_lands_from_monitor_cc.md`, `src/DOCS.md`,
+`src/poread_cli/DOCS.md`, `src/poread_cli/__init__.py`, `src/poread_cli/__main__.py` — matches the
+file list already named in the task's completion checklist.
+
+**DOCS.md currency check, this pass:** `src/poread_cli/DOCS.md`'s `__main__.py` entry says
+`(77 LOC)`, `wc -l` confirms 77 — matches. `dev/poread_cli/DOCS.md`'s `test_poread_cli.py` entry
+says `(134 LOC)`, `wc -l` confirms 134 — matches. `src/DOCS.md`'s Directory Map row for
+`poread_cli/` says `77 | 1 (__main__.py)` — matches. Nothing stale found on this side; the one
+LOC drift found this session was on the monitor-cc side (`inject_poread.py`, 79→81 LOC in its own
+DOCS.md) — see that repo's own recap entry, not fixed here per this project's own rule (a found
+error in another file is stated in the author's own file, never fixed there).
+
+No further work planned by this worker here.
