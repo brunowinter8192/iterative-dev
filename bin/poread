@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# poread: export a file's full content past Bash's inline-output ceiling
+# Source: iterative-dev/bin/poread — symlinked to ~/.local/bin/poread
+# Usage: poread <path>
+
+PLUGIN="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/cache/brunowinter-plugins/iterative-dev/1.0.0}"
+
+cd "$PLUGIN" && python3 -m src.poread_cli "$@"
