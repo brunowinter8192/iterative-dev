@@ -2,9 +2,8 @@
 
 Worker task, worktree `.claude/worktrees/poreadcap/`, milestone 1 of a larger plan. Cross-repo
 change, this entry covers only this repo's half; see `process-docs/poread/` in monitor-cc for the
-proxy-side half of the same milestone. Same area as the prior entry
-(`2026-09-14_poread_cli_lands_from_monitor_cc.md`) — this only lowers a value already established
-there, the mechanism itself is unchanged (no paging/partial-read mode, no marker-format or notice
+proxy-side half of the same milestone. Same area as the prior work recorded in `process-docs/poread/` — this only lowers a value
+already established there, the mechanism itself is unchanged (no paging/partial-read mode, no marker-format or notice
 or hash-length or refusal-structure change).
 
 ## What changed
