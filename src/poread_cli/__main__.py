@@ -3,7 +3,7 @@ import hashlib
 import os
 import sys
 
-POREAD_MAX_BYTES = 500_000
+POREAD_MAX_BYTES = 50_000
 POREAD_HASH_LEN = 16
 POREAD_MARKER_PREFIX = '<poread-export '
 POREAD_NOTICE = (
