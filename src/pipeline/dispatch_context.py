@@ -6,7 +6,6 @@ from .jsonl_parse import extract_text_content, strip_system_reminders
 
 # FUNCTIONS
 
-# Derive main session path and agent ID from subagent JSONL path
 def derive_main_session(subagent_path: str) -> tuple[str, str]:
     p = Path(subagent_path)
     agent_id = p.stem.replace('agent-', '')
@@ -17,7 +16,6 @@ def derive_main_session(subagent_path: str) -> tuple[str, str]:
     return str(main_session), agent_id
 
 
-# Extract dispatch context from main session for a specific agent
 def extract_dispatch_context(main_messages: list[dict], agent_id: str) -> dict:
     anchor_idx = find_task_anchor(main_messages, agent_id)
     if anchor_idx is None:
@@ -34,7 +32,6 @@ def extract_dispatch_context(main_messages: list[dict], agent_id: str) -> dict:
     }
 
 
-# Find first progress line with matching data.agentId
 def find_task_anchor(messages: list[dict], agent_id: str) -> int | None:
     for i, message in enumerate(messages):
         if message.get('type') != 'progress':
@@ -45,7 +42,6 @@ def find_task_anchor(messages: list[dict], agent_id: str) -> int | None:
     return None
 
 
-# Find Agent tool_use block before anchor (closest one, searching backwards)
 def find_task_tool_use(messages: list[dict], anchor_idx: int) -> tuple[str, str]:
     for i in range(anchor_idx, max(-1, anchor_idx - 6), -1):
         msg_wrapper = messages[i]
@@ -62,7 +58,6 @@ def find_task_tool_use(messages: list[dict], anchor_idx: int) -> tuple[str, str]
     return '', ''
 
 
-# Collect 2-3 pre-dispatch messages (assistant reasoning + user context)
 def collect_pre_dispatch(messages: list[dict], anchor_idx: int) -> list[str]:
     pre_messages = []
     for i in range(anchor_idx - 1, max(-1, anchor_idx - 8), -1):
@@ -82,7 +77,6 @@ def collect_pre_dispatch(messages: list[dict], anchor_idx: int) -> list[str]:
     return pre_messages
 
 
-# Collect post-dispatch message (how main processed the result)
 def collect_post_dispatch(messages: list[dict], anchor_idx: int, task_tool_use_id: str) -> str:
     if not task_tool_use_id:
         return ''
@@ -117,7 +111,6 @@ def collect_post_dispatch(messages: list[dict], anchor_idx: int, task_tool_use_i
     return ''
 
 
-# Format dispatch context as markdown section
 def format_dispatch_context(context: dict) -> str:
     lines = ["# Dispatch Context"]
 

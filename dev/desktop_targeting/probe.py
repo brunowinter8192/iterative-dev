@@ -1,5 +1,17 @@
 #!/usr/bin/env python3
-"""Space-move probe — empirisch testen welche API auf macOS 15.7 Fenster auf einen
+
+# INFRASTRUCTURE
+import argparse
+import sys
+from typing import Dict, Optional
+
+import objc_bridge
+from objc_bridge import _CG, _SL
+from spaces import choose_target_space
+from window_probe import close_all_textedit, open_test_window
+from move_test import move_cgs, move_sls, run_test
+
+_HELP_TEXT = """Space-move probe — empirisch testen welche API auf macOS 15.7 Fenster auf einen
 anderen Space verschiebt.
 
 Für jeden Move-Test wird ein eigenes neues TextEdit-Dokument via AppleScript erstellt
@@ -12,17 +24,6 @@ sichtbar sein.
 Usage:
   python3 probe.py [--space <target_space_id>] [--debug]
 """
-
-# INFRASTRUCTURE
-import argparse
-import sys
-from typing import Dict, Optional
-
-import objc_bridge
-from objc_bridge import _CG, _SL
-from spaces import choose_target_space
-from window_probe import close_all_textedit, open_test_window
-from move_test import move_cgs, move_sls, run_test
 
 
 # ORCHESTRATOR
@@ -49,7 +50,7 @@ def main() -> int:
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description=__doc__,
+        description=_HELP_TEXT,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument('--space', type=int, default=None,
@@ -72,14 +73,12 @@ def _print_target_space(active: int, target: int) -> None:
 def _run_both_tests(cid: int, target: int) -> Dict[str, Optional[bool]]:
     results: Dict[str, Optional[bool]] = {}
 
-    # Test A: CGSMoveWindowsToManagedSpace (CoreGraphics, legacy)
     wid_a = open_test_window("A")
     results['A: CGSMoveWindowsToManagedSpace (CoreGraphics, legacy)'] = run_test(
         "A: CGSMoveWindowsToManagedSpace (CoreGraphics, legacy)",
         move_cgs, cid, wid_a, target,
     )
 
-    # Test B: SLSMoveWindowsToManagedSpace (SkyLight, Stufe 2)
     wid_b = open_test_window("B")
     results['B: SLSMoveWindowsToManagedSpace (SkyLight, Stufe 2)'] = run_test(
         "B: SLSMoveWindowsToManagedSpace (SkyLight, Stufe 2)",
@@ -90,7 +89,6 @@ def _run_both_tests(cid: int, target: int) -> Dict[str, Optional[bool]]:
 
 
 def _print_summary(active: int, target: int, results: Dict[str, Optional[bool]]) -> bool:
-    # Zusammenfassung
     print("\n" + "=" * 60)
     print("ERGEBNIS-ZUSAMMENFASSUNG")
     print(f"  Aktiver Space:  {active}")

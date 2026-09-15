@@ -4,24 +4,50 @@
 
 Smoke tests for the worker spawn flow (`src/spawn/`) — tmux session creation, env inheritance, cross-project worktree tracking, pane capture cleaning. No live Claude Code session started; dummy commands stand in.
 
+## Public Interface
+
+Each script is run manually, no importable interface: `python3 dev/worker_spawn/test_capture_clean.py`, `bash dev/worker_spawn/test_direct_command.sh`, `bash dev/worker_spawn/test_spawn_flow.sh [--no-ghostty]`, `bash dev/worker_spawn/test_xproject_worktrees.sh`.
+
+## Flow
+
+No shared input — each script drives `src/spawn/` (directly or via `bin/worker-cli`) against a throwaway tmux session, proxy, or git repo, then prints PASS/FAIL to stdout.
+
 ## Modules
 
-### test_capture_clean.py
+### test_capture_clean.py (149 LOC)
 
 **Purpose:** Fixture-based smoke for `src/spawn/_capture_clean.py`.
-**Usage:** `python3 dev/worker_spawn/test_capture_clean.py` (from project root)
+**Reads:** nothing external — writes its own fixture to a temp file.
+**Writes:** stdout (pass/fail).
+**Called by:** run manually.
+**Calls out:** `src/spawn/_capture_clean.py` (via subprocess).
 
-### test_direct_command.sh
+---
 
-**Purpose:** Verify tmux session inherits env vars (GH_TOKEN, PATH) when using direct command arg.
-**Usage:** `bash dev/worker_spawn/test_direct_command.sh`
+### test_direct_command.sh (54 LOC)
 
-### test_spawn_flow.sh
+**Purpose:** Verifies tmux session inherits env vars (GH_TOKEN, PATH) when using direct command arg.
+**Reads:** ambient env vars (GH_TOKEN, PATH).
+**Writes:** stdout; creates and kills a throwaway tmux session.
+**Called by:** run manually.
+**Calls out:** tmux.
 
-**Purpose:** Test the full spawn flow without starting a real Claude Code session (dummy command instead of claude-patched). Covers proxy env, non-blocking tmux session creation, non-blocking Ghostty viewer.
-**Usage:** `bash dev/worker_spawn/test_spawn_flow.sh`
+---
 
-### test_xproject_worktrees.sh
+### test_spawn_flow.sh (213 LOC)
 
-**Purpose:** Smoke test for cross-project worktree tracking in worker-cli. Uses `WORKER_REGISTRY_DIR` + throwaway git repos — no tmux, no spawn, no live registry.
-**Usage:** `bash dev/worker_spawn/test_xproject_worktrees.sh`
+**Purpose:** Tests the full spawn flow without starting a real Claude Code session (dummy command instead of `claude-patched`).
+**Reads:** `src/spawn/tmux_spawn.sh` (sourced).
+**Writes:** stdout; creates and kills a throwaway tmux session + proxy + Ghostty window.
+**Called by:** run manually.
+**Calls out:** tmux, Ghostty, `src/spawn/tmux_spawn.sh`.
+
+---
+
+### test_xproject_worktrees.sh (192 LOC)
+
+**Purpose:** Smoke test for cross-project worktree tracking in `worker-cli`.
+**Reads:** nothing persistent — uses `WORKER_REGISTRY_DIR` + throwaway git repos.
+**Writes:** stdout; throwaway git repos and registry files (cleaned up on exit).
+**Called by:** run manually.
+**Calls out:** `bin/worker-cli` (via subprocess), git.

@@ -7,10 +7,7 @@ from objc_bridge import _CG, _cf_at, _cf_count, _dict_long, _dict_str, _dict_val
 
 # FUNCTIONS
 
-# ── Space-Enumeration ──────────────────────────────────────────────────────────
-
 def build_space_map(cid: int) -> Tuple[Dict[int, Tuple[str, int]], int, Dict[str, List[int]]]:
-    """Gibt (space_map, active_space_id, display_spaces) zurück."""
     active = _CG.CGSGetActiveSpace(cid)
     dsp_arr = _CG.CGSCopyManagedDisplaySpaces(cid)
     n_disp = _cf_count(dsp_arr)
@@ -44,11 +41,6 @@ def build_space_map(cid: int) -> Tuple[Dict[int, Tuple[str, int]], int, Dict[str
 
 
 def choose_target_space(cid: int, override: Optional[int]) -> Tuple[int, int]:
-    """Gibt (active_space, target_space) zurück.
-
-    override: explizite Space-ID. None → auto: erster nicht-aktiver Space auf
-    demselben Display (same-Display-Constraint um Cross-Display-Artefakte auszuschließen).
-    """
     space_map, active, display_spaces = build_space_map(cid)
 
     print(f"\n── Space-Übersicht ──────────────────────────────────────────")

@@ -1,8 +1,3 @@
-"""
-Stage all (tracked mods + untracked, minus skip-list) and commit in one call.
-Usage: python3 -m src.git.commit "<message>" [repo_path]
-"""
-
 # INFRASTRUCTURE
 
 import argparse
@@ -11,7 +6,6 @@ import os
 import subprocess
 import sys
 
-# From check.py: skip-list, status parsing, classification, staging
 from src.git.check import parse_status, classify_files, stage_all
 
 logger = logging.getLogger(__name__)
@@ -36,7 +30,6 @@ def commit_workflow(repo_path: str, message: str) -> None:
 
 # FUNCTIONS
 
-# Run git commit, returning (returncode, combined stdout+stderr)
 def do_commit(repo_path: str, message: str) -> tuple[int, str]:
     result = subprocess.run(
         ["git", "commit", "-m", message],
@@ -46,7 +39,6 @@ def do_commit(repo_path: str, message: str) -> tuple[int, str]:
     return result.returncode, output
 
 
-# Print concise staged-files + commit result summary
 def print_commit_report(staged: list[str], skipped: list, commit_output: str) -> None:
     if staged:
         print(f"staged: {', '.join(staged)}")
@@ -57,7 +49,6 @@ def print_commit_report(staged: list[str], skipped: list, commit_output: str) ->
     print(commit_output)
 
 
-# Print staging failures and the abort message (no commit is attempted after this)
 def print_stage_errors(stage_errors: list[str]) -> None:
     print("stage errors:")
     for e in stage_errors:

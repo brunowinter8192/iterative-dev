@@ -8,14 +8,7 @@ from objc_bridge import _CG, _SL, _cf_count, _cfarray_ints, _dbg, _make_uint_arr
 
 # FUNCTIONS
 
-# ── Space-Verifikation ─────────────────────────────────────────────────────────
-
 def get_window_space(cid: int, wid: int) -> Optional[int]:
-    """Primäre Verifikation: CGSGetWindowWorkspace → direkte per-Fenster Space-ID.
-
-    Gibt None zurück wenn der Call fehlschlägt (z.B. TCC-Einschränkung).
-    Kein try/except — Ausnahmen (Segfault etc.) sollen sichtbar sein.
-    """
     out = ctypes.c_uint64(0)
     rc = _CG.CGSGetWindowWorkspace(cid, ctypes.c_uint32(wid), ctypes.byref(out))
     _dbg(f"CGSGetWindowWorkspace(cid={cid}, wid={wid}) rc={rc} out={out.value}")
@@ -25,9 +18,6 @@ def get_window_space(cid: int, wid: int) -> Optional[int]:
 
 
 def get_window_spaces_copy(cid: int, wid: int) -> List[int]:
-    """Sekundäre Verifikation: CGSCopySpacesForWindows (Array-Return).
-    Liefert auf macOS 15 für fremde Prozess-Fenster häufig [] (TCC-Einschränkung).
-    """
     wid_arr = _make_uint_array([wid])
 
     result = _SL.SLSCopySpacesForWindows(cid, 7, wid_arr)
@@ -46,29 +36,18 @@ def get_window_spaces_copy(cid: int, wid: int) -> List[int]:
         return ids2
     return []
 
-# ── Move-Funktionen ────────────────────────────────────────────────────────────
-
 def move_cgs(cid: int, wids: List[int], space_id: int) -> int:
-    """CGSMoveWindowsToManagedSpace (CoreGraphics) — erwartet No-Op auf macOS 15."""
     rc = _CG.CGSMoveWindowsToManagedSpace(cid, _make_uint_array(wids), ctypes.c_uint64(space_id))
     _dbg(f"CGSMoveWindowsToManagedSpace rc={rc}")
     return rc
 
 
 def move_sls(cid: int, wids: List[int], space_id: int) -> int:
-    """SLSMoveWindowsToManagedSpace (SkyLight) — Stufe 2, primärer Kandidat."""
     rc = _SL.SLSMoveWindowsToManagedSpace(cid, _make_uint_array(wids), ctypes.c_uint64(space_id))
     _dbg(f"SLSMoveWindowsToManagedSpace rc={rc}")
     return rc
 
-# ── Test-Kern ──────────────────────────────────────────────────────────────────
-
 def run_test(label: str, move_fn, cid: int, wid: int, target_space: int) -> bool:
-    """Liest before-space, ruft Move auf, liest after-space.
-
-    Kein try/except auf dem Move-Call — TCC/Permission-Fehler sollen unverdeckt erscheinen.
-    Gibt True bei PASS zurück.
-    """
     print(f"\n── Test {label} ──────────────────────────────────────────────")
 
     before_ws = get_window_space(cid, wid)
@@ -87,7 +66,6 @@ def run_test(label: str, move_fn, cid: int, wid: int, target_space: int) -> bool
     print(f"  after   CGSCopySpacesForWindows: {after_copy}")
     print(f"  target-space: {target_space}")
 
-    # Primäre Verifikation: CGSGetWindowWorkspace
     if after_ws is not None and before_ws is not None:
         passed = after_ws == target_space
         src = "CGSGetWindowWorkspace"

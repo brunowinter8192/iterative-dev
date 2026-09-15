@@ -9,8 +9,6 @@ from objc_bridge import _CG, _cf_at, _cf_count, _dbg, _dict_long, _dict_str
 
 # FUNCTIONS
 
-# ── Fenster-Erkennung ──────────────────────────────────────────────────────────
-
 def wids_for_owner(owner_name: str) -> Set[int]:
     arr = _CG.CGWindowListCopyWindowInfo(0, 0)
     out: Set[int] = set()
@@ -27,9 +25,6 @@ def wids_for_owner(owner_name: str) -> Set[int]:
 
 
 def open_new_textedit_window() -> None:
-    """Öffnet genau ein neues TextEdit-Dokument via AppleScript — robust auch wenn
-    TextEdit bereits läuft (im Gegensatz zu 'open -a TextEdit' das TextEdit nur
-    aktiviert wenn es schon läuft)."""
     subprocess.run(
         ['osascript', '-e', 'tell application "TextEdit" to make new document'],
         check=True,
@@ -37,8 +32,6 @@ def open_new_textedit_window() -> None:
 
 
 def wait_for_new_window(owner_name: str, timeout: float = 6.0) -> Optional[int]:
-    """before/after-Diff nach open_new_textedit_window. Wird vor dem open-Call
-    aufgerufen (snapshotted before), DANN open, DANN poll."""
     before = wids_for_owner(owner_name)
     _dbg(f"before-snapshot: {len(before)} Fenster von {owner_name}")
     return before, lambda: _poll_new(owner_name, before, timeout)
@@ -57,10 +50,7 @@ def _poll_new(owner_name: str, before: Set[int], timeout: float) -> Optional[int
             return wid
     return None
 
-# ── Test-Kern ──────────────────────────────────────────────────────────────────
-
 def open_test_window(label: str) -> int:
-    """Snapshot → open → poll. Gibt wid zurück oder beendet mit Fehler."""
     print(f"\n  Öffne TextEdit-Fenster für Test {label}...")
     _, poll = wait_for_new_window('TextEdit')
     open_new_textedit_window()
