@@ -154,7 +154,16 @@ def extract_hard_error_pattern(text: str) -> str:
 
 # Format the audit report as markdown
 def format_report(hard_errors: dict, soft_errors: dict, stats: dict) -> str:
-    lines = [
+    lines = _format_header(stats)
+    lines.extend(_format_hard_error_rows(hard_errors))
+    lines.extend(_format_soft_errors_section(soft_errors))
+    lines.extend(_format_recommendation(soft_errors))
+    return '\n'.join(lines)
+
+
+# Report title, date, stats block, Hard Errors table header
+def _format_header(stats: dict) -> list[str]:
+    return [
         '# Error Pattern Audit',
         '',
         f'**Date:** {datetime.now().strftime("%Y-%m-%d %H:%M")}',
@@ -169,11 +178,19 @@ def format_report(hard_errors: dict, soft_errors: dict, stats: dict) -> str:
         '|---------|-------|---------|',
     ]
 
+
+# Hard Errors table rows
+def _format_hard_error_rows(hard_errors: dict) -> list[str]:
+    rows = []
     for pattern, data in sorted(hard_errors.items(), key=lambda x: -x[1]['count']):
         example = data['example'].replace('\n', ' ')[:80]
-        lines.append(f'| {pattern} | {data["count"]} | {example} |')
+        rows.append(f'| {pattern} | {data["count"]} | {example} |')
+    return rows
 
-    lines.extend([
+
+# Soft Errors section: header, table header, rows, none-found fallback
+def _format_soft_errors_section(soft_errors: dict) -> list[str]:
+    lines = [
         '',
         '## Soft Errors (Candidates for is_tool_error)',
         '',
@@ -181,7 +198,7 @@ def format_report(hard_errors: dict, soft_errors: dict, stats: dict) -> str:
         '',
         '| Indicator | Count | Files | Example |',
         '|-----------|-------|-------|---------|',
-    ])
+    ]
 
     for indicator, data in sorted(soft_errors.items(), key=lambda x: -x[1]['count']):
         example = data['example'].replace('\n', ' ')[:80]
@@ -191,11 +208,16 @@ def format_report(hard_errors: dict, soft_errors: dict, stats: dict) -> str:
     if not soft_errors:
         lines.append('| (none found) | 0 | 0 | — |')
 
-    lines.extend([
+    return lines
+
+
+# Recommendation section
+def _format_recommendation(soft_errors: dict) -> list[str]:
+    lines = [
         '',
         '## Recommendation',
         '',
-    ])
+    ]
 
     if soft_errors:
         lines.append('Soft error patterns found. Evaluate each for inclusion in `is_tool_error()`:')
@@ -205,7 +227,7 @@ def format_report(hard_errors: dict, soft_errors: dict, stats: dict) -> str:
     else:
         lines.append('No soft error patterns found. `is_tool_error()` covers all observed errors via `is_error` flag. No change needed.')
 
-    return '\n'.join(lines)
+    return lines
 
 
 # Write report to file

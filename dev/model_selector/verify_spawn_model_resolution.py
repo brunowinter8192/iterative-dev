@@ -17,66 +17,24 @@ def verify_spawn_model_resolution_workflow() -> None:
     lines = [f"# spawn.py model-resolution verification — {datetime.now().isoformat(timespec='seconds')}", ""]
 
     with tempfile.TemporaryDirectory() as tmp:
-        missing_path = Path(tmp) / "does_not_exist.json"
-        spawn._MODEL_SELECTION_FILE = str(missing_path)
-        resolved = spawn._resolve_worker_model()
-        lines.append(f"Missing config file -> {resolved!r} (expected hardcoded fallback)")
-        assert resolved == spawn._DEFAULT_WORKER_MODEL
-
-        valid_path = Path(tmp) / "valid.json"
-        valid_path.write_text(json.dumps({"main": "claude-opus-5", "worker": "claude-fable-5"}))
-        spawn._MODEL_SELECTION_FILE = str(valid_path)
-        resolved = spawn._resolve_worker_model()
-        lines.append(f"Valid config -> {resolved!r} (expected config's worker model)")
-        assert resolved == "claude-fable-5"
-
-        malformed_path = Path(tmp) / "malformed.json"
-        malformed_path.write_text("{not valid json")
-        spawn._MODEL_SELECTION_FILE = str(malformed_path)
-        resolved = spawn._resolve_worker_model()
-        lines.append(f"Malformed JSON -> {resolved!r} (expected hardcoded fallback, no raise)")
-        assert resolved == spawn._DEFAULT_WORKER_MODEL
-
-        missing_key_path = Path(tmp) / "missing_key.json"
-        missing_key_path.write_text(json.dumps({"main": "claude-opus-5"}))
-        spawn._MODEL_SELECTION_FILE = str(missing_key_path)
-        resolved = spawn._resolve_worker_model()
-        lines.append(f"Config missing 'worker' key -> {resolved!r} (expected hardcoded fallback)")
-        assert resolved == spawn._DEFAULT_WORKER_MODEL
+        lines.append(_verify_missing_config_file(spawn, tmp))
+        valid_line, valid_path = _verify_valid_config_file(spawn, tmp)
+        lines.append(valid_line)
+        lines.append(_verify_malformed_config_file(spawn, tmp))
+        lines.append(_verify_missing_key_config_file(spawn, tmp))
 
         # ---- "explicit arg wins" as argparse itself resolves it (real parser, not reimplemented) ----
         lines.append("")
         lines.append("## argparse resolution (real parser, default=None)")
-
-        parser_explicit = spawn.argparse.ArgumentParser()
-        parser_explicit.add_argument("model", nargs="?", default=None)
-        args_explicit = parser_explicit.parse_args(["claude-explicit-cli-arg"])
-        resolved_model = args_explicit.model or spawn._resolve_worker_model()
-        lines.append(f"Explicit CLI arg given -> resolved_model={resolved_model!r} (expected explicit arg, config never consulted)")
-        assert resolved_model == "claude-explicit-cli-arg"
-
-        parser_omitted = spawn.argparse.ArgumentParser()
-        parser_omitted.add_argument("model", nargs="?", default=None)
-        args_omitted = parser_omitted.parse_args([])
-        lines.append(f"CLI arg omitted -> args.model={args_omitted.model!r} (expected None, not the string 'None')")
-        assert args_omitted.model is None
-        assert args_omitted.model != "None"
-        spawn._MODEL_SELECTION_FILE = str(valid_path)
-        resolved_model = args_omitted.model or spawn._resolve_worker_model()
-        lines.append(f"CLI arg omitted -> resolved_model={resolved_model!r} (expected config's worker model, never the literal 'None')")
-        assert resolved_model == "claude-fable-5"
-        assert resolved_model != "None"
-        assert isinstance(resolved_model, str) and resolved_model
+        lines.append(_verify_explicit_cli_arg(spawn))
+        lines.extend(_verify_omitted_cli_arg(spawn, valid_path))
 
     lines.append("")
     lines.append("RESULT: PASS — _resolve_worker_model correct for valid/missing/malformed/missing-key "
                 "config; args.model is real None (never the string 'None') when omitted; the "
                 "resolved model passed onward is always a concrete non-empty string.")
 
-    report_dir = REPO_ROOT / "dev" / "model_selector" / "md"
-    report_dir.mkdir(parents=True, exist_ok=True)
-    (report_dir / "verify_spawn_model_resolution.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print("\n".join(lines))
+    _write_report(lines)
 
 # FUNCTIONS
 
@@ -88,6 +46,78 @@ def _load_spawn_module():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def _verify_missing_config_file(spawn, tmp) -> str:
+    missing_path = Path(tmp) / "does_not_exist.json"
+    spawn._MODEL_SELECTION_FILE = str(missing_path)
+    resolved = spawn._resolve_worker_model()
+    line = f"Missing config file -> {resolved!r} (expected hardcoded fallback)"
+    assert resolved == spawn._DEFAULT_WORKER_MODEL
+    return line
+
+
+def _verify_valid_config_file(spawn, tmp):
+    valid_path = Path(tmp) / "valid.json"
+    valid_path.write_text(json.dumps({"main": "claude-opus-5", "worker": "claude-fable-5"}))
+    spawn._MODEL_SELECTION_FILE = str(valid_path)
+    resolved = spawn._resolve_worker_model()
+    line = f"Valid config -> {resolved!r} (expected config's worker model)"
+    assert resolved == "claude-fable-5"
+    return line, valid_path
+
+
+def _verify_malformed_config_file(spawn, tmp) -> str:
+    malformed_path = Path(tmp) / "malformed.json"
+    malformed_path.write_text("{not valid json")
+    spawn._MODEL_SELECTION_FILE = str(malformed_path)
+    resolved = spawn._resolve_worker_model()
+    line = f"Malformed JSON -> {resolved!r} (expected hardcoded fallback, no raise)"
+    assert resolved == spawn._DEFAULT_WORKER_MODEL
+    return line
+
+
+def _verify_missing_key_config_file(spawn, tmp) -> str:
+    missing_key_path = Path(tmp) / "missing_key.json"
+    missing_key_path.write_text(json.dumps({"main": "claude-opus-5"}))
+    spawn._MODEL_SELECTION_FILE = str(missing_key_path)
+    resolved = spawn._resolve_worker_model()
+    line = f"Config missing 'worker' key -> {resolved!r} (expected hardcoded fallback)"
+    assert resolved == spawn._DEFAULT_WORKER_MODEL
+    return line
+
+
+def _verify_explicit_cli_arg(spawn) -> str:
+    parser_explicit = spawn.argparse.ArgumentParser()
+    parser_explicit.add_argument("model", nargs="?", default=None)
+    args_explicit = parser_explicit.parse_args(["claude-explicit-cli-arg"])
+    resolved_model = args_explicit.model or spawn._resolve_worker_model()
+    line = f"Explicit CLI arg given -> resolved_model={resolved_model!r} (expected explicit arg, config never consulted)"
+    assert resolved_model == "claude-explicit-cli-arg"
+    return line
+
+
+def _verify_omitted_cli_arg(spawn, valid_path) -> list[str]:
+    parser_omitted = spawn.argparse.ArgumentParser()
+    parser_omitted.add_argument("model", nargs="?", default=None)
+    args_omitted = parser_omitted.parse_args([])
+    lines = [f"CLI arg omitted -> args.model={args_omitted.model!r} (expected None, not the string 'None')"]
+    assert args_omitted.model is None
+    assert args_omitted.model != "None"
+    spawn._MODEL_SELECTION_FILE = str(valid_path)
+    resolved_model = args_omitted.model or spawn._resolve_worker_model()
+    lines.append(f"CLI arg omitted -> resolved_model={resolved_model!r} (expected config's worker model, never the literal 'None')")
+    assert resolved_model == "claude-fable-5"
+    assert resolved_model != "None"
+    assert isinstance(resolved_model, str) and resolved_model
+    return lines
+
+
+def _write_report(lines) -> None:
+    report_dir = REPO_ROOT / "dev" / "model_selector" / "md"
+    report_dir.mkdir(parents=True, exist_ok=True)
+    (report_dir / "verify_spawn_model_resolution.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print("\n".join(lines))
 
 
 if __name__ == "__main__":

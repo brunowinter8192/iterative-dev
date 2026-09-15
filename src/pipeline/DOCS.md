@@ -6,37 +6,67 @@ Session JSONL analysis utilities for eval workflows and subagent debugging. Touc
 
 ## Public Interface
 
-`__init__.py` is empty. Modules invoked as `python3 -m src.pipeline.<module>`. Inter-module dependency: `list_agents` and `extract_calls` import from `jsonl_to_md` for JSONL parsing, session derivation, and formatting. Breaking changes in `jsonl_to_md` propagate to both.
+`__init__.py` is empty. Modules invoked as `python3 -m src.pipeline.<module>`. Inter-module dependency: `jsonl_to_md` is the orchestrator/CLI and imports from `jsonl_parse`, `dispatch_context`, `markdown_format`; `list_agents` and `extract_calls` import directly from whichever of those three owns the symbol they need (not from `jsonl_to_md`). Breaking changes in `jsonl_parse`/`dispatch_context`/`markdown_format` can propagate to any of the three consumer modules.
 
 ## Modules
 
-### jsonl_to_md.py (437 LOC) ⚠️ refactor candidate
+### jsonl_to_md.py (43 LOC)
 
-**Purpose:** Converts Claude Code subagent JSONL session logs to Markdown summary — tool call table, task prompt, final response. Optionally includes dispatch context from the main session via `--dispatch`.
+**Purpose:** Orchestrates JSONL-to-Markdown conversion — tool call table, task prompt, final response, optional dispatch context via `--dispatch`.
 **Reads:** Claude Code session JSONL files.
 **Writes:** Markdown file via `--output` flag.
-**Called by:** `src/pipeline/list_agents.py`, `src/pipeline/extract_calls.py` (both import from it). No external caller.
-**Calls out:** stdlib json, argparse, pathlib.
+**Called by:** No caller — invoked directly as `python3 -m src.pipeline.jsonl_to_md`.
+**Calls out:** `jsonl_parse`, `dispatch_context`, `markdown_format` (this package).
 
 ---
 
-### list_agents.py (189 LOC)
+### jsonl_parse.py (143 LOC)
+
+**Purpose:** JSONL loading and message/tool-call parsing primitives (text extraction, error detection, tool_use/tool_result pairing).
+**Reads:** nothing directly — pure functions over parsed JSONL data.
+**Writes:** nothing.
+**Called by:** `jsonl_to_md.py`, `list_agents.py`, `extract_calls.py`, `dispatch_context.py`.
+**Calls out:** stdlib json, re, pathlib.
+
+---
+
+### dispatch_context.py (134 LOC)
+
+**Purpose:** Correlates a subagent JSONL back to its main session and extracts the dispatch prompt + surrounding context.
+**Reads:** nothing directly — operates on already-loaded message lists.
+**Writes:** nothing.
+**Called by:** `jsonl_to_md.py`, `list_agents.py`, `markdown_format.py`.
+**Calls out:** `jsonl_parse` (text extraction, system-reminder stripping).
+
+---
+
+### markdown_format.py (136 LOC)
+
+**Purpose:** Renders tool calls, dispatch context, and session metadata into the final Markdown summary/detail output.
+**Reads:** nothing directly.
+**Writes:** output file via `write_output`.
+**Called by:** `jsonl_to_md.py`, `extract_calls.py`.
+**Calls out:** `dispatch_context` (dispatch section formatting).
+
+---
+
+### list_agents.py (190 LOC)
 
 **Purpose:** Lists subagent sessions for a project with agent type, timestamp, and size. Resolves agent type from main session (sync and async dispatch patterns).
 **Reads:** `~/.claude/projects/<encoded_path>/*.jsonl` directory.
 **Writes:** stdout (aligned table).
 **Called by:** No active external caller.
-**Calls out:** `jsonl_to_md` (JSONL parsing and session derivation).
+**Calls out:** `jsonl_parse` (JSONL loading), `dispatch_context` (main session derivation).
 
 ---
 
-### extract_calls.py (56 LOC)
+### extract_calls.py (57 LOC)
 
 **Purpose:** Extracts specific tool calls by number from a session JSONL. Supports listing all calls or extracting full input/output for selected calls.
 **Reads:** Session JSONL path.
 **Writes:** stdout or Markdown via `--output` flag.
 **Called by:** No active external caller.
-**Calls out:** `jsonl_to_md` (JSONL parsing and formatting).
+**Calls out:** `jsonl_parse` (JSONL loading, tool call extraction), `markdown_format` (formatting, output writing).
 
 ---
 
@@ -50,5 +80,4 @@ python3 -m src.pipeline.extract_calls --input <path> --calls 1,3 [--output <path
 
 ## Gotchas
 
-- `jsonl_to_md.py` at 437 LOC is a refactor candidate (>300 LOC threshold). Extract helpers: tool call row formatting and truncation logic belong in a separate module.
 - No active external callers — these modules were invoked via the eval-agent skill which has been removed. Re-wire via a new skill or command if eval workflows are reactivated.

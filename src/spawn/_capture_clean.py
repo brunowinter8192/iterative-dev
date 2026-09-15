@@ -83,12 +83,8 @@ def _clean(lines):
     in_diff = False
 
     for line in lines:
-        # Welcome boot box: ╭ ... ╰ — drop entire block
-        if _RE_BOX_TOP.match(line):
-            in_box = True
-        if in_box:
-            if _RE_BOX_BOT.match(line):
-                in_box = False
+        drop, in_box = _handle_boot_box(line, in_box)
+        if drop:
             continue
 
         if not line.strip():
@@ -96,16 +92,7 @@ def _clean(lines):
             in_diff = False    # blank line exits diff block
             continue
 
-        # Bottom widget chrome (safety: may survive in body on edge cases)
-        if _RE_RULE.match(line) or _RE_BARE_PROMPT.match(line):
-            continue
-        if _RE_SONNET.search(line) or _RE_BYPASS.search(line):
-            continue
-
-        # Collapse markers and thinking spinners
-        if _RE_COLLAPSE.search(line):
-            continue
-        if _RE_THINKING.match(line):
+        if _is_chrome_line(line):
             continue
 
         # Strip leading ⏺/⎿ glyph, keep the rest; save orig for ⏺-exit detection below
@@ -114,29 +101,60 @@ def _clean(lines):
             line = line[1:].lstrip()
         stripped = line.strip()
 
-        # Diff block: Update()/Create() header enters; sticky until blank or next ⏺ tool-call
-        if _RE_UPDATE.search(line):
-            in_diff = True
-            out.append(line)
+        action, in_diff = _process_diff_block(line, orig, stripped, in_diff)
+        if action == 'drop':
             continue
-
-        if in_diff:
-            if _RE_ADDED.match(stripped):
-                out.append(line)
-                continue      # stay in diff — body follows counter
-            if _RE_DIFF_LINE.match(line):
-                continue      # drop numbered body line
-            # Sticky: only a new ⏺ tool-call exits diff; everything else (⋯, wrap) is dropped
-            if orig.lstrip().startswith('⏺'):
-                in_diff = False   # fall through to append the ⏺ line
-            else:
-                continue          # drop: ..., wrap continuation, other non-numbered lines
 
         out.append(line)
 
     while out and not out[-1].strip():
         out.pop()
     return out
+
+
+# Welcome boot box: ╭ ... ╰ — drop entire block
+def _handle_boot_box(line, in_box):
+    if _RE_BOX_TOP.match(line):
+        in_box = True
+    if in_box:
+        if _RE_BOX_BOT.match(line):
+            in_box = False
+        return True, in_box
+    return False, in_box
+
+
+# Bottom widget chrome (safety: may survive in body on edge cases), collapse markers, thinking spinners
+def _is_chrome_line(line):
+    if _RE_RULE.match(line) or _RE_BARE_PROMPT.match(line):
+        return True
+    if _RE_SONNET.search(line) or _RE_BYPASS.search(line):
+        return True
+
+    # Collapse markers and thinking spinners
+    if _RE_COLLAPSE.search(line):
+        return True
+    if _RE_THINKING.match(line):
+        return True
+
+    return False
+
+
+# Diff block: Update()/Create() header enters; sticky until blank or next ⏺ tool-call
+def _process_diff_block(line, orig, stripped, in_diff):
+    if _RE_UPDATE.search(line):
+        return 'append', True
+
+    if in_diff:
+        if _RE_ADDED.match(stripped):
+            return 'append', True      # stay in diff — body follows counter
+        if _RE_DIFF_LINE.match(line):
+            return 'drop', True      # drop numbered body line
+        # Sticky: only a new ⏺ tool-call exits diff; everything else (⋯, wrap) is dropped
+        if orig.lstrip().startswith('⏺'):
+            return 'append', False   # fall through to append the ⏺ line
+        return 'drop', True          # drop: ..., wrap continuation, other non-numbered lines
+
+    return 'append', in_diff
 
 
 # Print header + optional fallback warning + cleaned body to stdout.

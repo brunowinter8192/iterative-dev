@@ -7,7 +7,8 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 # From pipeline/jsonl_to_md.py: JSONL parsing and main session derivation
-from .jsonl_to_md import load_jsonl, derive_main_session, find_task_anchor
+from .jsonl_parse import load_jsonl
+from .dispatch_context import derive_main_session, find_task_anchor
 
 CC_PROJECTS_DIR = Path.home() / '.claude' / 'projects'
 

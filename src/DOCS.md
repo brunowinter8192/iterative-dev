@@ -13,7 +13,7 @@ Source modules for the iterative-dev plugin infrastructure.
 
 | Subdir | Role | LOC | Modules |
 |---|---|---:|---:|
-| spawn/ | Worker spawning and orchestration | 1055 | 3 (tmux_spawn.sh, _capture_clean.py, spawn.py) |
+| spawn/ | Worker spawning and orchestration | 1157 | 3 (tmux_spawn.sh, _capture_clean.py, spawn.py) |
 | git/ | Git automation utilities | 439 | 4 (check.py, commit.py, staged.py, post.py) |
-| pipeline/ | Session JSONL analysis | 682 | 3 (jsonl_to_md.py, list_agents.py, extract_calls.py) |
+| pipeline/ | Session JSONL analysis | 703 | 6 (jsonl_to_md.py, jsonl_parse.py, dispatch_context.py, markdown_format.py, list_agents.py, extract_calls.py) |
 | poread_cli/ | poread CLI (marker-minting half) | 77 | 1 (__main__.py) |
