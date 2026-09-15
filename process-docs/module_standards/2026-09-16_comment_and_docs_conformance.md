@@ -484,3 +484,29 @@ throwaway-git-repo probe) rather than an invented one.
   `dev/worker_spawn/`, `verify_worker_model_precedence.sh`) — Main's hit list was `.py`-only, and
   the milestone's own hit list is what defines scope. I only touched their DOCS.md entries
   (format compliance, LOC currency), never their source.
+
+## Recap — 2026-09-16
+
+Self-check (`git diff integration --name-only`) confirms the diff is exactly the 33 files touched
+during this milestone (32 edited + this process-docs file), plus one generated report
+(`dev/git_automation/md/probe_umlaut_staging_20260916_002718.md`, a byproduct of running the
+verification probe, consistent with the existing convention of committing timestamped probe
+reports — `dev/git_automation/md/probe_umlaut_staging_20260902_184629.md` was already tracked
+before this session).
+
+**DOCS.md currency, re-checked this pass:** ran the LOC-heading-vs-`wc -l` cross-check script
+again after the conformance commit landed — 0 mismatches across all 9 rewritten DOCS.md files.
+Re-ran the `**Purpose:**`-word-count check — 0 fields over 25 words. Re-ran the zero-docstring/
+zero-stray-comment AST scan across all 21 hit-list files — 0/0. All three checks match what's
+reported under Verification above; nothing drifted between the conformance commit and this recap.
+
+**Nothing else in this milestone's scope was left stale.** `src/DOCS.md`'s Directory Map LOC
+column for `spawn/`/`git/`/`pipeline/` was corrected to the post-purge totals (1124/446/670) —
+this file's own directory (`src/`) wasn't "touched" by the hit list, so it did not get a full
+format rewrite, only the numeric correction the milestone's "zero code lines change, but comments
+did" consequence requires. `dev/DOCS.md` carries no LOC figures, so it needed no change.
+
+No process-docs entries outside this file were touched or need touching — the only other
+DOCS.md-adjacent claim I found while triaging (the "menubar Models tab" detail cut from
+`spawn.py`, and the two module-fields cut from `dev/desktop_targeting/DOCS.md`'s `probe.py`
+entry) are recorded above under Relocated/Salvage, not left dangling anywhere else.
