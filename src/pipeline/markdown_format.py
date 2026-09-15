@@ -10,7 +10,6 @@ CONTENT_PARAM_KEYS = {'content', 'file_content', 'new_string'}
 
 # FUNCTIONS
 
-# Format summary MD (dispatch context, task prompt, summary table, final response)
 def format_summary_markdown(tool_calls: list[dict], task_prompt: str, final_response: str,
                             dispatch_context: dict = None) -> str:
     sections = []
@@ -29,7 +28,6 @@ def format_summary_markdown(tool_calls: list[dict], task_prompt: str, final_resp
     return '\n\n---\n\n'.join(sections)
 
 
-# Format compact summary of all tool calls (one line per call)
 def format_summary_table(tool_calls: list[dict]) -> str:
     lines = ["# Tool Call Summary", ""]
 
@@ -56,7 +54,6 @@ def format_summary_table(tool_calls: list[dict]) -> str:
     return '\n'.join(lines)
 
 
-# Parse ISO timestamp to [HH:MM:SS] local time
 def format_timestamp(ts: str) -> str:
     if not ts:
         return '??:??:??'
@@ -68,7 +65,6 @@ def format_timestamp(ts: str) -> str:
         return '??:??:??'
 
 
-# Detect params that contain file content (Write, Edit, bash heredoc)
 def is_file_content_param(key: str, value: str) -> bool:
     if key in CONTENT_PARAM_KEYS and len(value) > 200:
         return True
@@ -77,7 +73,6 @@ def is_file_content_param(key: str, value: str) -> bool:
     return False
 
 
-# Format all input params as single-line key=value pairs
 def format_input_params(input_data: dict) -> str:
     if not input_data or not isinstance(input_data, dict):
         return '(no input)'
@@ -95,7 +90,6 @@ def format_input_params(input_data: dict) -> str:
     return ', '.join(parts)
 
 
-# Format single tool call detail section
 def format_tool_call(call: dict, index: int) -> str:
     tool_name = call['tool_name']
     input_str = format_input(call['input'])
@@ -110,7 +104,6 @@ def format_tool_call(call: dict, index: int) -> str:
 {output}"""
 
 
-# Format input dict as readable string
 def format_input(input_data: dict) -> str:
     if not input_data:
         return '(no input)'
@@ -128,7 +121,6 @@ def format_input(input_data: dict) -> str:
     return '\n'.join(parts)
 
 
-# Write content to output file
 def write_output(output_path: str, content: str) -> None:
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)

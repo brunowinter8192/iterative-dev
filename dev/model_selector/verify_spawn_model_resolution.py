@@ -9,9 +9,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # ORCHESTRATOR
 
-# Verify spawn.py's _resolve_worker_model() (real function, loaded from disk) and confirm
-# argparse's new default=None can never leak the literal string "None" downstream — all
-# against a temp MODEL_SELECTION_FILE path, never the real ~/.claude/shared-rules/ one.
 def verify_spawn_model_resolution_workflow() -> None:
     spawn = _load_spawn_module()
     lines = [f"# spawn.py model-resolution verification — {datetime.now().isoformat(timespec='seconds')}", ""]
@@ -23,7 +20,6 @@ def verify_spawn_model_resolution_workflow() -> None:
         lines.append(_verify_malformed_config_file(spawn, tmp))
         lines.append(_verify_missing_key_config_file(spawn, tmp))
 
-        # ---- "explicit arg wins" as argparse itself resolves it (real parser, not reimplemented) ----
         lines.append("")
         lines.append("## argparse resolution (real parser, default=None)")
         lines.append(_verify_explicit_cli_arg(spawn))
@@ -38,8 +34,6 @@ def verify_spawn_model_resolution_workflow() -> None:
 
 # FUNCTIONS
 
-# Load src/spawn/spawn.py by file path — it has zero relative imports (stdlib only), so this
-# works without package context, unlike a module with 'from .sibling import x'.
 def _load_spawn_module():
     spec_path = REPO_ROOT / "src" / "spawn" / "spawn.py"
     spec = importlib.util.spec_from_file_location("spawn_under_test", spec_path)

@@ -2,13 +2,10 @@
 import ctypes
 from typing import List, Optional
 
-# ── Library handles ────────────────────────────────────────────────────────────
-
 _CG  = ctypes.CDLL('/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics')
 _SL  = ctypes.CDLL('/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight')
 _OBJ = ctypes.CDLL('/usr/lib/libobjc.A.dylib')
 
-# CoreGraphics
 _CG.CGSMainConnectionID.argtypes          = []
 _CG.CGSMainConnectionID.restype           = ctypes.c_int32
 _CG.CGSGetActiveSpace.argtypes            = [ctypes.c_int32]
@@ -19,15 +16,12 @@ _CG.CGSMoveWindowsToManagedSpace.argtypes = [ctypes.c_int32, ctypes.c_void_p, ct
 _CG.CGSMoveWindowsToManagedSpace.restype  = ctypes.c_int32
 _CG.CGWindowListCopyWindowInfo.argtypes   = [ctypes.c_uint32, ctypes.c_uint32]
 _CG.CGWindowListCopyWindowInfo.restype    = ctypes.c_void_p
-# CGSCopySpacesForWindows: returns CFArrayRef of space IDs for given window IDs
 _CG.CGSCopySpacesForWindows.argtypes      = [ctypes.c_int32, ctypes.c_int32, ctypes.c_void_p]
 _CG.CGSCopySpacesForWindows.restype       = ctypes.c_void_p
-# CGSGetWindowWorkspace: single-window space query (alternative verification)
 _CG.CGSGetWindowWorkspace.argtypes        = [ctypes.c_int32, ctypes.c_uint32,
                                               ctypes.POINTER(ctypes.c_uint64)]
 _CG.CGSGetWindowWorkspace.restype         = ctypes.c_int32
 
-# SkyLight
 _SL.SLSMainConnectionID.argtypes          = []
 _SL.SLSMainConnectionID.restype           = ctypes.c_int32
 _SL.SLSGetActiveSpace.argtypes            = [ctypes.c_int32]
@@ -37,13 +31,11 @@ _SL.SLSMoveWindowsToManagedSpace.restype  = ctypes.c_int32
 _SL.SLSCopySpacesForWindows.argtypes      = [ctypes.c_int32, ctypes.c_int32, ctypes.c_void_p]
 _SL.SLSCopySpacesForWindows.restype       = ctypes.c_void_p
 
-# ObjC runtime
 _OBJ.sel_registerName.restype  = ctypes.c_void_p
 _OBJ.sel_registerName.argtypes = [ctypes.c_char_p]
 _OBJ.objc_getClass.restype     = ctypes.c_void_p
 _OBJ.objc_getClass.argtypes    = [ctypes.c_char_p]
 
-# CFUNCTYPE refs — module-level to prevent GC from corrupting IMP table
 _FT_vv   = ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)
 _FT_vvv  = ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)
 _FT_vvcp = ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_char_p)
@@ -62,8 +54,6 @@ _DEBUG = False
 def _dbg(msg: str):
     if _DEBUG:
         print(f"  [dbg] {msg}")
-
-# ── ObjC message helpers ───────────────────────────────────────────────────────
 
 def _sel(s: str):
     return _OBJ.sel_registerName(s.encode())

@@ -6,7 +6,6 @@ from pathlib import Path
 
 # FUNCTIONS
 
-# Load all lines from JSONL file
 def load_jsonl(jsonl_path: str) -> list[dict]:
     path = Path(jsonl_path)
     if not path.exists():
@@ -25,7 +24,6 @@ def load_jsonl(jsonl_path: str) -> list[dict]:
     return messages
 
 
-# Extract task prompt (first user message) and final response (last assistant text)
 def extract_session_context(messages: list[dict]) -> tuple[str, str]:
     task_prompt = ''
     final_response = ''
@@ -49,7 +47,6 @@ def extract_session_context(messages: list[dict]) -> tuple[str, str]:
     return strip_system_reminders(task_prompt), strip_system_reminders(final_response)
 
 
-# Extract text blocks from a message (ignoring tool_use/tool_result blocks)
 def extract_text_content(msg: dict) -> str:
     content = msg.get('content', '')
     if isinstance(content, str):
@@ -65,7 +62,6 @@ def extract_text_content(msg: dict) -> str:
     return ''
 
 
-# Check if tool_result contains an error (tool_use_error tag or is_error flag)
 def is_tool_error(block: dict) -> bool:
     if block.get('is_error'):
         return True
@@ -78,7 +74,6 @@ def is_tool_error(block: dict) -> bool:
     return '<tool_use_error>' in text or 'No such tool available' in text
 
 
-# Extract tool_use and tool_result pairs from messages
 def extract_tool_calls(messages: list[dict]) -> list[dict]:
     tool_use_cache = {}
     tool_calls = []
@@ -111,7 +106,6 @@ def extract_tool_calls(messages: list[dict]) -> list[dict]:
     return sorted(tool_calls, key=lambda x: x.get('timestamp', ''))
 
 
-# Get content blocks from message (handles nested structures)
 def get_content_blocks(message: dict) -> list[dict]:
     if 'message' in message and isinstance(message['message'], dict):
         content = message['message'].get('content', [])
@@ -123,7 +117,6 @@ def get_content_blocks(message: dict) -> list[dict]:
     return []
 
 
-# Extract text content from tool_result block
 def extract_result_content(block: dict) -> str:
     content = block.get('content', '')
     if isinstance(content, list) and len(content) > 0:
@@ -137,7 +130,6 @@ def extract_result_content(block: dict) -> str:
     return strip_system_reminders(text)
 
 
-# Remove system-reminder tags from content
 def strip_system_reminders(content: str) -> str:
     pattern = r'<system-reminder>.*?</system-reminder>'
     return re.sub(pattern, '', content, flags=re.DOTALL).strip()

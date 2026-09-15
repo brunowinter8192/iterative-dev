@@ -1,8 +1,3 @@
-"""
-Staging verification: confirms all relevant files are staged, provides diff summary for commit message.
-Usage: python3 -m src.git.staged <repo-path>
-"""
-
 # INFRASTRUCTURE
 
 import logging
@@ -27,13 +22,11 @@ def staged_workflow(repo_path: str) -> None:
 
 # FUNCTIONS
 
-# Run git command and return stdout
 def run(cmd: list, cwd: str) -> str:
     result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
     return result.stdout.strip()
 
 
-# Parse git status --porcelain output
 def parse_status(repo_path: str) -> list[tuple[str, str]]:
     raw = run(["git", "status", "--porcelain"], repo_path)
     lines = []
@@ -43,7 +36,6 @@ def parse_status(repo_path: str) -> list[tuple[str, str]]:
     return lines
 
 
-# Classify into staged/unstaged/untracked (excluding SKIP)
 def classify_files(lines: list[tuple[str, str]]) -> tuple[list, list, list]:
     staged, unstaged, untracked = [], [], []
     for xy, path in lines:
@@ -60,19 +52,16 @@ def classify_files(lines: list[tuple[str, str]]) -> tuple[list, list, list]:
     return staged, unstaged, untracked
 
 
-# Get staged diff summary for commit message generation
 def get_diff_summary(repo_path: str) -> str:
     return run(["git", "diff", "--cached", "--stat"], repo_path)
 
 
-# For RM entries like 'old -> new', return new path only (the one to git add)
 def _extract_stage_path(path: str) -> str:
     if " -> " in path:
         return path.split(" -> ", 1)[1]
     return path
 
 
-# Print staging report
 def print_report(staged, unstaged, untracked, complete, diff_summary):
     print("=== STAGING STATUS ===")
     if complete:

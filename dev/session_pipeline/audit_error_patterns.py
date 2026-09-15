@@ -1,17 +1,4 @@
 #!/usr/bin/env python3
-"""Audit error patterns in Claude Code session JSONLs.
-
-Scans all session JSONLs to find tool_result blocks that indicate errors.
-Separates hard errors (is_error=True) from soft errors (no flag but error content).
-Produces MD report with pattern counts and examples.
-
-Usage:
-    python3 dev/session_pipeline/audit_error_patterns.py
-    python3 dev/session_pipeline/audit_error_patterns.py path/to/specific.jsonl
-
-Default: all JSONLs under ~/.claude/projects/
-Output: dev/session_pipeline/md/error_patterns_<timestamp>.md
-"""
 
 # INFRASTRUCTURE
 import json
@@ -59,12 +46,10 @@ def audit_workflow(jsonl_paths: list[Path]) -> None:
 
 # FUNCTIONS
 
-# Collect all JSONL files from projects directory
 def collect_jsonl_paths() -> list[Path]:
     return sorted(PROJECTS_DIR.rglob('*.jsonl'))
 
 
-# Scan all JSONLs and collect error patterns
 def scan_all_jsonls(jsonl_paths: list[Path]) -> tuple[dict, dict, dict]:
     hard_errors = defaultdict(lambda: {'count': 0, 'example': ''})
     soft_errors = defaultdict(lambda: {'count': 0, 'example': '', 'files': set()})
@@ -76,7 +61,6 @@ def scan_all_jsonls(jsonl_paths: list[Path]) -> tuple[dict, dict, dict]:
     return hard_errors, soft_errors, stats
 
 
-# Scan a single JSONL file for error patterns
 def scan_single_jsonl(path: Path, hard_errors: dict, soft_errors: dict, stats: dict) -> None:
     stats['files_scanned'] += 1
     try:
@@ -94,7 +78,6 @@ def scan_single_jsonl(path: Path, hard_errors: dict, soft_errors: dict, stats: d
         pass
 
 
-# Process a single JSONL message for tool_result blocks
 def process_message(msg: dict, path: Path, hard_errors: dict, soft_errors: dict, stats: dict) -> None:
     if 'message' not in msg or not isinstance(msg.get('message'), dict):
         return
@@ -109,7 +92,6 @@ def process_message(msg: dict, path: Path, hard_errors: dict, soft_errors: dict,
         classify_error(block, text, path, hard_errors, soft_errors, stats)
 
 
-# Extract text content from a tool_result block
 def extract_tool_result_text(block: dict) -> str:
     content = block.get('content', '')
     if isinstance(content, list) and len(content) > 0:
@@ -118,7 +100,6 @@ def extract_tool_result_text(block: dict) -> str:
     return str(content)
 
 
-# Classify a tool_result as hard error, soft error, or success
 def classify_error(block: dict, text: str, path: Path, hard_errors: dict, soft_errors: dict, stats: dict) -> None:
     if block.get('is_error'):
         stats['hard_error_count'] += 1
@@ -139,7 +120,6 @@ def classify_error(block: dict, text: str, path: Path, hard_errors: dict, soft_e
             break
 
 
-# Extract pattern category from hard error text
 def extract_hard_error_pattern(text: str) -> str:
     if '<tool_use_error>' in text:
         if 'No such tool available' in text:
@@ -152,7 +132,6 @@ def extract_hard_error_pattern(text: str) -> str:
     return text[:80].replace('\n', ' ')
 
 
-# Format the audit report as markdown
 def format_report(hard_errors: dict, soft_errors: dict, stats: dict) -> str:
     lines = _format_header(stats)
     lines.extend(_format_hard_error_rows(hard_errors))
@@ -161,7 +140,6 @@ def format_report(hard_errors: dict, soft_errors: dict, stats: dict) -> str:
     return '\n'.join(lines)
 
 
-# Report title, date, stats block, Hard Errors table header
 def _format_header(stats: dict) -> list[str]:
     return [
         '# Error Pattern Audit',
@@ -179,7 +157,6 @@ def _format_header(stats: dict) -> list[str]:
     ]
 
 
-# Hard Errors table rows
 def _format_hard_error_rows(hard_errors: dict) -> list[str]:
     rows = []
     for pattern, data in sorted(hard_errors.items(), key=lambda x: -x[1]['count']):
@@ -188,7 +165,6 @@ def _format_hard_error_rows(hard_errors: dict) -> list[str]:
     return rows
 
 
-# Soft Errors section: header, table header, rows, none-found fallback
 def _format_soft_errors_section(soft_errors: dict) -> list[str]:
     lines = [
         '',
@@ -211,7 +187,6 @@ def _format_soft_errors_section(soft_errors: dict) -> list[str]:
     return lines
 
 
-# Recommendation section
 def _format_recommendation(soft_errors: dict) -> list[str]:
     lines = [
         '',
@@ -230,7 +205,6 @@ def _format_recommendation(soft_errors: dict) -> list[str]:
     return lines
 
 
-# Write report to file
 def write_report(report: str) -> Path:
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')

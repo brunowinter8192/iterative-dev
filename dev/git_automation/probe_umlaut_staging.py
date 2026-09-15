@@ -1,13 +1,3 @@
-"""
-Probe: gcommit / git-check staging correctness for non-ASCII and "unusual" paths.
-Usage: python3 dev/git_automation/probe_umlaut_staging.py
-
-Builds throwaway git repos under a temp dir, drives `python3 -m src.git.commit` and
-`python3 -m src.git.check --auto-stage` against them exactly like a real caller would,
-and asserts against the repo's own git state (git log / git status), never against
-gcommit's own report. Report: dev/git_automation/md/probe_umlaut_staging_<ts>.md
-"""
-
 # INFRASTRUCTURE
 
 import datetime
@@ -50,7 +40,6 @@ def run_probe() -> None:
 
 # FUNCTIONS
 
-# Run a subprocess command, returning (returncode, stdout, stderr)
 def sh(cmd: list, cwd=None, check: bool = False):
     result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
     if check and result.returncode != 0:
@@ -58,12 +47,9 @@ def sh(cmd: list, cwd=None, check: bool = False):
     return result.returncode, result.stdout, result.stderr
 
 
-# Build a throwaway git repo with one committed placeholder file
 def make_repo() -> Path:
     repo = Path(tempfile.mkdtemp(prefix="gcommit_probe_"))
     sh(["git", "init", "-q"], cwd=repo, check=True)
-    # matches the global commit-msg identity guard (~/.githooks/commit-msg) so throwaway
-    # commits aren't rejected by it
     sh(["git", "config", "user.email", "brunowinter8192@github.com"], cwd=repo, check=True)
     sh(["git", "config", "user.name", "Bruno Winter"], cwd=repo, check=True)
     (repo / "README.md").write_text("probe repo\n")
@@ -72,18 +58,14 @@ def make_repo() -> Path:
     return repo
 
 
-# Invoke gcommit (src.git.commit) against a repo, from the project root (module entry point)
 def run_gcommit(repo: Path, message: str):
     return sh(["python3", "-m", "src.git.commit", message, str(repo)], cwd=PROJECT_ROOT)
 
 
-# Invoke git-check (src.git.check) with --auto-stage against a repo
 def run_git_check(repo: Path):
     return sh(["python3", "-m", "src.git.check", str(repo), "--auto-stage"], cwd=PROJECT_ROOT)
 
 
-# List files touched by the repo's last commit, NUL-split/unquoted — avoids the same
-# C-quoting pitfall gcommit itself is being tested for
 def last_commit_files(repo: Path) -> list[str]:
     _, out, _ = sh(["git", "show", "--format=", "--name-only", "-z", "HEAD"], cwd=repo)
     return [p for p in out.split("\0") if p]
@@ -94,7 +76,6 @@ def last_commit_hash(repo: Path) -> str:
     return out.strip()
 
 
-# Undo any chmod-000 lockouts (loud-failure case) so tempdir removal doesn't fail, then remove
 def _force_writable(func, path, exc_info):
     os.chmod(path, 0o755)
     func(path)
@@ -104,7 +85,6 @@ def cleanup(repo: Path):
     shutil.rmtree(repo, onerror=_force_writable)
 
 
-# Reported case: an existing tracked folder named with an umlaut gains a new untracked file
 def case_umlaut_file_in_existing_folder():
     name = "umlaut file inside an existing tracked anhaenge/ folder"
     repo = make_repo()
@@ -139,8 +119,6 @@ def case_space_in_path():
         cleanup(repo)
 
 
-# Brand-new (entirely untracked) umlaut folder — status collapses it to ONE directory entry
-# ("?? anhaenge_neu/"), which is the verify_staged prefix-match case
 def case_new_umlaut_folder():
     name = "brand-new umlaut folder (directory status entry, not a file entry)"
     repo = make_repo()
@@ -156,8 +134,6 @@ def case_new_umlaut_folder():
         cleanup(repo)
 
 
-# Staged rename (git mv) must still stage/commit the NEW path; an unrelated sidecar file
-# in the same status batch catches any rename-token miscount corrupting the next entry
 def case_staged_rename():
     name = "staged rename (git mv) commits the new path"
     repo = make_repo()
@@ -190,7 +166,6 @@ def case_ascii_modification():
         cleanup(repo)
 
 
-# git add cannot succeed (unreadable file) -> gcommit must fail loudly, no commit made
 def case_loud_failure_permission_denied():
     name = "loud failure: unreadable file blocks git add, no commit made"
     repo = make_repo()
@@ -209,7 +184,6 @@ def case_loud_failure_permission_denied():
         cleanup(repo)
 
 
-# git-check --auto-stage shares stage_all/parse_status with gcommit and must inherit the fix
 def case_git_check_auto_stage():
     name = "git-check --auto-stage inherits the fix"
     repo = make_repo()
@@ -233,7 +207,6 @@ def case_git_check_auto_stage():
         cleanup(repo)
 
 
-# Write the persistent markdown report
 def write_report(results: list[tuple[bool, str, str]]):
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")

@@ -1,8 +1,3 @@
-"""
-Pre-commit check: staged/unstaged/untracked files, hook status, import warnings.
-Usage: python3 -m src.git.check <repo-path> [--auto-stage]
-"""
-
 # INFRASTRUCTURE
 
 import argparse
@@ -40,15 +35,11 @@ def check_workflow(repo_path: str, auto_stage: bool = False) -> None:
 
 # FUNCTIONS
 
-# Run git command and return stdout, trailing whitespace only
 def run(cmd: list, cwd: str) -> str:
     result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
     return result.stdout.rstrip()
 
 
-# Parse git status --porcelain -z output into raw lines. -z prints paths verbatim (no
-# C-quoting of non-ASCII/backslash/quote/control chars) and NUL-terminates entries; rename
-# entries emit "to" then "from" (reversed vs. the ' -> ' text format), each NUL-terminated.
 def parse_status(repo_path: str) -> list[tuple[str, str]]:
     raw = run(["git", "status", "--porcelain", "-z"], repo_path)
     tokens = raw.split("\0")
@@ -71,7 +62,6 @@ def parse_status(repo_path: str) -> list[tuple[str, str]]:
     return lines
 
 
-# Classify files into staged/unstaged/untracked/skipped
 def classify_files(lines: list[tuple[str, str]]) -> tuple[list, list, list, list]:
     staged, unstaged, untracked, skipped = [], [], [], []
     for xy, path in lines:
@@ -89,7 +79,6 @@ def classify_files(lines: list[tuple[str, str]]) -> tuple[list, list, list, list
     return staged, unstaged, untracked, skipped
 
 
-# Check new imports in unstaged files for untracked module warnings
 def find_import_warnings(repo_path: str, unstaged: list) -> list[str]:
     if not unstaged:
         return []
@@ -104,7 +93,6 @@ def find_import_warnings(repo_path: str, unstaged: list) -> list[str]:
     return warnings
 
 
-# Check pre-commit hook for broken patterns
 def check_hook(repo_path: str) -> str:
     hook_path = os.path.join(repo_path, ".git", "hooks", "pre-commit")
     if not os.path.exists(hook_path):
@@ -117,7 +105,6 @@ def check_hook(repo_path: str) -> str:
     return "OK"
 
 
-# Print structured report
 def print_report(staged, unstaged, untracked, skipped, import_warnings, hook_status, diff_staged, diff_unstaged):
     _section("STAGED")
     if staged:
@@ -168,17 +155,12 @@ def _section(title: str):
     print(f"\n=== {title} ===")
 
 
-# For RM entries like 'old -> new', return new path only (the one to git add)
 def _extract_stage_path(path: str) -> str:
     if " -> " in path:
         return path.split(" -> ", 1)[1]
     return path
 
 
-# Confirm expected paths actually landed in the index (git add's returncode alone is
-# insufficient defense-in-depth). Directory entries (trailing '/', from a brand-new untracked
-# folder collapsed to one status line) verify by prefix, since 'git diff --cached --name-only'
-# only ever lists individual files, never the directory itself.
 def verify_staged(repo_path: str, expected_paths: list[str]) -> list[str]:
     raw = run(["git", "diff", "--cached", "--name-only", "-z"], repo_path)
     staged_now = [p for p in raw.split("\0") if p]
@@ -192,9 +174,6 @@ def verify_staged(repo_path: str, expected_paths: list[str]) -> list[str]:
     return missing
 
 
-# Stage all unstaged and untracked files (minus SKIP). Returns (staged, errors) — a path only
-# lands in `staged` once its `git add` returncode AND the post-hoc index check both confirm it;
-# any other outcome is reported in `errors` instead of being silently treated as staged.
 def stage_all(repo_path: str, unstaged: list, untracked: list) -> tuple[list[str], list[str]]:
     paths_to_stage = [_extract_stage_path(p) for _, p in unstaged] + untracked
     if not paths_to_stage:
@@ -214,7 +193,6 @@ def stage_all(repo_path: str, unstaged: list, untracked: list) -> tuple[list[str
     return staged, errors
 
 
-# Print auto-staged files report, plus any staging errors (empty errors = today's output)
 def print_auto_stage_report(auto_staged: list[str], stage_errors: list[str] = None):
     _section("AUTO-STAGED")
     if auto_staged:
@@ -229,7 +207,6 @@ def print_auto_stage_report(auto_staged: list[str], stage_errors: list[str] = No
             print(f"  {e}")
 
 
-# Print diff summary after staging
 def print_diff_summary(diff: str):
     _section("DIFF SUMMARY — use this for commit message")
     if diff:

@@ -1,8 +1,3 @@
-"""
-Post-commit verification: confirms working tree is clean after commit.
-Usage: python3 -m src.git.post <repo-path>
-"""
-
 # INFRASTRUCTURE
 
 import logging
@@ -25,18 +20,15 @@ def post_workflow(repo_path: str) -> None:
 
 # FUNCTIONS
 
-# Run git command and return stdout
 def run(cmd: list, cwd: str) -> str:
     result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
     return result.stdout.strip()
 
 
-# Get last commit hash and message
 def get_last_commit(repo_path: str) -> str:
     return run(["git", "log", "--oneline", "-1"], repo_path)
 
 
-# Get remaining uncommitted changes (excluding SKIP)
 def get_remaining_changes(repo_path: str) -> list[str]:
     raw = run(["git", "status", "--porcelain"], repo_path)
     remaining = []
@@ -49,7 +41,6 @@ def get_remaining_changes(repo_path: str) -> list[str]:
     return remaining
 
 
-# Print post-commit status report
 def print_report(commit_hash: str, remaining: list[str]):
     print("=== POST-COMMIT STATUS ===")
 

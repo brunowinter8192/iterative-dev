@@ -29,7 +29,6 @@ def extract_workflow(jsonl_path: str, call_numbers: list[int], output_path: str 
 
 # FUNCTIONS
 
-# Format selected tool calls as markdown
 def format_extracted(selected: list[tuple[int, dict]]) -> str:
     sections = []
     for index, call in selected:

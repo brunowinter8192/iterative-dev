@@ -6,7 +6,11 @@ Session JSONL analysis utilities for eval workflows and subagent debugging. Touc
 
 ## Public Interface
 
-`__init__.py` is empty. Modules invoked as `python3 -m src.pipeline.<module>`. Inter-module dependency: `jsonl_to_md` is the orchestrator/CLI and imports from `jsonl_parse`, `dispatch_context`, `markdown_format`; `list_agents` and `extract_calls` import directly from whichever of those three owns the symbol they need (not from `jsonl_to_md`). Breaking changes in `jsonl_parse`/`dispatch_context`/`markdown_format` can propagate to any of the three consumer modules.
+`__init__.py` is empty. Modules invoked as `python3 -m src.pipeline.<module>` (`jsonl_to_md --input <path> --output <path> [--dispatch]`, `list_agents --project <path> [--session latest]`, `extract_calls --input <path> --calls 1,3 [--output <path>]`). `jsonl_to_md` is the orchestrator/CLI and imports from `jsonl_parse`, `dispatch_context`, `markdown_format`; `list_agents` and `extract_calls` import directly from whichever of those three owns the symbol they need.
+
+## Flow
+
+JSONL path in → `jsonl_parse` loads + extracts tool calls → `dispatch_context` correlates the main session (optional) → `markdown_format` renders the summary/detail Markdown → stdout or `--output` file out.
 
 ## Modules
 
@@ -20,7 +24,7 @@ Session JSONL analysis utilities for eval workflows and subagent debugging. Touc
 
 ---
 
-### jsonl_parse.py (143 LOC)
+### jsonl_parse.py (135 LOC)
 
 **Purpose:** JSONL loading and message/tool-call parsing primitives (text extraction, error detection, tool_use/tool_result pairing).
 **Reads:** nothing directly — pure functions over parsed JSONL data.
@@ -30,7 +34,7 @@ Session JSONL analysis utilities for eval workflows and subagent debugging. Touc
 
 ---
 
-### dispatch_context.py (134 LOC)
+### dispatch_context.py (127 LOC)
 
 **Purpose:** Correlates a subagent JSONL back to its main session and extracts the dispatch prompt + surrounding context.
 **Reads:** nothing directly — operates on already-loaded message lists.
@@ -40,7 +44,7 @@ Session JSONL analysis utilities for eval workflows and subagent debugging. Touc
 
 ---
 
-### markdown_format.py (136 LOC)
+### markdown_format.py (128 LOC)
 
 **Purpose:** Renders tool calls, dispatch context, and session metadata into the final Markdown summary/detail output.
 **Reads:** nothing directly.
@@ -50,7 +54,7 @@ Session JSONL analysis utilities for eval workflows and subagent debugging. Touc
 
 ---
 
-### list_agents.py (190 LOC)
+### list_agents.py (181 LOC)
 
 **Purpose:** Lists subagent sessions for a project with agent type, timestamp, and size. Resolves agent type from main session (sync and async dispatch patterns).
 **Reads:** `~/.claude/projects/<encoded_path>/*.jsonl` directory.
@@ -60,7 +64,7 @@ Session JSONL analysis utilities for eval workflows and subagent debugging. Touc
 
 ---
 
-### extract_calls.py (57 LOC)
+### extract_calls.py (56 LOC)
 
 **Purpose:** Extracts specific tool calls by number from a session JSONL. Supports listing all calls or extracting full input/output for selected calls.
 **Reads:** Session JSONL path.
@@ -68,16 +72,6 @@ Session JSONL analysis utilities for eval workflows and subagent debugging. Touc
 **Called by:** No active external caller.
 **Calls out:** `jsonl_parse` (JSONL loading, tool call extraction), `markdown_format` (formatting, output writing).
 
----
+## State
 
-## Usage
-
-```bash
-python3 -m src.pipeline.jsonl_to_md --input <path> --output <path> [--dispatch]
-python3 -m src.pipeline.list_agents --project <path> [--session latest]
-python3 -m src.pipeline.extract_calls --input <path> --calls 1,3 [--output <path>]
-```
-
-## Gotchas
-
-- No active external callers — these modules were invoked via the eval-agent skill which has been removed. Re-wire via a new skill or command if eval workflows are reactivated.
+No shared mutable state between modules — `jsonl_parse`, `dispatch_context`, and `markdown_format` are pure-function libraries operating on message lists passed in by the caller.

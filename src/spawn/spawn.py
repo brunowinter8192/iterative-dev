@@ -1,8 +1,3 @@
-"""
-Spawn a Claude Code worker in a git worktree via tmux + Ghostty.
-Usage: python3 -m src.spawn.spawn <name> <prompt_file> <project_path> [model] [--no-worktree]
-"""
-
 # INFRASTRUCTURE
 
 import argparse
@@ -44,7 +39,6 @@ def spawn_workflow(name: str, prompt_file: str, project_path: str, model: str, w
 
 # FUNCTIONS
 
-# Create worktree, copy settings, symlink venv — returns worktree path or None on error
 def setup_worktree(name: str, project_path: str) -> str | None:
     wt_path = os.path.join(project_path, ".claude", "worktrees", name)
 
@@ -80,7 +74,6 @@ def setup_worktree(name: str, project_path: str) -> str | None:
     return wt_path
 
 
-# Source tmux_spawn.sh and call spawn_claude_worker_from_file
 def tmux_spawn(name: str, actual_path: str, model: str, prompt_file: str) -> str:
     func_call = f'spawn_claude_worker_from_file "workers" "{name}" "{actual_path}" "{model}" "{prompt_file}"'
     cmd = f'source "{TMUX_SPAWN_SH}" && {func_call}'
@@ -99,7 +92,6 @@ def tmux_spawn(name: str, actual_path: str, model: str, prompt_file: str) -> str
     return result.stdout.strip()
 
 
-# Run git command and return stdout or ERROR: prefix on failure
 def _run_git(args: list, cwd: str) -> str:
     result = subprocess.run(
         ["git"] + args,
@@ -110,10 +102,6 @@ def _run_git(args: list, cwd: str) -> str:
     return result.stdout.strip()
 
 
-# Resolve the worker model when no explicit CLI argument was given: "worker" key from
-# ~/.claude/shared-rules/model_selection.json (menubar Models tab), else the hardcoded
-# fallback. Never raises — a missing/unreadable/malformed file or a missing/empty key all
-# degrade silently to the fallback; a spawn must never fail because of this file.
 def _resolve_worker_model() -> str:
     worker = ""
     try:

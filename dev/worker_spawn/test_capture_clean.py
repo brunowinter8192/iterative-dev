@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# test_capture_clean.py — fixture-based smoke for src/spawn/_capture_clean.py
-# Usage: python3 dev/spawn/test_capture_clean.py  (from project root)
 
 # INFRASTRUCTURE
 import os
@@ -10,12 +8,6 @@ import tempfile
 
 SCRIPT = os.path.join(os.path.dirname(__file__), '../../src/spawn/_capture_clean.py')
 
-# Hand-built fixture covering every filter case.
-# Lines present:
-#   boot welcome box (╭…╰), thinking spinner (✻), Read tool + ctrl+o sub-line,
-#   Update() header + diff body (+/-) + Added counter, Bash() tool header + output,
-#   Update() header with ... collapse + post-collapse body + wrap continuation,
-#   worker prose + checklist, collapse ellipsis, rule, bare ❯, Sonnet footer, bypass
 FIXTURE = (
     '╭──────────────── Claude Code ─────────────────╮\n'
     '│  ✻ API key configured                        │\n'
@@ -75,7 +67,6 @@ def test_capture_clean_workflow():
 
 # FUNCTIONS
 
-# Write fixture to temp file, run _capture_clean.py, return stdout.
 def _run_script(fixture_text, worker_name):
     fd, pane_file = tempfile.mkstemp(suffix='.txt')
     try:
@@ -94,7 +85,6 @@ def _run_script(fixture_text, worker_name):
             os.unlink(pane_file)
 
 
-# Run all assertions; return list of failure strings (empty = all pass).
 def _assert_cases(output):
     failures = []
 
@@ -109,7 +99,6 @@ def _assert_cases(output):
     return failures
 
 
-# Header present, no fallback warning, body not empty.
 def _check_basic_output(output, check):
     check('header present', '=== capture from testworker (since last prompt,' in output)
     check('no fallback warning', '⚠' not in output)
@@ -117,7 +106,6 @@ def _check_basic_output(output, check):
     check('body not empty', bool(body))
 
 
-# --- STRIP cases: must NOT appear in output ---
 def _check_stripped_lines(output, check):
     must_not = [
         ('boot box top',       '╭──────────────── Claude Code'),
@@ -141,7 +129,6 @@ def _check_stripped_lines(output, check):
         check(f'STRIPPED: {label}', text not in output, repr(text))
 
 
-# --- KEEP cases: must appear in output ---
 def _check_kept_lines(output, check):
     must_have = [
         ('Update header 1',                'Update(src/hooks/block_polling_loop.py)'),

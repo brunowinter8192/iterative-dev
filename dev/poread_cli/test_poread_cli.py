@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# test_poread_cli.py — regression suite for src/poread_cli/__main__.py's own boundary behavior
-# Usage: python3 dev/poread_cli/test_poread_cli.py  (from project root)
 
 # INFRASTRUCTURE
 
