@@ -102,17 +102,23 @@ def _assert_cases(output):
         if not cond:
             failures.append(f'{label}{": " + detail if detail else ""}')
 
-    # Header present
+    _check_basic_output(output, check)
+    _check_stripped_lines(output, check)
+    _check_kept_lines(output, check)
+
+    return failures
+
+
+# Header present, no fallback warning, body not empty.
+def _check_basic_output(output, check):
     check('header present', '=== capture from testworker (since last prompt,' in output)
-
-    # No fallback warning — prompt marker must have been found
     check('no fallback warning', '⚠' not in output)
-
-    # Body not empty (chars > 0 in header + content lines after header)
     body = '\n'.join(output.split('\n')[1:]).strip()
     check('body not empty', bool(body))
 
-    # --- STRIP cases: must NOT appear in output ---
+
+# --- STRIP cases: must NOT appear in output ---
+def _check_stripped_lines(output, check):
     must_not = [
         ('boot box top',       '╭──────────────── Claude Code'),
         ('boot box interior',  'Ready.'),
@@ -134,7 +140,9 @@ def _assert_cases(output):
     for label, text in must_not:
         check(f'STRIPPED: {label}', text not in output, repr(text))
 
-    # --- KEEP cases: must appear in output ---
+
+# --- KEEP cases: must appear in output ---
+def _check_kept_lines(output, check):
     must_have = [
         ('Update header 1',                'Update(src/hooks/block_polling_loop.py)'),
         ('Update header 2 (with collapse)', 'Update(src/spawn/DOCS.md)'),
@@ -148,8 +156,6 @@ def _assert_cases(output):
     ]
     for label, text in must_have:
         check(f'KEPT: {label}', text in output, repr(text))
-
-    return failures
 
 
 if __name__ == '__main__':

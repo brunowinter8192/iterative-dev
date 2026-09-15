@@ -42,7 +42,7 @@ its 3 call sites, or `bin/worker-cli`'s `spawn)` case.
 
 ---
 
-### verify_spawn_model_resolution.py (94 LOC)
+### verify_spawn_model_resolution.py (124 LOC)
 
 **Purpose:** Verifies `spawn.py`'s `_resolve_worker_model()` (config hit/missing/malformed/
 missing-key, same 4 cases as the bash side) and, separately, that argparse's `model` positional
