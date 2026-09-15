@@ -10,7 +10,7 @@ sentence — its own output always stays far below that ceiling — and relies e
 of Claude Code's own API traffic) to recognize the marker-plus-notice block inside the resulting
 `tool_result` and replace it with the file's full content in the forwarded payload. This package
 owns only the marker-minting half. Touch this package when changing the CLI's argument handling,
-size ceiling, or marker format — and see Gotchas for what else needs to change alongside it.
+size ceiling, or marker format — see State for what else needs to change alongside it.
 
 ## Public Interface
 
@@ -49,30 +49,11 @@ point, never imported by other `src/` code.
 **Calls out:** nothing — stdlib only (`hashlib`, `os`, `sys`), by design: this is what makes the
 CLI installable into a plugin cache with no venv.
 
----
+## State
 
-## Gotchas
-
-**`POREAD_MAX_BYTES`, `POREAD_HASH_LEN`, `POREAD_MARKER_PREFIX`, `POREAD_NOTICE` are a
-hand-maintained copy of monitor-cc's own copy in `src/proxy/inject_poread.py (Monitor_CC)`, not a shared
-import — the two repos cannot share one.** Before this package existed here, both halves lived in
-monitor-cc and imported these four values from one `src/constants.py (Monitor_CC)`; this package moved out
-into this plugin specifically because it is stdlib-only and needed `worker-cli`'s no-venv home, so
-the shared import is gone by construction. The exact attribute string this module emits
-(`path="..." bytes="..." sha256="..."/>` followed by the fixed notice sentence) and the regex
-monitor-cc's `inject_poread.py` parses it with are two separately-maintained pieces of code in two
-separate repos that happen to agree. A change to the marker prefix, the ceiling, the hash length,
-or the notice sentence on this side without the matching edit on the monitor-cc side makes every
-future marker silently fail to expand — the agent sees only the tiny marker-plus-notice lines
-forever, no error anywhere. Change both together by hand; there is no shared CI between the two
-repos to catch a drift automatically. `dev/poread_cli/test_poread_cli.py` pins its own independent
-literal copy of the same four values (not imported from this module) specifically so a drift in
-THIS module's copy fails that test loudly instead of silently minting an unexpandable marker;
-`dev/proxy/poread_inject_tests.py (Monitor_CC)` does the same for its side.
-
-**The notice sentence is not an extra line the CLI happens to also print — it is a required part
-of the whole-block match on the monitor-cc side.** `inject_poread.py`'s regex requires the block to
-be exactly `<marker>\n<the fixed POREAD_NOTICE text>`, nothing before, nothing after, nothing
-between. A marker with no notice under it, or with different trailing text instead, is ineligible
-for expansion on the monitor-cc side — this module has no way to observe that from here, which is
-exactly why the notice text must stay byte-identical between the two hand-maintained copies.
+The four marker constants (`POREAD_MAX_BYTES`, `POREAD_HASH_LEN`, `POREAD_MARKER_PREFIX`,
+`POREAD_NOTICE`) are a hand-maintained copy of monitor-cc's own copy in
+`src/proxy/inject_poread.py (Monitor_CC)` — no shared import between the two repos, no CI to
+catch a drift between the two hand-maintained copies. See `process-docs/poread/` for the full
+contract, its silent-failure mode, and why the notice sentence is part of the match, not just an
+extra printed line.
