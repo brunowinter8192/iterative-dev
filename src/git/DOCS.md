@@ -17,7 +17,7 @@ Three-phase git workflow utilities for pre-commit checks, staging, and post-comm
 ### check.py (223 LOC)
 
 **Purpose:** Pre-commit analysis + optional auto-staging. Classifies files into staged/unstaged/untracked/skipped, detects new imports in unstaged `.py` files, checks hook health.
-**Reads:** Repository files, git status/diff output, `.git/hooks/pre-commit` content.
+**Reads:** Repository files, git status/diff output, the target repo's pre-commit hook file (.git/hooks/pre-commit) if present.
 **Writes:** stdout (structured report). With `--auto-stage`: git index via `git add`.
 **Called by:** `~/.local/bin/git-check`.
 **Calls out:** subprocess (git commands).
