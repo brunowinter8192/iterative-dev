@@ -2,7 +2,7 @@
 
 ## Role
 
-Regression suite for `src/poread_cli/__main__.py`'s boundary behavior (valid file, oversize file, missing file, directory, bad argv), calling `main()` directly. Touch when changing argument handling, size-ceiling check, or marker format. The cross-repo recognition proof lives in monitor-cc's `dev/proxy/poread_inject_tests.py` instead.
+Regression suite for `src/poread_cli/__main__.py`'s boundary behavior (valid file, oversize file, missing file, directory, bad argv), calling `main()` directly. Touch when changing argument handling, size-ceiling check, or marker format. The cross-repo recognition proof lives in `dev/proxy/poread_inject_tests.py (Monitor_CC)` instead.
 
 ## Public Interface
 

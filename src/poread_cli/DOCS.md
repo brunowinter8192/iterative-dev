@@ -6,7 +6,7 @@ Standalone CLI (`poread <path>`), invoked by an agent through Bash, that brings 
 one named file into the model's context without going through Bash's own ~30,000-character inline
 result ceiling. It prints a short marker naming the file and its size, plus one fixed notice
 sentence — its own output always stays far below that ceiling — and relies entirely on
-monitor-cc's `src/proxy/inject_poread.py` (a different repo, running as a mitmproxy addon in front
+`src/proxy/inject_poread.py (Monitor_CC)` (a different repo, running as a mitmproxy addon in front
 of Claude Code's own API traffic) to recognize the marker-plus-notice block inside the resulting
 `tool_result` and replace it with the file's full content in the forwarded payload. This package
 owns only the marker-minting half. Touch this package when changing the CLI's argument handling,
@@ -54,9 +54,9 @@ CLI installable into a plugin cache with no venv.
 ## Gotchas
 
 **`POREAD_MAX_BYTES`, `POREAD_HASH_LEN`, `POREAD_MARKER_PREFIX`, `POREAD_NOTICE` are a
-hand-maintained copy of monitor-cc's own copy in `src/proxy/inject_poread.py`, not a shared
+hand-maintained copy of monitor-cc's own copy in `src/proxy/inject_poread.py (Monitor_CC)`, not a shared
 import — the two repos cannot share one.** Before this package existed here, both halves lived in
-monitor-cc and imported these four values from one `src/constants.py`; this package moved out
+monitor-cc and imported these four values from one `src/constants.py (Monitor_CC)`; this package moved out
 into this plugin specifically because it is stdlib-only and needed `worker-cli`'s no-venv home, so
 the shared import is gone by construction. The exact attribute string this module emits
 (`path="..." bytes="..." sha256="..."/>` followed by the fixed notice sentence) and the regex
@@ -68,7 +68,7 @@ forever, no error anywhere. Change both together by hand; there is no shared CI 
 repos to catch a drift automatically. `dev/poread_cli/test_poread_cli.py` pins its own independent
 literal copy of the same four values (not imported from this module) specifically so a drift in
 THIS module's copy fails that test loudly instead of silently minting an unexpandable marker;
-monitor-cc's `dev/proxy/poread_inject_tests.py` does the same for its side.
+`dev/proxy/poread_inject_tests.py (Monitor_CC)` does the same for its side.
 
 **The notice sentence is not an extra line the CLI happens to also print — it is a required part
 of the whole-block match on the monitor-cc side.** `inject_poread.py`'s regex requires the block to

@@ -1,0 +1,30 @@
+# docs-drift-check symbol whitelist — iterative-dev
+# One entry per line, exact match against the extracted symbol text (ALL_CAPS token or
+# snake_func() name without parens). docs-drift-check only greps src/**/*.py and dev/**/*.py
+# for symbol existence — it never scans this project's .sh files, so every real bash
+# variable/function documented in a DOCS.md next to bash source is an unavoidable false
+# positive here. Verified against source before whitelisting; see
+# process-docs/module_standards/ for the investigation.
+
+# bash env vars — bin/worker-cli, src/spawn/tmux_spawn.sh
+WORKER_REGISTRY_DIR
+WORKER_LOGGER_DIR
+CLAUDE_PLUGIN_ROOT
+SAW_WORKING
+NAMES
+CHATTY
+
+# bash functions — dev/worker_wait/test_worker_wait.sh, src/spawn/tmux_spawn.sh
+go_quiet
+kill_claude_child
+delete_hook_entry
+worker_capture_clean
+
+# external, not project symbols at all
+TMUX_TMPDIR
+EXIT
+CONFLICT
+
+# literal illustrative text, not a symbol reference
+XXXXXXXX
+THIS
