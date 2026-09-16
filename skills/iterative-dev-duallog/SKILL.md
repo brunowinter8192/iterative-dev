@@ -5,20 +5,27 @@ description:
 
 # Dual-Log Reading — Skill
 
-**The final text reply of a turn is only visible in the NEXT request's delta.**
-- The first request of turn N+1 lists turn N's closing reply under its separator.
-- A turn that ends the session has no next request, so its closing reply is absent from the dual log entirely.
+**Die abschließende Textantwort eines Turns ist nur im Delta des NÄCHSTEN Requests sichtbar.**
+- Der erste Request von Turn N+1 listet die Schlussantwort von Turn N unter seinem Separator.
+- Ein Turn, der die Session beendet, hat keinen nächsten Request, seine Schlussantwort fehlt im Dual-Log also vollständig.
 
 ## Commands
+
+| Vorgang | Command |
+|---|---|
+| Sessions listen | `sessions [project] [--since D] [--until D]` |
+| Requests mit ihren Cache-Zahlen pro Turn ansehen | `reqs [scope] [--since D] [--until D] [--main \| --worker] [--turn N] [--gap MIN] [--merged] [--rebuild] [--drop]` |
+| Die Msgs einer Session ansehen | `msgs <session> [from] [to]` |
+| Die Msgs einer Session über einen REQ-Bereich ansehen | `msgs <session> --req F [T]` |
+| Eine Msg mit allen ihren Blocks ausklappen | `expand <session> <msg> [--before N] [--after N] [--only classifier]` |
+| Über Sessions hinweg nach einem Literal suchen | `search <term> [scope] [--since D] [--until D] [--only classifier] [--case-sensitive]` |
 
 ### sessions
 
 #### Input args
 
-`sessions [project] [--since D] [--until D]`
-
-- `project` — substring of the project path or the stem, e.g. `trading`, `ai/trading` or a worker name; omitted lists every session.
-- `--since D` / `--until D` — start day, `YYYY-MM-DD`, inclusive.
+- `project` — Substring des Projektpfads oder des Stems, also zum Beispiel `trading`, `ai/trading` oder ein Worker-Name. Lässt du es weg, werden alle Sessions gelistet.
+- `--since D` und `--until D` — Starttag im Format `YYYY-MM-DD`, jeweils einschließlich.
 
 #### Output
 
@@ -35,17 +42,15 @@ START                PROJECT                                      SESSION
 
 #### Input args
 
-`reqs [scope] [--since D] [--until D] [--main | --worker] [--turn N] [--gap MIN] [--merged] [--rebuild] [--drop]`
-
-- `scope` — substring of the project path or the stem; omitted covers every session.
-- `--since D` / `--until D` — start day, `YYYY-MM-DD`, inclusive.
-- `--main` / `--worker` — keep only main (opus) or worker sessions.
-- `--turn N` — keep only turn N of each session.
-- `--gap MIN` — keep only the two REQs around a pause of at least MIN minutes.
-- `--merged` — one chronological chain across all sessions in scope, each line tagged with its worker; the cache-health view, since all workers of a project share the prompt cache.
-- `--rebuild` — keep only REQs where `CC > CR`, i.e. the prefix was rebuilt.
-- `--drop` — keep only REQs that read back less than the previous REQ had cached, i.e. the cache expired in between.
-- The flags combine; none adds a column.
+- `scope` — Substring des Projektpfads oder des Stems. Lässt du es weg, sind alle Sessions abgedeckt.
+- `--since D` und `--until D` — Starttag im Format `YYYY-MM-DD`, jeweils einschließlich.
+- `--main` und `--worker` — behalten nur die Main-Sessions, also opus, beziehungsweise nur die Worker-Sessions.
+- `--turn N` — behält nur Turn N jeder Session.
+- `--gap MIN` — behält nur die beiden REQs rund um eine Pause von mindestens MIN Minuten.
+- `--merged` — eine chronologische Kette über alle Sessions im Scope, jede Zeile mit ihrem Worker getaggt. Das ist die Sicht auf die Cache-Gesundheit, denn alle Worker eines Projekts teilen sich den Prompt-Cache.
+- `--rebuild` — behält nur REQs mit `CC > CR`, bei denen der Prefix also neu aufgebaut wurde.
+- `--drop` — behält nur REQs, die weniger zurückgelesen haben als der vorherige REQ gecacht hatte, bei denen der Cache also dazwischen abgelaufen ist.
+- Die Flags lassen sich kombinieren, und keines fügt eine Spalte hinzu.
 
 #### Output
 
@@ -58,19 +63,17 @@ REQ 47  18:02:18  CR 0        CC 152,851
 REQ 48  18:02:23  CR 152,851  CC 7,889
 ```
 
-- A turn runs from one typed prompt (human, or orchestrator via `worker-cli send`) to the model's idle text reply; the separator shows its first send, its span and the prompt.
-- `CR` — cache_read_input_tokens, `CC` — cache_creation_input_tokens of that request; `?` when the transcript join failed.
-- Under `--merged` the session tag follows the clock on a REQ line and the span on a separator.
+- Ein Turn läuft von einem getippten Prompt bis zur idle Textantwort des Modells, wobei der Prompt vom Menschen oder über `worker-cli send` vom Orchestrator kommt. Der Separator zeigt den ersten Send, die Spanne und den Prompt.
+- `CR` steht für cache_read_input_tokens und `CC` für cache_creation_input_tokens dieses Requests. Ein `?` erscheint, wenn der Join mit dem Transkript fehlgeschlagen ist.
+- Unter `--merged` folgt der Session-Tag auf einer REQ-Zeile der Uhrzeit und auf einem Separator der Spanne.
 
 ### msgs
 
 #### Input args
 
-`msgs <session> [from] [to]` or `msgs <session> --req F [T]`
-
-- `session` — a SESSION value from sessions, or a unique substring of it.
-- `from` / `to` — inclusive msg indices; omitted prints the whole session.
-- `--req F [T]` — inclusive REQ range instead; `T` defaults to `F`. Not combinable with `from`/`to`.
+- `session` — ein SESSION-Wert aus sessions oder ein eindeutiger Substring davon.
+- `from` und `to` — Msg-Indizes, jeweils einschließlich. Lässt du sie weg, wird die ganze Session gedruckt.
+- `--req F [T]` — nimmt stattdessen einen REQ-Bereich, jeweils einschließlich, wobei `T` auf `F` zurückfällt. Das ist nicht mit `from` und `to` kombinierbar.
 
 #### Output
 
@@ -86,20 +89,18 @@ REQ 48  18:02:23  CR 152,851  CC 7,889
 [  4] syst  system                 86c  −86 +1 → 1c
 ```
 
-- Separator — the request that ADDED the msgs below it, with its send clock and, when resolvable, CR/CC. Msgs under REQ 2 are the reply to REQ 1 plus the tool results REQ 2 then sent.
-- `−N +M → Wc` — the proxy stripped N chars, injected M, and W went on the wire.
-- `sys[i]` / `tool[Name]` lines directly under a separator — system blocks and tool definitions that request changed.
+- Der Separator ist der Request, der die Msgs darunter HINZUGEFÜGT hat, mit seiner Sende-Uhrzeit und, wo auflösbar, mit CR und CC. Die Msgs unter REQ 2 sind die Antwort auf REQ 1 plus die Tool-Results, die REQ 2 daraufhin geschickt hat.
+- `−N +M → Wc` heißt, dass der Proxy N Zeichen gestrippt und M injected hat und dass W über die Leitung gingen.
+- Zeilen mit `sys[i]` oder `tool[Name]` direkt unter einem Separator sind System-Blocks und Tool-Definitionen, die dieser Request geändert hat.
 
 ### expand
 
 #### Input args
 
-`expand <session> <msg> [--before N] [--after N] [--only classifier]`
-
-- `session` — a SESSION value from sessions, or a unique substring of it.
-- `msg` — a msg index from msgs or search.
-- `--before N` / `--after N` — widen the window by N msgs on either side.
-- `--only classifier` — keep only msgs matching a role (`user`), a block type (`tool_result`), or both (`user/text`); a msg matches when its role matches and ANY block matches the type, and it always shows ALL its blocks.
+- `session` — ein SESSION-Wert aus sessions oder ein eindeutiger Substring davon.
+- `msg` — ein Msg-Index aus msgs oder search.
+- `--before N` und `--after N` — verbreitern das Fenster um N Msgs auf der jeweiligen Seite.
+- `--only classifier` — behält nur Msgs, die auf eine Rolle passen (`user`), auf einen Block-Typ (`tool_result`) oder auf beides (`user/text`). Eine Msg passt, wenn ihre Rolle passt und IRGENDEIN Block auf den Typ passt, und sie zeigt dann immer ALLE ihre Blocks.
 
 #### Output
 
@@ -109,20 +110,18 @@ REQ 48  18:02:23  CR 152,851  CC 7,889
 recap
 ```
 
-- One header per msg with index, clock, role, size, block count; `▶` marks the anchor.
-- One `── block i ──` header per block, then the raw content.
-- `── stripped by REQ n ──` / `── injected by REQ n ──` — follow a block the proxy changed, showing what it removed and what it put there.
+- Ein Header pro Msg mit Index, Uhrzeit, Rolle, Größe und Block-Anzahl, wobei `▶` den Anker markiert.
+- Ein Header `── block i ──` pro Block, danach der rohe Inhalt.
+- `── stripped by REQ n ──` und `── injected by REQ n ──` folgen auf einen Block, den der Proxy geändert hat, und zeigen was er entfernt und was er hingeschrieben hat.
 
 ### search
 
 #### Input args
 
-`search <term> [scope] [--since D] [--until D] [--only classifier] [--case-sensitive]`
-
-- `term` — literal substring, no regex; case-insensitive unless `--case-sensitive`.
-- `scope` — substring of the project path or the stem; omitted searches every session.
-- `--since D` / `--until D` — start day, `YYYY-MM-DD`, inclusive.
-- `--only classifier` — as in expand.
+- `term` — ein wörtlicher Substring, keine Regex. Die Suche ignoriert Groß- und Kleinschreibung, außer bei `--case-sensitive`.
+- `scope` — Substring des Projektpfads oder des Stems. Lässt du es weg, werden alle Sessions durchsucht.
+- `--since D` und `--until D` — Starttag im Format `YYYY-MM-DD`, jeweils einschließlich.
+- `--only classifier` — funktioniert wie bei expand.
 
 #### Output
 
@@ -133,15 +132,15 @@ session   api_requests_worker_1dda1c81_reldist-power_1788726467
 #231  user      text  5c
 ```
 
-## Block types
+## Block Types
 
-| Block type | What it is |
+| Block Type | Was es ist |
 |---|---|
-| text | Visible prose — the human's typed message under role user, the agent's reply under role assistant |
-| thinking | The agent's internal reasoning |
-| tool_use | A tool invocation: tool name plus input JSON — the executed command lives here |
-| tool_result | The tool's output, returned under role user; `tool_result!err` marks errors |
-| image | An embedded image |
-| system | Runtime-injected block, e.g. token counters or deferred-tool lists |
-| system-reminder | CC-injected context wrapped as a user msg (CLAUDE.md contents, env context) |
-| task-notification | Background-task wake-up (task id, output path, status) — automated, never real user input |
+| text | Sichtbare Prosa, also die getippte Nachricht des Menschen unter der Rolle user und die Antwort des Agents unter der Rolle assistant |
+| thinking | Das interne Nachdenken des Agents |
+| tool_use | Ein Tool-Aufruf mit Tool-Name plus Input-JSON, hier steht das ausgeführte Command |
+| tool_result | Die Ausgabe des Tools, zurückgegeben unter der Rolle user, wobei `tool_result!err` Fehler markiert |
+| image | Ein eingebettetes Bild |
+| system | Ein zur Laufzeit injecteter Block, etwa Token-Zähler oder Listen aufgeschobener Tools |
+| system-reminder | Von CC injecteter Kontext, verpackt als user-Msg, also CLAUDE.md-Inhalte und Env-Kontext |
+| task-notification | Der Wake-up eines Background-Tasks mit Task-ID, Output-Pfad und Status, immer automatisch und nie echter User-Input |
