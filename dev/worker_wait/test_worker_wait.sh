@@ -13,7 +13,7 @@ HOOKS_BACKUP="/tmp/wait-test-hooks-backup-$$.json"
 # Shared, growing, gitignored trace file `wait` itself writes to (C1, 2026-08-18) — real default
 # path, not test-isolated (same file real live wait invocations use); checked via a before/after
 # size diff, never overwritten or truncated by this suite.
-TRACE_FILE="${WORKER_LOGGER_DIR:-$HOME/Documents/ai/Meta/blank/src/logs}/wait_trace.log"
+TRACE_FILE="${WORKER_LOGGER_DIR:-$HOME/Documents/ai/Meta/iterative-dev/src/logs}/wait_trace.log"
 RESULT=0
 TEST_TAG="waittest$$"
 
