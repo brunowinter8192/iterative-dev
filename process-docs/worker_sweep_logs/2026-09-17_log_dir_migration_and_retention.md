@@ -134,6 +134,47 @@ behind the change.
    named both paths and the directory removal directly; nothing was deleted before that
    authorization, and nothing on this host was deleted from outside the repos named.
 
+## Correction — the deletion did not hold, observed 2026-09-17
+
+`Meta/blank` was recreated within minutes of the `rm -rf` above. Confirmed directly on the
+host: the directory exists again, holding four fresh per-spawn logs plus a `wait_trace.log`,
+all timestamped after the deletion.
+
+Two independent causes, both confirmed by inspection, not inferred:
+
+1. **The default-path edit landed only inside this worktree**
+   (`.claude/worktrees/idwait`), on an unmerged branch. `~/.local/bin/worker-cli` symlinks to
+   `Meta/iterative-dev/bin/worker-cli` on the `main` checkout — confirmed live by `readlink`
+   — and that checkout still carries the pre-change `Meta/blank` default, since `main` has
+   not received this branch yet. Confirmed by grepping the worktree and the main checkout
+   side by side: same three lines, two different defaults. Every `worker-cli` invocation the
+   orchestrator actually runs resolves through that symlink into `main`, never into this
+   worktree, so nothing outside the manual verification commands in the section above (which
+   explicitly sourced this worktree's copy, or set `CLAUDE_PLUGIN_ROOT` to point at it) was
+   ever touched by the edit before a merge. The order (move, verify, delete) was correct; the
+   premise that "moved" already meant "live" was not — a worktree-only change to a
+   plugin-cache-symlinked CLI is not live until it reaches the checkout the symlink actually
+   points at.
+
+2. **Independent of the merge: running sidecars carry the old path as an argument, not a
+   default.** The four `worker_logger.sh` sidecars already running for today's live workers
+   were started before this change, each invoked by `_start_worker_logger` as
+   `worker_logger.sh "$name" "$session" "$log_dir" "$event"` — `$log_dir` was resolved to
+   `Meta/blank/src/logs` at that sidecar's own start time and handed in as a literal
+   positional argument (`src/spawn/worker_logger.sh`, `LOG_DIR="${3:?need log dir}"`). The
+   sidecar reads it exactly once, then samples in a `while true` loop for the rest of its
+   life, appending to files under that same directory every 10s — it never re-reads
+   `WORKER_LOGGER_DIR` or any default after startup, so no code change made after a sidecar
+   is already running can affect where it writes. Each of those four sidecars will keep
+   recreating `Meta/blank/src/logs` on every sample until the worker it is attached to dies
+   or is revived (revive starts a fresh sidecar, which resolves the directory again at that
+   later point).
+
+Two steps remain, both after this branch merges to `main`, and neither is mine to do: a
+respawn or death of every worker whose sidecar still holds the old path, so each replacement
+sidecar resolves the new default at its own startup; and a second deletion of `Meta/blank`
+once nothing is writing to it any more.
+
 ## Cross-reference
 
 The orchestrator-side trigger for `worker-cli janitor` (session-start, `monitor-cc`
