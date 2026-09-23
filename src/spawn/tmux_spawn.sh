@@ -528,8 +528,13 @@ _stop_worker_logger() {
 #     WORKER_PROXY_LIVE_ADDON     — path to live-copy addon file (for cleanup) or empty
 #     WORKER_PROXY_LIVE_DIR       — path to live-copy proxy dir (for cleanup) or empty
 #
-#   Returns 0 always (including no-proxy-active case); 1 only on dedup error (live addon
-#   already in use by another mitmdump — caller should refuse to spawn).
+#   The live-copy paths carry a per-call unique suffix (name + epoch + pid), so a previous
+#   worker's asynchronous runner-trap cleanup can only delete its own copies (2026-09-23:
+#   kill + immediate respawn under one name lost the new worker's addon).
+#   After starting mitmdump it waits until the port listens; if the proxy does not come up
+#   it cleans up and returns 1.
+#   Returns 0 when no proxy is active or the proxy is ready; 1 when the proxy failed to start
+#   (caller must refuse to spawn).
 _worker_proxy_setup() {
     local name="$1"
     local project_path="$2"
@@ -573,16 +578,9 @@ _worker_proxy_setup() {
     # Start worker-specific mitmproxy in background (live-copy to prevent hot-reload)
     local log_dir="${monitor_cc_root}/src/logs"
     mkdir -p "$log_dir"
-    local worker_live_id="worker_${name}"
+    local worker_live_id="worker_${name}_$(date +%s)_$$"
     local worker_live_addon_path="${log_dir}/.proxy_addon_live_${worker_live_id}.py"
     local worker_live_dir_path="${log_dir}/.proxy_live_${worker_live_id}"
-    # Dedup guard: if this worker's live-copy already exists AND a mitmdump process is
-    # still using it, abort rather than overwriting (which would hot-reload the running proxy).
-    if [ -f "$worker_live_addon_path" ] && lsof "$worker_live_addon_path" >/dev/null 2>&1; then
-        echo "ERROR: Worker proxy for '$name' is already running (live addon in use)." >&2
-        echo "  Kill the existing '$name' worker or choose a different name." >&2
-        return 1
-    fi
     cp "${monitor_cc_root}/src/proxy_addon.py" "$worker_live_addon_path"
     mkdir -p "$worker_live_dir_path"
     cp -r "${monitor_cc_root}/src/proxy" "$worker_live_dir_path/"
@@ -594,8 +592,34 @@ _worker_proxy_setup() {
     WORKER_PROXY_PID=$!
     WORKER_PROXY_LIVE_ADDON="$worker_live_addon_path"
     WORKER_PROXY_LIVE_DIR="$worker_live_dir_path"
+    if ! _worker_proxy_wait_ready "$WORKER_PROXY_PID" "$worker_port"; then
+        echo "ERROR: Worker proxy for '$name' did not come up on port ${worker_port}; refusing to start a worker without proxy." >&2
+        echo "  mitmdump log: ${log_dir}/proxy_errors_${worker_log_id}.log" >&2
+        kill "$WORKER_PROXY_PID" 2>/dev/null || true
+        rm -f "$worker_live_addon_path"
+        rm -rf "$worker_live_dir_path"
+        WORKER_PROXY_PID=""
+        WORKER_PROXY_ENV_PREFIX=""
+        WORKER_PROXY_LIVE_ADDON=""
+        WORKER_PROXY_LIVE_DIR=""
+        return 1
+    fi
     WORKER_PROXY_ENV_PREFIX="HTTPS_PROXY=http://localhost:${worker_port} NODE_EXTRA_CA_CERTS=~/.mitmproxy/mitmproxy-ca-cert.pem SSL_CERT_FILE=~/.mitmproxy/combined-ca.pem REQUESTS_CA_BUNDLE=~/.mitmproxy/combined-ca.pem "
     return 0
+}
+
+# _worker_proxy_wait_ready PID PORT
+#   Polls up to 15s until PID is alive and PORT is listening. Returns 0 when ready, 1 otherwise.
+_worker_proxy_wait_ready() {
+    local pid="$1"
+    local port="$2"
+    local deadline=$(( $(date +%s) + 15 ))
+    while [ "$(date +%s)" -lt "$deadline" ]; do
+        kill -0 "$pid" 2>/dev/null || return 1
+        lsof -iTCP:"${port}" -sTCP:LISTEN >/dev/null 2>&1 && return 0
+        sleep 0.3
+    done
+    return 1
 }
 
 
@@ -654,7 +678,7 @@ spawn_claude_worker() {
     echo "$task_prompt" > "$prompt_file"
 
     # Set up worker-specific mitmproxy via shared helper (populates WORKER_PROXY_* globals)
-    _worker_proxy_setup "$name" "$project_path" || return 1
+    _worker_proxy_setup "$name" "$project_path" || { rm -f "$prompt_file"; return 1; }
     local proxy_env_prefix="$WORKER_PROXY_ENV_PREFIX"
     local worker_proxy_pid="$WORKER_PROXY_PID"
     local worker_live_addon="$WORKER_PROXY_LIVE_ADDON"
