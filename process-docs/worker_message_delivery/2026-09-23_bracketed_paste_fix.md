@@ -139,3 +139,16 @@ wrapper leaves a harmless leading `\n\n` that isn't a content defect — see the
 - `dev/worker_message_delivery/md/probe_bracketed_paste_report.md` — generated
   by the script, reflects whichever run happened last (this file documents the
   cross-run variance the single latest report can't show).
+
+## Recap checkpoint
+
+`git diff integration --name-only` against this branch listed exactly the 8
+files above (`dev/DOCS.md`, `dev/worker_message_delivery/DOCS.md`,
+`dev/worker_message_delivery/_verify_user_message.py`,
+`dev/worker_message_delivery/md/probe_bracketed_paste_report.md`,
+`dev/worker_message_delivery/probe_bracketed_paste.sh`, this file,
+`src/spawn/DOCS.md`, `src/spawn/tmux_spawn.sh`) — no drift between what was
+implemented and what's staged. Both touched DOCS.md files (`dev/DOCS.md` for
+the new area's index entry, `src/spawn/DOCS.md` for the corrected LOC count)
+were already updated as part of the main task commit, so the recap needed no
+further DOCS.md changes — only this addendum.
