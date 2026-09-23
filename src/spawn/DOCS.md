@@ -24,7 +24,7 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 **Reads:** tmux session list, proxy marker `/tmp/.monitor_cc_proxy_<session_id>`, project path, `~/Library/Application Support/com.brunowinter.monitor-cc-menubar/hooks.json`, `~/.claude/shared-rules/model_selection.json`.
 **Writes:** tmux sessions, Ghostty windows, worker mitmproxy processes, `/tmp/worker-<name>.done` signal file.
 **Called by:** `~/.local/bin/worker-cli` (all subcommands via `source`); `spawn.py` (via subprocess for `spawn_claude_worker_from_file`).
-**Calls out:** tmux, osascript/Ghostty, mitmdump, `~/.local/bin/claude-223`, `jq`.
+**Calls out:** tmux, osascript/Ghostty, mitmdump, `~/.local/bin/claude-280`, `jq`.
 
 ---
 
