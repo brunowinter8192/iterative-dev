@@ -67,3 +67,27 @@ pasted text. A worker whose whole task prompt arrives this way may therefore not
    (under 800 characters, no newline), e.g. "Read <file> completely and follow it". Short
    single lines were delivered reliably on 2.1.280 in live use. Costs the worker one Read.
 3. Short typed instruction line plus a bracketed paste of the body. Untested.
+
+## Outcome on 2026-09-23
+
+The user chose option 1 plus stripping: bracketed paste for send and spawn (iterative-dev,
+worker `pastefix`), and the monitor-cc proxy removes the `<pasted_content id="...">` /
+`</pasted_content id="...">` tags from user-role top-level text for all sessions (monitor-cc,
+worker `pastestrip`). Details are in the two worker entries of this area and in the
+`worker_message_delivery` area of monitor-cc.
+
+Deployment for verification: the new `tmux_spawn.sh` was copied into the plugin cache
+(`iterative-dev/1.0.0/src/spawn/`). Before the copy, the cache file was byte-identical to the
+pre-fix source, so the copy changed exactly this fix. New worker proxies copy `src/proxy` from the
+monitor-cc checkout at spawn, which had `integration` checked out, so they carried the strip.
+Main-session proxies only get it after their own restart.
+
+Production verification, a real worker `pasteverify` spawned through `worker-cli`:
+- Spawn prompt of 47 lines / 3,384 characters, pasted directly (no file pointer). The task asked
+  for the number of the line containing ZEBRA and the number of filler lines. Answer: 17 and 39,
+  both correct.
+- `worker-cli send` of 32 lines / 1,865 characters to the running worker. Answer: row 12 and 29
+  rows, both correct.
+- The worker's `_original.jsonl` dual-log holds the wrapped text, the `_forwarded.jsonl` holds no
+  `pasted_content` at all, and `_stripped.jsonl` attributes three strips to
+  `_apply_pasted_content_strip`.
