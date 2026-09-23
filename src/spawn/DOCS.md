@@ -18,7 +18,7 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 
 ## Modules
 
-### tmux_spawn.sh (912 LOC)
+### tmux_spawn.sh (936 LOC)
 
 **Purpose:** Bash library — worker lifecycle: spawn, list, status, capture, send. Resolves the worker model, injects the Monitor_CC proxy, detects working/idle/dead status.
 **Reads:** tmux session list, proxy marker `/tmp/.monitor_cc_proxy_<session_id>`, project path, `~/Library/Application Support/com.brunowinter.monitor-cc-menubar/hooks.json`, `~/.claude/shared-rules/model_selection.json`.
