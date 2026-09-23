@@ -8,6 +8,7 @@ Development scripts for testing, debugging, and experimentation related to the i
 
 - [session_pipeline/DOCS.md](session_pipeline/DOCS.md) — session-pipeline audit scripts (reports in `session_pipeline/md/`)
 - [worker_spawn/DOCS.md](worker_spawn/DOCS.md) — spawn-flow smoke tests
+- [worker_message_delivery/DOCS.md](worker_message_delivery/DOCS.md) — bracketed-paste delivery probe (reports in `worker_message_delivery/md/`)
 - [worker_status/DOCS.md](worker_status/DOCS.md) — status-detection smoke tests
 - [worker_wait/DOCS.md](worker_wait/DOCS.md) — `worker-cli wait` integration tests
 - [worker_janitor/DOCS.md](worker_janitor/DOCS.md) — `worker-cli janitor` stale-worker cleanup smoke test

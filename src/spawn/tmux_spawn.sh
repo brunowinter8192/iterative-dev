@@ -361,11 +361,12 @@ worker_send() {
     # Monitor_CC process-docs (menubar signal grace).
     _orchestrator_signal_update "$session"
 
-    # Paste message, then send Enter as key event.
-    # Claude Code TUI ignores pasted newlines as submit — needs real key event.
-    # Sleep prevents race condition where Enter arrives before paste completes.
+    # Paste message via bracketed paste (-p), then send Enter as key event.
+    # Without -p, CC 2.1.280 loses the head of long/multi-line pastes and Enter
+    # doesn't submit (process-docs/worker_message_delivery/2026-09-23_paste_breaks_on_cc_280.md).
+    # Sleep prevents race condition where Enter arrives before the paste renders.
     printf '%s' "$message" | tmux load-buffer -
-    tmux paste-buffer -d -t "$pane_id"
+    tmux paste-buffer -d -p -t "$pane_id"
     sleep 0.2
     tmux send-keys -t "$pane_id" Enter
 }
@@ -729,10 +730,10 @@ RUNSCRIPT
         return 1
     fi
 
-    # Inject prompt via paste — same mechanism as worker_send.
+    # Inject prompt via bracketed paste — same mechanism as worker_send.
     # Prompt text never touches the claude cmdline; pane content only.
     printf '%s' "$task_prompt" | tmux load-buffer -
-    tmux paste-buffer -d -t "$_pane_id"
+    tmux paste-buffer -d -p -t "$_pane_id"
     sleep 0.2
     tmux send-keys -t "$_pane_id" Enter
     rm -f "$prompt_file"
