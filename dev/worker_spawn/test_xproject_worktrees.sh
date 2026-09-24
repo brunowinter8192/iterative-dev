@@ -1,14 +1,8 @@
 #!/usr/bin/env bash
-# Smoke test: cross-project worktree tracking in worker-cli.
-# Uses WORKER_REGISTRY_DIR + throwaway git repos — no tmux, no spawn, no live registry.
-#
-# Usage: bash dev/spawn/test_xproject_worktrees.sh
-
 set -uo pipefail
 
 WCLI="$(cd "$(dirname "$0")/../.." && pwd)/bin/worker-cli"
 
-# Temp dirs
 TMPREG=$(mktemp -d)
 TMPTARGET=$(mktemp -d)
 TMPSPAWN=$(mktemp -d)
@@ -31,14 +25,12 @@ check() {
     fi
 }
 
-# ── Init throwaway git repos ─────────────────────────────────────────────────
 git init "$TMPTARGET" -b main -q
 git -C "$TMPTARGET" commit --allow-empty -m "init" -q
 
 git init "$TMPSPAWN" -b main -q
 git -C "$TMPSPAWN" commit --allow-empty -m "init" -q
 
-# ── Case 1: worker-cli worktree tw1 <target> ─────────────────────────────────
 echo "=== Case 1: worker-cli worktree tw1 <target> ==="
 
 OUTPUT=$("$WCLI" worktree tw1 "$TMPTARGET" 2>&1)
@@ -67,19 +59,14 @@ else
     check "sidecar file exists" "not found at $TMPREG/tw1.worktrees"
 fi
 
-# ── Case 2: kill tw1 cleans BOTH spawn-side AND cross-project ────────────────
 echo ""
 echo "=== Case 2: worker-cli kill tw1 cleans both spawn + cross-project ==="
 
-# Seed spawn-side: real worktree + branch in TMPSPAWN, registry entry
 git -C "$TMPSPAWN" worktree add "$TMPSPAWN/.claude/worktrees/tw1" -b tw1 -q
 echo "$TMPSPAWN" > "$TMPREG/tw1"
 
-# Cross-project worktree from case 1 still exists (sidecar already written)
-# Run kill — no tmux so session-kill is a no-op, spawn helpers have || true
 "$WCLI" kill tw1 2>&1 | sed 's/^/  /'
 
-# Spawn side
 if [ ! -d "$TMPSPAWN/.claude/worktrees/tw1" ]; then
     check "spawn worktree removed" "ok"
 else
@@ -92,7 +79,6 @@ else
     check "spawn branch deleted" "still exists"
 fi
 
-# Cross-project side
 if [ ! -d "$TMPTARGET/.claude/worktrees/tw1" ]; then
     check "cross-project worktree removed" "ok"
 else
@@ -105,7 +91,6 @@ else
     check "cross-project branch deleted" "still exists"
 fi
 
-# Sidecar + registry
 if [ ! -f "$TMPREG/tw1.worktrees" ]; then
     check "sidecar removed" "ok"
 else
@@ -118,7 +103,6 @@ else
     check "registry entry removed" "still exists"
 fi
 
-# ── Case 3: list + status --all skip *.worktrees sidecars ────────────────────
 echo ""
 echo "=== Case 3: list / status --all skip sidecar files ==="
 
@@ -127,7 +111,6 @@ git init "$TMPSPAWN2" -b main -q
 git -C "$TMPSPAWN2" commit --allow-empty -m "init" -q
 
 echo "$TMPSPAWN2" > "$TMPREG/realworker"
-# Plant a sidecar alongside it — should NOT appear as a worker
 touch "$TMPREG/realworker.worktrees"
 
 LIST_OUT=$("$WCLI" list 2>&1)
@@ -159,7 +142,6 @@ fi
 rm -f "$TMPREG/realworker" "$TMPREG/realworker.worktrees"
 rm -rf "$TMPSPAWN2"
 
-# ── Case 4: worktree-rm removes orphaned cross-project worktree+branch ────────
 echo ""
 echo "=== Case 4: worktree-rm removes orphaned worktree + branch ==="
 
@@ -184,7 +166,6 @@ fi
 
 rm -rf "$TMPTARGET2"
 
-# ── Summary ───────────────────────────────────────────────────────────────────
 echo ""
 echo "=== Summary ==="
 echo "  PASS: $pass"

@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# Smoke test: worker-cli janitor (stale-worker cleanup).
-# Uses WORKER_REGISTRY_DIR + a throwaway git repo (no real registry touched) AND an
-# ISOLATED tmux server (`tmux -L`, via a PATH-shadowing wrapper script) so the "run for
-# real" pass can never see/touch live sessions (keep-filters, menubar-remote, this
-# worker's own session, repro1b58790-w1) even with --max-age-hours 0 matching everything.
-# session_created cannot be faked, so the age gate is exercised via --max-age-hours 0
-# for the "should be killed" case and the real default (12h) for the "spared" case.
-#
-# Usage: bash dev/worker_janitor/test_janitor.sh
-
 set -uo pipefail
 
 WCLI="$(cd "$(dirname "$0")/../.." && pwd)/bin/worker-cli"
@@ -16,10 +6,6 @@ REAL_TMUX="$(command -v tmux)"
 
 TMPREG=$(mktemp -d)
 TMPBASE=$(mktemp -d)
-# Subdir with a dot-free basename: mktemp's default "tmp.XXXXXXXX" naming contains a
-# "." — tmux silently rewrites "." (reserved target-spec separator) to "_" in session
-# names, which would desync the actual live session name from what
-# _worker_session_name computes from this path's basename.
 TMPPROJ="$TMPBASE/janitorproj"
 mkdir -p "$TMPPROJ"
 TMPLOGS=$(mktemp -d)
@@ -55,13 +41,12 @@ git init "$TMPPROJ" -b main -q
 git -C "$TMPPROJ" commit --allow-empty -m "init" -q
 PROJ_BASENAME=$(basename "$TMPPROJ")
 
-# ── Case 1: dry-run lists a synthetic session as a candidate ────────────────
 echo "=== Case 1: janitor --max-age-hours 0 --dry-run — candidate listed ==="
 
 git -C "$TMPPROJ" worktree add ".claude/worktrees/stale1" -b stale1 -q
 SESSION1="worker-${PROJ_BASENAME}-stale1"
 tmux new-session -d -s "$SESSION1" -c "$TMPPROJ/.claude/worktrees/stale1" 'sleep 300'
-sleep 1  # let tmux settle session_created / pane state
+sleep 1
 
 DRYRUN_OUT=$("$WCLI" janitor --max-age-hours 0 --dry-run 2>&1)
 echo "$DRYRUN_OUT" | sed 's/^/  /'
@@ -78,7 +63,6 @@ else
     check "dry-run did not kill the session" "session gone after dry-run!"
 fi
 
-# ── Case 2: real run kills the stale synthetic session ───────────────────────
 echo ""
 echo "=== Case 2: janitor --max-age-hours 0 (real) — session killed ==="
 
@@ -109,7 +93,6 @@ else
     check "janitor.log has kill line for stale1" "not found"
 fi
 
-# ── Case 3: fresh synthetic session is spared by the age gate ────────────────
 echo ""
 echo "=== Case 3: fresh session spared (default 12h threshold) ==="
 
@@ -118,7 +101,7 @@ SESSION2="worker-${PROJ_BASENAME}-fresh1"
 tmux new-session -d -s "$SESSION2" -c "$TMPPROJ/.claude/worktrees/fresh1" 'sleep 300'
 sleep 1
 
-FRESH_OUT=$("$WCLI" janitor 2>&1)  # default --max-age-hours 12
+FRESH_OUT=$("$WCLI" janitor 2>&1)
 echo "$FRESH_OUT" | sed 's/^/  /'
 
 if tmux has-session -t "$SESSION2" 2>/dev/null; then
@@ -133,7 +116,6 @@ else
     check "fresh1 not mentioned in real-run output (below age threshold)" "ok"
 fi
 
-# ── Case 4: orphan registry entry (no tmux session) cleaned ──────────────────
 echo ""
 echo "=== Case 4: orphan registry entry — no tmux session, past grace window ==="
 

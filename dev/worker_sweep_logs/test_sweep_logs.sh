@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Smoke test: worker-cli sweep-logs (log-directory retention sweep).
-# Uses WORKER_LOGGER_DIR pointed at a throwaway dir — never touches the real log
-# directory. Ages are faked via `touch -t` (macOS `date -v`, GNU `date -d` fallback,
-# same idiom as dev/worker_janitor/test_janitor.sh) so no case waits real hours.
-#
-# Usage: bash dev/worker_sweep_logs/test_sweep_logs.sh
-
 set -uo pipefail
 
 PLUGIN_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -37,7 +30,6 @@ backdate() {
     touch -t "$(date -v-"${hours}"H +%Y%m%d%H%M.%S 2>/dev/null || date -d "-${hours} hours" +%Y%m%d%H%M.%S)" "$file"
 }
 
-# ── Case 1: dry-run lists stale files, deletes nothing ───────────────────────
 echo "=== Case 1: sweep-logs --dry-run --max-age-hours 72 — candidates listed, nothing removed ==="
 
 echo "old" > "$TMPLOGS/stale-worker_20260101_000000_spawn.log"
@@ -65,7 +57,6 @@ else
     check "fresh file not mentioned by dry-run" "ok"
 fi
 
-# ── Case 2: real run removes the stale file, spares the fresh one ───────────
 echo ""
 echo "=== Case 2: sweep-logs --max-age-hours 72 (real) — stale removed, fresh spared ==="
 
@@ -90,7 +81,6 @@ else
     check "log_sweep.log has a removed=1 line for this run" "not found — $(cat "$TMPLOGS/log_sweep.log" 2>/dev/null)"
 fi
 
-# ── Case 3: wait_trace.log is exempt regardless of age ───────────────────────
 echo ""
 echo "=== Case 3: wait_trace.log survives --max-age-hours 0 (matches everything else) ==="
 
@@ -113,7 +103,6 @@ else
     check "an ordinary file IS removed at --max-age-hours 0" "still exists"
 fi
 
-# ── Case 4: default (no --max-age-hours) is 72h, not "match everything" ─────
 echo ""
 echo "=== Case 4: default max-age-hours is 72 ==="
 
@@ -136,8 +125,6 @@ else
     check "73h-old file removed under the default 72h" "still exists"
 fi
 
-# ── Case 5: real spawn/revive trigger point — _start_worker_logger sweeps
-# the directory it is about to add a new file to ───────────────────────────
 echo ""
 echo "=== Case 5: _start_worker_logger triggers the sweep automatically ==="
 

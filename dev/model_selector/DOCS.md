@@ -4,7 +4,7 @@
 
 Verification scripts for the model-selector line of work's plugin-side half (milestone 3,
 cross-repo with monitor-cc): worker-model resolution in `bin/worker-cli`, `src/spawn/spawn.py`,
-and `src/spawn/tmux_spawn.sh` from `~/.claude/shared-rules/model_selection.json`.
+and the `src/spawn/` shell modules from `~/.claude/shared-rules/model_selection.json`.
 
 ## Public Interface
 
@@ -16,13 +16,13 @@ No CLI input — each script drives the real `_resolve_worker_model()` (bash and
 
 ## Modules
 
-### verify_worker_model_precedence.sh (224 LOC)
+### verify_worker_model_precedence.sh (199 LOC)
 
-**Purpose:** Verifies `tmux_spawn.sh`'s `_resolve_worker_model()`, its 3 call-site expansion patterns, and a real `bin/worker-cli spawn` subprocess entry point.
+**Purpose:** Verifies the spawn library's `_resolve_worker_model()`, its 3 call-site expansion patterns (wiring checked statically in `tmux_spawn.sh` and `worker_revive.sh`), and a real `bin/worker-cli spawn` subprocess entry point.
 **Reads:** nothing persistent — all config cases use a `mktemp -d` path via `MODEL_SELECTION_FILE`.
 **Writes:** stdout only (no report file); real-entry-point section creates and cleans up its own tmux sessions, runner scripts, and `/tmp/worker-<name>.done` markers.
-**Called by:** run manually — regression guard; re-run after any change to `_resolve_worker_model`, its 3 call sites, or `bin/worker-cli`'s `spawn)` case.
-**Calls out:** `jq`, `tmux`, `src/spawn/tmux_spawn.sh` (sourced for real), `bin/worker-cli` (invoked for real via subprocess).
+**Called by:** run manually — regression guard; re-run after any change to `_resolve_worker_model`, its 3 call sites, or the `spawn` subcommand in `src/worker_cli/cmd_lifecycle.sh`.
+**Calls out:** `jq`, `tmux`, `src/spawn/tmux_spawn.sh` and `src/spawn/worker_revive.sh` (sourced / read for real), `bin/worker-cli` (invoked for real via subprocess).
 
 ---
 

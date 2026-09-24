@@ -1,10 +1,3 @@
-# --- Test 5 (adapted for the transition gate; preserves the original idle+bg hold intent):
-# worker observed "working" once first (brief — the pre-flip window here is short enough that
-# window_activity stays fresh without chatty), THEN flips to idle WITH a genuinely open
-# *.output write handle -> holds until the handle closes, exits "workers idle" only once BOTH
-# the working phase and the bg-task have completed. Also covers the /tmp vs /private/tmp
-# resolution gotcha unchanged: the handle is opened via the UNRESOLVED raw_tasks_dir path
-# while the hook internally resolves to /private/tmp/... ---
 test5_open_handle() {
     PROJ5="/tmp/${TEST_TAG}-5"
     SID5="${TEST_TAG}-sess-5"
@@ -48,12 +41,6 @@ test5_open_handle() {
     destroy_worker w1 "$PROJ5" "$SID5"
 }
 
-# --- Test 6 (unchanged — verified compatible with the transition gate): lsof unresolvable
-# mid-check (PATH stripped of /usr/sbin) -> bg-check probe error -> the idle worker's ALL_
-# NONBLOCKING never reaches 1 regardless of SAW_WORKING (the probe error itself keeps it
-# classified busy every poll), so this always ends in "timeout", same as before this change.
-# Isolates the bg-check's OWN error path (distinct from Test 4's status-check target-vanishes
-# case). ---
 test6_lsof_unresolvable() {
     PROJ6="/tmp/${TEST_TAG}-6"
     SID6="${TEST_TAG}-sess-6"
@@ -71,20 +58,6 @@ test6_lsof_unresolvable() {
     destroy_worker w1 "$PROJ6" "$SID6"
 }
 
-# --- Test 7 (2026-08-19 incident regression, RE-PURPOSED for the working/idle/dead
-# vocabulary, 2026-09-02 — verified by an actual run, not assumed): session ALIVE, no
-# hooks.json entry ever populated. Under the OLD vocabulary this got stuck on a distinct
-# "unknown" placeholder forever — the original incident. Under the NEW vocabulary there is
-# no such stuck state: a freshly created pane with no hook data legitimately reads as
-# "working" for its first ~10s (we cannot prove otherwise for a just-created pane — a
-# correct default, not a misclassification), then self-heals to "idle" once quiet > 10s,
-# with no orchestrator/hook data ever needed. This IS the fix for the original incident
-# (self-healing beats a stuck-forever placeholder): `wait` correctly arms the gate on the
-# real initial working reading and exits "workers idle" once the worker settles — it never
-# needs a special terminal carve-out, and it never grinds to the timeout ceiling either.
-# (The "never observed working, gate holds" proof lives in Tests 1/2/11a instead, which use
-# an explicit idle hook status or no worker at all — neither goes through this shared
-# fresh-pane window.) ---
 test7_no_hook_self_heals() {
     PROJ7="/tmp/${TEST_TAG}-7"
     SID7="${TEST_TAG}-sess-7"
@@ -113,9 +86,6 @@ test7_no_hook_self_heals() {
     destroy_worker w1 "$PROJ7" "$SID7"
 }
 
-# --- Test 8 (adapted for the transition gate): session ALIVE, status stuck "dead"
-# (#{pane_dead}=1) from the start (never observed working) -> gate holds, runs to timeout.
-# The genuine "working -> killed -> dead" proof is Test 8b below. ---
 test8_stuck_dead_from_start() {
     PROJ8="/tmp/${TEST_TAG}-8"
     create_worker_dead w1 "$PROJ8" >/dev/null
@@ -131,11 +101,6 @@ test8_stuck_dead_from_start() {
     destroy_worker w1 "$PROJ8" "${TEST_TAG}-sess-8"
 }
 
-# --- Test 8b: worker genuinely "working" (chatty), then the claude child is killed while
-# the tmux SESSION stays alive (remain-on-exit marks the pane dead once the wrapper's own
-# `wait $CLAUDE_PID` returns) -> _worker_detect_status reports "dead" thereafter -> `wait`
-# exits "worker dead" once stable, because a real working poll preceded the edge. Distinct
-# from Test 4's session-GONE case (empty-NAMES path, never exits early, unchanged above). ---
 test8b_working_then_child_killed() {
     PROJ8B="/tmp/${TEST_TAG}-8b"
     SID8B="${TEST_TAG}-sess-8b"
@@ -159,15 +124,6 @@ test8b_working_then_child_killed() {
     destroy_worker w1 "$PROJ8B" "$SID8B"
 }
 
-# --- Test 9 (unchanged — verified compatible with the transition gate and the
-# working/idle/dead vocabulary): mixed project — one worker dead (#{pane_dead}=1) from the
-# start, one worker genuinely "working" (fresh window_activity at creation covers this
-# test's short 5s pre-flip window without chatty) -> `wait` must NOT exit early (dead folds
-# into "non-blocking" but a real busy worker still blocks; SAW_WORKING is set from wB's very
-# first poll). Once the working worker finishes (flipped to idle), `wait` exits "worker
-# dead" (not "workers idle") because the dead worker is still there — validates fold-in +
-# exit-line precedence together, now with the gate already satisfied from wB's early
-# working poll. ---
 test9_mixed_dead_and_working() {
     PROJ9="/tmp/${TEST_TAG}-9"
     SID9B="${TEST_TAG}-sess-9b"
@@ -198,17 +154,6 @@ test9_mixed_dead_and_working() {
     destroy_worker wB "$PROJ9" "$SID9B"
 }
 
-# --- Test 10 (adapted for the transition gate AND the working/idle/dead vocabulary;
-# preserves the original bg-skipped-for-dead intent): worker observed "working" once
-# first, THEN the claude child is killed (pane goes dead via remain-on-exit — the SAME real
-# dead signal Test 8b uses) AND the hooks.json entry is separately deleted (session/process
-# alike show no live hook data — a realistic dead-and-orphaned shape) WHILE a genuinely open
-# *.output write handle stays open throughout -> still exits "worker dead" promptly once
-# stable, NOT held open until the handle closes — regression-guards the deliberate design
-# decision to skip the bg-task probe for dead statuses (unlike Test 5's idle+bg case, which
-# DOES hold). NOTE: a deleted hook entry ALONE is no longer a dead signal under the new
-# vocabulary (see delete_hook_entry's doc comment) — kill_claude_child is what actually
-# produces "dead" here. ---
 test10_dead_with_open_bg_handle() {
     PROJ10="/tmp/${TEST_TAG}-10"
     SID10="${TEST_TAG}-sess-10"
@@ -238,12 +183,6 @@ test10_dead_with_open_bg_handle() {
     destroy_worker w1 "$PROJ10" "$SID10"
 }
 
-# --- Test 11 (New Case 6): `wait` armed while the worker is already idle (no prior working)
-# -> keeps running through the idle-from-arm phase (proven via a mid-run liveness check well
-# past the old 15s early-exit threshold), THEN the worker becomes genuinely "working" (chatty,
-# so window_activity stays fresh despite the flip happening long after creation), THEN idle
-# again -> exits "workers idle" only after that SECOND transition, never on the first idle
-# phase. ---
 test11_second_transition_exits() {
     PROJ11="/tmp/${TEST_TAG}-11"
     SID11="${TEST_TAG}-sess-11"
