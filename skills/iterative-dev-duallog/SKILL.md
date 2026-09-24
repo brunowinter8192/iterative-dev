@@ -46,7 +46,7 @@ START                PROJECT                                      SESSION
 - `--since D` und `--until D` — Starttag im Format `YYYY-MM-DD`, jeweils einschließlich.
 - `--main` und `--worker` — behalten nur die Main-Sessions, also opus, beziehungsweise nur die Worker-Sessions.
 - `--turn N` — behält nur Turn N jeder Session.
-- `--gap MIN` — behält nur die beiden REQs rund um eine Pause von mindestens MIN Minuten.
+- `--gap MIN` — zeigt REQ x und Folge-REQ y desselben Turns einer Session, wenn dazwischen mindestens MIN Minuten vergangen sind.
 - `--merged` — eine chronologische Kette über alle Sessions im Scope, jede Zeile mit ihrem Worker getaggt. Das ist die Sicht auf die Cache-Gesundheit, denn alle Worker eines Projekts teilen sich den Prompt-Cache.
 - `--rebuild` — behält nur REQs mit `CC > CR`, bei denen der Prefix also neu aufgebaut wurde.
 - `--drop` — behält nur REQs, die weniger zurückgelesen haben als der vorherige REQ gecacht hatte, bei denen der Cache also dazwischen abgelaufen ist.
