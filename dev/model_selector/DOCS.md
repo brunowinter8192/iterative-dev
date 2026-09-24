@@ -2,38 +2,36 @@
 
 ## Role
 
-Verification scripts for the model-selector line of work's plugin-side half (milestone 3,
-cross-repo with monitor-cc): worker-model resolution in `bin/worker-cli`, `src/spawn/spawn.py`,
-and the `src/spawn/` shell modules from `~/.claude/shared-rules/model_selection.json`.
+Verification scripts for worker-model resolution from the shared model-selection config, across bin/worker-cli, src/spawn/spawn.py and the src/spawn shell modules. Re-run after changing resolution, its call sites or the spawn subcommand.
 
 ## Public Interface
 
-Both scripts are run manually, no importable interface: `bash dev/model_selector/verify_worker_model_precedence.sh`, `python3 dev/model_selector/verify_spawn_model_resolution.py`.
+No `__init__.py`; run manually: `bash dev/model_selector/verify_worker_model_precedence.sh` and `python3 dev/model_selector/verify_spawn_model_resolution.py`.
 
 ## Flow
 
-No CLI input — each script drives the real `_resolve_worker_model()` (bash and Python sides respectively) against temp config paths, then prints a PASS/FAIL report to stdout (the Python side also writes its report to `md/`).
+Each script drives the real resolver (shell and Python side respectively) against temporary config files, with independent cases as parallel strands. The Python side also writes its report to md/.
 
 ## Modules
 
 ### verify_worker_model_precedence.sh (185 LOC)
 
-**Purpose:** Verifies the spawn library's `_resolve_worker_model()`, its 3 call-site expansion patterns (wiring checked statically in `tmux_spawn.sh` and `worker_revive.sh`), and a real `bin/worker-cli spawn` subprocess entry point.
-**Reads:** nothing persistent — all config cases use a `mktemp -d` path via `MODEL_SELECTION_FILE`.
-**Writes:** stdout only (no report file); real-entry-point section creates and cleans up its own tmux sessions, runner scripts, and `/tmp/worker-<name>.done` markers.
-**Called by:** run manually — regression guard; re-run after any change to `_resolve_worker_model`, its 3 call sites, or the `spawn` subcommand in `src/worker_cli/cmd_lifecycle.sh`.
-**Calls out:** `jq`, `tmux`, `src/spawn/tmux_spawn.sh` and `src/spawn/worker_revive.sh` (sourced / read for real), `bin/worker-cli` (invoked for real via subprocess).
+**Purpose:** Verifies the shell resolver, its call-site expansion patterns, the static wiring, and two real worker-cli spawn runs against a mock claude.
+**Reads:** Only temporary config files; the real model-selection config is never touched.
+**Writes:** stdout; per-strand tmux servers, runner scripts and markers, all removed.
+**Called by:** Run manually as a regression guard.
+**Calls out:** jq, tmux, `src/spawn` shell modules, `bin/worker-cli` (subprocess), `dev/strand_runner.sh`.
 
 ---
 
 ### verify_spawn_model_resolution.py (159 LOC)
 
-**Purpose:** Verifies `spawn.py`'s `_resolve_worker_model()` config-resolution cases and confirms argparse's omitted-arg default never leaks the string `"None"`.
-**Reads:** nothing persistent — all config cases use a `tempfile.TemporaryDirectory()`.
-**Writes:** `md/verify_spawn_model_resolution.md`.
-**Called by:** run manually — regression guard; re-run after any change to `spawn.py`'s model resolution or argparse setup.
-**Calls out:** `src/spawn/spawn.py` (loaded by path).
+**Purpose:** Verifies the Python resolver's config cases and that an omitted model argument never leaks the string None.
+**Reads:** Only temporary config files.
+**Writes:** stdout; `md/verify_spawn_model_resolution.md`.
+**Called by:** Run manually as a regression guard.
+**Calls out:** `src/spawn/spawn.py` (loaded by path), `dev/strand_runner.py`.
 
 ## State
 
-No shared state between the two scripts — each resolves its own temp config path independently. Neither touches the real `~/.claude/shared-rules/model_selection.json` or `~/.claude/.worker-registry`.
+Each strand owns a private scratch directory (home, logs, registry, its own tmux server); nothing is shared between strands or with the real user state. The Python cases load the spawn module fresh in separate processes because the resolver's config path is module state.

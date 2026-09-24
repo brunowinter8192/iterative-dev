@@ -28,7 +28,7 @@ CLI args in → space discovery (`spaces`) and TextEdit test-window lifecycle (`
 
 **Purpose:** Low-level ctypes/ObjC bridge — CoreGraphics/SkyLight library handles, `objc_msgSend` helpers, CF container accessors.
 **Reads:** nothing.
-**Writes:** nothing (debug lines to stdout when `_DEBUG` is set).
+**Writes:** nothing (debug lines to stdout when the debug flag is set).
 **Called by:** `spaces.py`, `window_probe.py`, `move_test.py`, `probe.py`.
 **Calls out:** CoreGraphics.framework, SkyLight.framework (private), libobjc (via ctypes).
 
@@ -64,4 +64,4 @@ CLI args in → space discovery (`spaces`) and TextEdit test-window lifecycle (`
 
 ## State
 
-`objc_bridge._DEBUG` is the one piece of cross-module mutable state: `probe.py`'s `main()` sets it directly (`objc_bridge._DEBUG = args.debug`) after parsing `--debug`, rather than through a setter function — a plain module-attribute assignment, not a new public API. `objc_bridge._dbg()` reads it to decide whether to print raw API values; `window_probe.py` and `move_test.py` both call `_dbg()` but never touch the flag itself.
+The debug flag in `objc_bridge.py` is the one piece of cross-module mutable state. `probe.py` sets it directly after parsing the debug option, as a plain module-attribute assignment rather than through a setter. The bridge's debug print reads it; `window_probe.py` and `move_test.py` call that print but never touch the flag.

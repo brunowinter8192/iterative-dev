@@ -2,28 +2,26 @@
 
 ## Role
 
-Smoke test for `worker-cli sweep-logs` (`src/worker_cli/cmd_lifecycle.sh`; implementation
-`sweep_stale_logs` in `src/spawn/worker_log_sidecar.sh`) — the log-DIRECTORY retention sweep. Distinct
-from `worker-cli janitor` (`dev/worker_janitor/`), which sweeps stale tmux WORKER SESSIONS —
-the two share no code, no log file, and no naming.
+Smoke test for the worker-cli sweep-logs command, the log-directory retention sweep, and its automatic trigger at spawn. Distinct from janitor, which sweeps worker sessions.
+
+## Public Interface
+
+No `__init__.py`; run manually: `bash dev/worker_sweep_logs/test_sweep_logs.sh`.
+
+## Flow
+
+Five cases run as parallel strands, each with its own log directory and faked file ages: dry run, real run, trace-log exemption, default threshold, automatic trigger.
 
 ## Modules
 
 ### test_sweep_logs.sh (148 LOC)
 
-**Purpose:** Exercise the real `worker-cli sweep-logs` binary, and the real
-`_start_worker_logger` auto-trigger, against a throwaway `WORKER_LOGGER_DIR`. Covers:
-`--dry-run` listing a stale file without deleting it; a real run deleting a stale file while
-sparing a fresh one, with a matching `log_sweep.log` line; `wait_trace.log` surviving even
-`--max-age-hours 0` (it has its own line-count self-trim instead, see
-`process-docs/worker_sweep_logs/`); the default threshold being 72h specifically (a 71h file
-spared, a 73h file removed in the same run, no `--max-age-hours` passed); and a real
-`_start_worker_logger` call sweeping a pre-existing stale file in the same directory it then
-writes its own new log into — the actual spawn/revive trigger path, not just the CLI.
+**Purpose:** Exercises the real sweep-logs command and the real logger start against private log directories with backdated files.
+**Reads:** Nothing persistent.
+**Writes:** stdout; private log directories removed on exit.
+**Called by:** Run manually.
+**Calls out:** `bin/worker-cli` (subprocess), `src/spawn` shell modules (sourced), `dev/strand_runner.sh`.
 
-**Ages are faked, not waited for:** `touch -t` with the `date -v-<N>H` (macOS) /
-`date -d "-<N> hours"` (GNU) fallback, same idiom as `dev/worker_janitor/test_janitor.sh`'s
-own age-faking for `session_created`.
+## State
 
-**Usage:** `bash dev/worker_sweep_logs/test_sweep_logs.sh` (a few seconds; all I/O confined to
-one `mktemp -d`, torn down via `trap ... EXIT`. Never touches the real log directory).
+Each strand owns a private scratch directory (home, logs, registry, its own tmux server); nothing is shared between strands or with the real user state.

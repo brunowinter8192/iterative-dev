@@ -2,22 +2,26 @@
 
 ## Role
 
-Regression suite for `docs-drift-check`. Runs the real wrapper against fixture projects built in isolated temp directories. Touch when changing the checks or the DOCS.md rules they encode.
+Regression suite for the docs-drift-check command. Runs the real wrapper against fixture projects built in temporary directories. Touch when changing the checks or the DOCS.md rules they encode.
 
 ## Public Interface
 
-Run manually, no importable interface: `python3 dev/docs_drift_check/test_docs_drift_check.py` (from project root). Exit 0 = all cases passed.
+No `__init__.py`; run manually from the project root: `python3 dev/docs_drift_check/test_docs_drift_check.py`. Exit 0 means all cases passed.
 
 ## Flow
 
-Fixture definitions → one temp project per case, all cases in parallel → wrapper invoked with the fixture as cwd → exit code and output assertions per case → pass/fail summary.
+Fixture definitions become one temporary project per case. All cases run in parallel, including the missing-root case. The wrapper runs with the fixture as working directory. Exit code and output are asserted per case.
 
 ## Modules
 
 ### test_docs_drift_check.py (223 LOC)
 
-**Purpose:** Fixture-based regression cases for path, LOC and rule checks, scope exclusions and cwd independence.
-**Reads:** nothing external; builds its own temp projects.
-**Writes:** stdout (pass/fail per case); no writes outside its temp fixtures.
-**Called by:** none, manual regression guard.
+**Purpose:** Fixture-based regression cases for path, LOC and rule checks, scope exclusions and working-directory independence.
+**Reads:** Nothing external; builds its own temporary projects.
+**Writes:** stdout (pass/fail per case).
+**Called by:** Run manually as a regression guard.
 **Calls out:** `bin/docs-drift-check` (subprocess).
+
+## State
+
+Nothing shared: every run builds and removes its own fixtures.
