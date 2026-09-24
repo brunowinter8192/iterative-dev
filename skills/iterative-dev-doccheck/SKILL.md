@@ -3,135 +3,135 @@ name: iterative-dev-doccheck
 description:
 ---
 
-# Doc & Structure Check
+# Doc- und Struktur-Check
 
-## Core Rules
+## Kernregeln
 
-**§ Documentation Hierarchy is the sole standard, and it wins over the project's current state.**
-- An existing structure is never a "project convention" that excuses a deviation.
-   - A consistent deviation is still a deviation.
+**§ Dokumentationshierarchie ist der einzige Standard, und er gewinnt gegen den aktuellen Stand des Projekts.**
+- Eine bestehende Struktur ist nie eine Projektkonvention, die eine Abweichung entschuldigt.
+   - Eine durchgängige Abweichung bleibt eine Abweichung.
 
-**Volume is never a scope argument.**
-- Never sample, shortcut, or do only part; every rule-driven fix is carried through in full.
+**Die Menge ist nie ein Argument für den Scope.**
+- Nie Stichproben, nie Abkürzungen, nie nur ein Teil, jeder regelgetriebene Fix wird vollständig durchgezogen.
 
-**Each Phase edits only its own surface.**
-- Phase 1 process-docs, Phase 2 dev, Phase 3 DOCS.md, Phase 4 skills, Phase 5 issues.
-- A finding that belongs to another surface waits for that surface's Phase.
+**Jede Phase bearbeitet nur ihre eigene Oberfläche.**
+- Phase 1 die process-docs, Phase 2 dev, Phase 3 die DOCS.md, Phase 4 die Skills, Phase 5 die Issues.
+- Ein Befund, der zu einer anderen Oberfläche gehört, wartet auf deren Phase.
 
 ## Workflow
 
-### Phase 0 — Contact-layer check (Main only, once)
+### Phase 0 — Prüfung der Kontaktschicht (nur Main, einmal)
 
-**Ask the user one question before Phase 1.**
-- The question: "Besides this chat, does the project have a user-facing contact layer?"
+**Stelle dem User vor Phase 1 eine einzige Frage.**
+- Die Frage lautet: "Hat das Projekt neben diesem Chat eine Kontaktschicht für Nutzer?"
 
-**No means every directory is in scope.**
+**Ein Nein heißt, jedes Verzeichnis ist im Scope.**
 
-**Yes means the named directory is excluded from every Phase.**
-- Never relocate, rename, translate, reframe, or reformat anything inside it.
+**Ein Ja heißt, das genannte Verzeichnis ist von jeder Phase ausgenommen.**
+- Darin wird nie etwas verschoben, umbenannt, übersetzt, umformuliert oder umformatiert.
 
-**A worker never asks this.**
-- Main passes any excluded path in the worker's prompt.
-- The worker excludes exactly what the prompt names, nothing more.
+**Ein Worker stellt diese Frage nie.**
+- Main gibt jeden ausgenommenen Pfad im Prompt des Workers mit.
+- Der Worker nimmt genau das aus, was der Prompt nennt, und nicht mehr.
 
 ### Phase 1 — process-docs
 
-**Check every `process-docs/` folder and entry against every block of § process docs, and enforce.**
-- The section's blocks are the checklist; nothing is repeated here.
-- Every `process-docs/<area>/` folder gets an explicit verdict.
-   - Verdict forms: `valid: <driving question>`, `folded into X`, `split into X+Y`, `dissolved`.
-- A rename propagates to `dev/<area>/`.
+**Prüfe jeden Ordner und jeden Eintrag unter `process-docs/` gegen jeden Block von § process-docs, und setze ihn durch.**
+- Die Blöcke der Sektion sind die Checkliste, hier wird nichts davon wiederholt.
+- Jeder Ordner `process-docs/<area>/` bekommt ein ausdrückliches Urteil.
+   - Die Urteilsformen sind `valid: <leitende Frage>`, `folded into X`, `split into X+Y` und `dissolved`.
+- Eine Umbenennung zieht nach `dev/<area>/` durch.
 
-**Check `.rag-docs.json` at the project root.**
-- `include` covers every `DOCS.md` and `process-docs/**/*.md`, and every pattern matches at least one file on disk.
-- `collection` follows `<Project>-docs` naming.
-- No manifest present: flag in the report, do not create one.
-- Do not run `rag-cli update_docs` here; index sync is a session-recap action.
+**Prüfe `.rag-docs.json` in der Projektwurzel.**
+- `include` deckt jede `DOCS.md` und `process-docs/**/*.md` ab, und jedes Muster trifft mindestens eine Datei auf der Platte.
+- `collection` folgt der Benennung `<Project>-docs`.
+- Fehlt das Manifest, wird das im Bericht markiert und keines angelegt.
+- `rag-cli update_docs` läuft hier nicht, der Abgleich des Index gehört zum Session-Recap.
 
 ### Phase 2 — dev
 
-**Check every `dev/` folder and file against every block of § dev and the dev convention, and enforce.**
-- The blocks are the checklist; nothing is repeated here.
+**Prüfe jeden Ordner und jede Datei unter `dev/` gegen jeden Block von § Konvention für das dev/-Verzeichnis, und setze sie durch.**
+- Die Blöcke sind die Checkliste, hier wird nichts davon wiederholt.
 
-**Every `dev/` directory at level 1 carries the exact name of a `process-docs/<area>/` folder.**
-- A dev directory with no matching area is renamed to its area, or folded into that area's dev directory.
-- An area with no dev directory is left alone.
-- Below level 1 the naming is free; that level belongs to § iterative-dev-refactor Phase 1 Step 1.
+**Jedes Verzeichnis auf Ebene 1 unter `dev/` trägt exakt den Namen eines Ordners `process-docs/<area>/`.**
+- Ein dev-Verzeichnis ohne passende Area wird nach seiner Area umbenannt oder in deren dev-Verzeichnis eingegliedert.
+- Eine Area ohne dev-Verzeichnis bleibt, wie sie ist.
+- Unterhalb von Ebene 1 ist die Benennung frei, diese Ebene gehört zu § iterative-dev-refactor Phase 4.
 
-**Placements the rules do not carry.**
-- A maintenance or utility script goes in its thematic `dev/<area>/`; there is no exempt catch-all folder.
-- A loose `.md` in `dev/` that no script produces is not a dev report.
-   - It belongs in `process-docs/` if still relevant, or is deleted if stale.
-- A folder whose contents span multiple areas is split, each part into its own `dev/<area>/`.
+**Platzierungen, die die Regeln nicht abdecken.**
+- Ein Wartungs- oder Hilfsskript kommt in sein thematisches `dev/<area>/`, einen ausgenommenen Sammelordner gibt es nicht.
+- Eine lose `.md` in `dev/`, die kein Skript erzeugt, ist kein dev-Report.
+   - Sie gehört nach `process-docs/`, wenn sie noch relevant ist, und wird gelöscht, wenn sie veraltet ist.
+- Ein Ordner, dessen Inhalt mehrere Areas umfasst, wird aufgeteilt, jeder Teil in sein eigenes `dev/<area>/`.
 
-**Report versus data is decided by content.**
-- A report is a readable analysis; a JSON analysis output counts and goes to `md/`.
-- Data is the run's raw payload, like scraped corpora, raw dumps, or cached job data.
+**Ob Report oder Daten, entscheidet der Inhalt.**
+- Ein Report ist eine lesbare Analyse, auch eine Analyse-Ausgabe als JSON zählt dazu und kommt nach `md/`.
+- Daten sind die Rohausgabe eines Laufs, etwa gescrapte Korpora, Roh-Dumps oder zwischengespeicherte Job-Daten.
 
-**Cumulative logs stay.**
-- An append-only log tracked and compared across runs is not a report; leave it in place.
+**Kumulative Logs bleiben liegen.**
+- Ein Log, das nur angehängt und über Läufe hinweg verfolgt und verglichen wird, ist kein Report und bleibt an seinem Platz.
 
-**A self-contained sub-suite gets its own `md/`.**
-- Folders like `garbage_eval/` or `browser_eval/` hold their own `md/`, not the parent area's.
+**Eine in sich geschlossene Teil-Suite bekommt ihr eigenes `md/`.**
+- Ordner wie `garbage_eval/` oder `browser_eval/` halten ihr eigenes `md/`, nicht das der übergeordneten Area.
 
 ### Phase 3 — DOCS
 
-**Check every `DOCS.md` against every block of § docs, and enforce.**
-- The blocks are the checklist; nothing is repeated here.
-- Use heredoc or `/tmp` scripts; do not read every `DOCS.md` by hand.
+**Prüfe jede `DOCS.md` gegen jeden Block von § DOCS.md, und setze ihn durch.**
+- Die Blöcke sind die Checkliste, hier wird nichts davon wiederholt.
+- Nutze Heredocs oder Skripte unter `/tmp`, lies nicht jede `DOCS.md` von Hand.
 
-**Root files.**
-- A root `README.md` is flagged for removal.
-- A root `DOCS.md` that is a project overview is flagged for removal.
-- A root `CLAUDE.md` documenting project-only interactive working areas is allowed.
+**Dateien in der Projektwurzel.**
+- Eine `README.md` in der Wurzel wird zum Entfernen markiert.
+- Eine `DOCS.md` in der Wurzel, die einen Projektüberblick gibt, wird zum Entfernen markiert.
+- Eine `CLAUDE.md` in der Wurzel, die projektinterne interaktive Arbeitsbereiche dokumentiert, ist erlaubt.
 
-**References resolve.**
-- Every file a `DOCS.md` names exists on disk.
-- A reference to a nonexistent file is deleted from the `DOCS.md`.
+**Verweise lösen sich auf.**
+- Jede Datei, die eine `DOCS.md` nennt, existiert auf der Platte.
+- Ein Verweis auf eine nicht existierende Datei wird aus der `DOCS.md` gelöscht.
 
-**Cut salvage before cutting.**
-- Everything removed to reach the format goes verbatim into the author's own process-docs file, under one `## Salvage from <path>` heading per DOCS.md, before the cut.
-- No coverage check, no per-cut triage; RAG makes the salvaged content findable.
+**Erst sichern, dann kürzen.**
+- Alles, was gekürzt wird, um das Format zu erreichen, kommt vor dem Kürzen wörtlich in die eigene process-docs-Datei des Autors, unter je einer Überschrift `## Salvage from <path>` pro DOCS.md.
+- Es gibt keine Prüfung der Abdeckung und keine Einzelbewertung pro Kürzung, RAG macht den gesicherten Inhalt auffindbar.
 
-### Phase 4 — skills (flag-only)
+### Phase 4 — Skills (nur markieren)
 
-**Check every `skills/*/SKILL.md` against every block of § Artifact Density, and flag.**
-- Findings here are collected, never fixed.
+**Prüfe jede `skills/*/SKILL.md` gegen jeden Block von § Artifact Density, und markiere.**
+- Befunde werden hier nur gesammelt, nie behoben.
 
-**Frontmatter: `description:` is present and empty.**
-- A non-empty `description` is flagged.
+**Frontmatter: `description:` ist vorhanden und leer.**
+- Eine nicht leere `description` wird markiert.
 
-**Flag WHY-content by signature.**
+**Markiere Begründungen anhand ihrer Signatur.**
 
-| Signature | Example | Action |
+| Signatur | Beispiel | Aktion |
 |---|---|---|
-| Justification clause | "raw and maximal — content not captured is gone for good" | cut clause, keep instruction |
-| Cause / mechanism | "the plugin cache has NO venv, so a plugin-relative path fails" | cut |
-| Rationale section | a "Why X matters" section | delete section |
-| Historical / evidence note | "(verified on 278 files)", "previous runs failed here" | cut |
-| Illustrative "what happens otherwise" | "the same anchor just returns the same top sources" | cut |
-| `because` / `so that` / `in order to` / `which means` | any clause led by these | cut clause |
+| Begründungsnebensatz | "roh und maximal, nicht erfasster Inhalt ist für immer weg" | Nebensatz streichen, Anweisung behalten |
+| Ursache oder Mechanismus | "der Plugin-Cache hat KEIN venv, also scheitert ein plugin-relativer Pfad" | streichen |
+| Begründungsabschnitt | ein Abschnitt "Warum X wichtig ist" | Abschnitt löschen |
+| Historie oder Belegnotiz | "(geprüft an 278 Dateien)", "frühere Läufe sind hier gescheitert" | streichen |
+| Ausmalen von "was sonst passiert" | "derselbe Anker liefert nur dieselben Top-Quellen" | streichen |
+| `weil` / `damit` / `um zu` / `was bedeutet` | jeder Nebensatz, der damit beginnt | Nebensatz streichen |
 
-**Never flag:**
-- Commands, paths, thresholds, output formats, parameter tables, ordering rules, prohibitions, behavior facts the procedure depends on, decision-examples.
+**Nie markiert werden:**
+- Befehle, Pfade, Schwellenwerte, Ausgabeformate, Parametertabellen, Regeln zur Reihenfolge, Verbote, Verhaltensfakten, auf denen das Vorgehen beruht, und Entscheidungsbeispiele.
 
-### Phase 5 — issues (Main only)
+### Phase 5 — Issues (nur Main)
 
-**A worker skips this Phase entirely.**
+**Ein Worker überspringt diese Phase komplett.**
 
-**Bring every open issue into the Issue Format of § GitHub Issues via `update_issue --body`.**
-- The `Area:` line names the area per the post-audit folder structure.
+**Bringe jedes offene Issue per `update_issue --body` in das Issue-Format von § Issues.**
+- Die Zeile `Area:` nennt die Area nach der Ordnerstruktur, die nach dem Audit gilt.
 
-### Phase 6 — Hand off
+### Phase 6 — Übergabe
 
-**Report the findings.**
-- Per `process-docs/<area>/` folder its verdict and every entry that moved.
-- Every fix applied in Phases 1-3, the Phase 4 flags, the Phase 5 rewrites.
+**Berichte die Befunde.**
+- Pro Ordner `process-docs/<area>/` sein Urteil und jeden Eintrag, der verschoben wurde.
+- Jeden Fix aus den Phasen 1 bis 3, die Markierungen aus Phase 4 und die Neufassungen aus Phase 5.
 
-**Main commits the doc fixes; workers are dispatched by volume, not by file type.**
-- A surface too large to bring into line in one session goes to workers, one worktree per surface block.
-- Each worker gets the concrete findings for its block in its prompt.
-- Review and merge each worker's branch.
-- Do not sync RAG here; the RAG sync is a session-recap action on the final merged state.
+**Main committet die Doc-Fixes, Worker werden nach Menge eingesetzt, nicht nach Dateityp.**
+- Eine Oberfläche, die zu groß ist, um sie in einer Session in Ordnung zu bringen, geht an Worker, ein Worktree pro Block der Oberfläche.
+- Jeder Worker bekommt die konkreten Befunde für seinen Block in seinen Prompt.
+- Reviewe und merge den Branch jedes Workers.
+- Den RAG-Abgleich gibt es hier nicht, er gehört zum Session-Recap auf dem endgültig gemergten Stand.
 
-**As worker, you are done; no spawn.**
+**Als Worker bist du fertig, du spawnst nichts.**
