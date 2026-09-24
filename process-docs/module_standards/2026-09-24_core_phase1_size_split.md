@@ -124,3 +124,47 @@ Sidecar for one tmux worker session, spawned by spawn/revive. Args: name, sessio
 ## src/worker_cli/janitor.sh
 
 Stale-worker cleanup. Log `janitor.log` in the same directory as the wait trace, same fail-open pattern (every write `|| true`). Pass 1 walks live `worker-*` tmux sessions older than `--max-age-hours` (default 12): sessions whose status is `working` are skipped; a failed status probe falls back to `tmux has-session` (gone gives dead, else working, same rule as `_status_or_probe_error`); the project is resolved via `_janitor_resolve_worker`; the kill goes through `worker-cli kill` (`$0 kill`). Resolution order (the registry is keyed by name, not session, so this inverts `_worker_session_name`): registry entry whose recomputed session matches, then `pane_current_path` (worktree-mode spawns cd into `<project>/.claude/worktrees/<name>`; `--no-worktree` spawns cd into the project and match on the `worker-<basename>-` prefix), then `tmux_scan_project` with the session's last dash segment as a name guess. Every candidate is round-trip verified through `_worker_session_name`, so a wrong split can never masquerade as resolved. Before a real kill the worktree's uncommitted state (`yes`/`no`/`n/a`) is logged. Pass 2 cleans orphan registry entries (registry file without a live tmux session); a 30s grace window on the file mtime (`_JANITOR_ORPHAN_GRACE_SECS`) absorbs the spawn race (registry written moments before the session appears). `--dry-run` only lists candidates.
+
+# Phase 4 Step 2: DOCS.md format for bin/, src/ and the repo root, 2026-09-24
+
+Text cut verbatim from DOCS.md files because it named individual functions or constants (forbidden in DOCS.md). Each block is the original line range of the file as of the pre-change HEAD.
+
+## Salvage from src/git/DOCS.md (lines 29-31 and 57)
+
+```
+**Purpose:** One-call stage-all + commit, worktree-correct. Reuses `parse_status`/`classify_files`/`stage_all` from `check.py` — single source of truth for `SKIP_PATTERNS`.
+**Reads:** git status output (via `check.py` primitives).
+**Writes:** git index via `stage_all`, git commit via `do_commit`; stdout (summary or abort message).
+`SKIP_PATTERNS` and the `run()`/`parse_status()`/`classify_files()` primitives are duplicated across `check.py`, `staged.py`, and `post.py` (`staged.py`/`post.py` keep their own non-`-z` copies) rather than shared — `commit.py` is the one module that imports `check.py`'s copies directly. No runtime-shared state otherwise.
+```
+
+Facts verified against the code on this date: the skip list in check.py additionally contains venv, .venv and node_modules, while staged.py and post.py keep an older list without them; staged.py and post.py parse plain porcelain output, check.py parses the -z form and handles renames; only commit.py imports from check.py.
+
+## Salvage from src/poread_cli/DOCS.md (lines 25-26, 30-34, 54-55)
+
+```
+cwd, resolving the plugin cache through `CLAUDE_PLUGIN_ROOT` with the standard
+`$HOME/.claude/plugins/cache/...` fallback.
+`__main__.main(argv)` → one positional path argument → `os.path.realpath` resolution →
+`os.path.getsize` against `POREAD_MAX_BYTES` (checked BEFORE the file is ever opened, so an
+oversize file is never read into memory just to be rejected) → on success, reads the file, hashes
+it (`sha256`, truncated to `POREAD_HASH_LEN`), prints exactly two lines to stdout — the marker,
+then `POREAD_NOTICE` — exit 0. Any failure (missing path, not a file, unreadable, over the ceiling,
+The four marker constants (`POREAD_MAX_BYTES`, `POREAD_HASH_LEN`, `POREAD_MARKER_PREFIX`,
+`POREAD_NOTICE`) are a hand-maintained copy of monitor-cc's own copy in
+```
+
+## Salvage from src/spawn/DOCS.md (lines 96, 111) and src/worker_cli/DOCS.md (line 13)
+
+```
+**Called by:** `worker_capture_clean()` in `worker_io.sh` (via `python3 _capture_clean.py`).
+Worker model resolution has two layers that must not both run: `spawn.py` resolves once in Python for the `worker-cli spawn` path and hands `tmux_spawn.sh` an already-concrete model string; `tmux_spawn.sh`'s own `_resolve_worker_model()` is the fallback for direct callers of `spawn_claude_worker`/`spawn_claude_worker_from_file` and for `worker_revive`. See `process-docs/worker_spawn/` for the full model-resolution and status-detection history.
+`worker-cli <cmd> args` in -> `bin/worker-cli` sources the libs and dispatches to `cmd_<cmd>` -> the command resolves project/worker, calls the `src/spawn/` libs via `bash -c "source $SPAWN && ..."` -> stdout/exit code out.
+```
+
+## Findings established during Phase 4 Step 2
+
+- `plugin-sync.sh` has no caller: no file in the repo mentions it besides its own usage text, and there is no symlink in `~/.local/bin`. `bin/plugin-publish` does the same rsync plus push, version bump and atomic registry update. The root DOCS.md flags it as a dead-code candidate instead of deleting it (deletion is outside this phase).
+- `~/.local/bin/dev-sync` and `~/.local/bin/show` are dangling symlinks into `Meta/blank/bin/`, which no longer exists. The commands still resolve because the plugin cache's `bin/` directory is on PATH inside Claude Code (`which gcommit` resolves to the cache). `gc` resolves to Homebrew's graphviz `gc` in a plain shell, so `bin/gc` is only reachable when the plugin `bin/` precedes it on PATH.
+- src/pipeline module contents were verified via the import graph (grep of imports across the package) and the entry-point files; `jsonl_parse.py`, `dispatch_context.py`, `markdown_format.py` and `list_agents.py` were not re-read line by line, and their DOCS.md entries were left unchanged apart from removing one function name.
+- Remaining docs-drift-check findings after this step are all under `dev/` (owned by the dev worker).

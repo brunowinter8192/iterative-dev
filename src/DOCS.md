@@ -1,23 +1,28 @@
 # src/
 
-Source modules for the iterative-dev plugin infrastructure.
+## Role
 
-## Documentation Tree
+Implementation packages behind the iterative-dev commands in `bin/`: worker spawning and CLI subcommands, git helpers, session analysis, poread, docs drift check. Touch via the subdirectory that owns the concern. Do not put code directly in `src/`.
 
-- [spawn/DOCS.md](spawn/DOCS.md) — Worker spawning (tmux_spawn.sh + worker_*.sh libs + spawn.py)
-- [worker_cli/DOCS.md](worker_cli/DOCS.md) — worker-cli subcommand implementations (sourced by bin/worker-cli)
-- [git/DOCS.md](git/DOCS.md) — Git automation utilities (pre-commit, commit, staging, post-commit)
-- [pipeline/DOCS.md](pipeline/DOCS.md) — Session JSONL analysis (conversion, listing, extraction)
-- [poread_cli/DOCS.md](poread_cli/DOCS.md) — poread CLI (full-content export marker minting, cross-repo half with monitor-cc's inject_poread.py)
-- [docs_drift_check/DOCS.md](docs_drift_check/DOCS.md) — docs-drift-check CLI (DOCS.md rule checks: paths, LOC, function/constant references)
+## Public Interface
 
-## Directory Map
+`__init__.py` is empty. Each subdirectory is entered through its own package or shell library, see its DOCS.md.
 
-| Subdir | Role | LOC | Modules |
-|---|---|---:|---:|
-| spawn/ | Worker spawning and orchestration | 1240 | 9 (tmux_spawn.sh, worker_status.sh, worker_io.sh, worker_log_sidecar.sh, worker_proxy.sh, worker_revive.sh, worker_logger.sh, _capture_clean.py, spawn.py) |
-| worker_cli/ | worker-cli subcommand implementations | 799 | 5 (registry.sh, cmd_query.sh, cmd_lifecycle.sh, wait.sh, janitor.sh) |
-| git/ | Git automation utilities | 446 | 4 (check.py, commit.py, staged.py, post.py) |
-| pipeline/ | Session JSONL analysis | 670 | 6 (jsonl_to_md.py, jsonl_parse.py, dispatch_context.py, markdown_format.py, list_agents.py, extract_calls.py) |
-| poread_cli/ | poread CLI (marker-minting half) | 77 | 1 (__main__.py) |
-| docs_drift_check/ | docs-drift-check CLI | 347 | 9 (__main__.py, collect.py, symbols.py, check_paths.py, check_loc.py, check_rules.py, markdown_scan.py, report.py, project_root.py) |
+## Flow
+
+A `bin/` command delegates into exactly one subdirectory: `bin/worker-cli` into `worker_cli/` and `spawn/`, the git tools into `git/`, and the launchers into `poread_cli/` and `docs_drift_check/`. `pipeline/` has no launcher.
+
+## Modules
+
+None. `src/` holds only subdirectories:
+
+- `spawn/` — worker spawning, status detection, pane I/O, proxy setup, revive (shell libs plus `spawn.py`); see `spawn/DOCS.md`.
+- `worker_cli/` — `worker-cli` subcommand implementations; see `worker_cli/DOCS.md`.
+- `git/` — pre-commit check, commit, staging and post-commit verification; see `git/DOCS.md`.
+- `pipeline/` — session JSONL conversion, agent listing, tool-call extraction; see `pipeline/DOCS.md`.
+- `poread_cli/` — poread CLI, marker-minting half; see `poread_cli/DOCS.md`.
+- `docs_drift_check/` — DOCS.md rule checker; see `docs_drift_check/DOCS.md`.
+
+## State
+
+None. `logs/` holds runtime log output of the worker tooling and is not part of the source.

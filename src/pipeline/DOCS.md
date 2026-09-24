@@ -2,7 +2,7 @@
 
 ## Role
 
-Session JSONL analysis utilities for eval workflows and subagent debugging. Touch this package when changing how agent sessions are converted to Markdown, how subagent lists are derived from project directories, or how individual tool calls are extracted. No active external callers in the current codebase — the eval-agent skill that previously invoked these modules has been removed. Modules remain available for ad-hoc eval work via direct `python3 -m` invocation.
+Session JSONL analysis utilities for eval workflows and subagent debugging: Markdown conversion, subagent listing, tool-call extraction. No active external callers; the former eval-agent skill is gone, modules stay available via `python3 -m`. Touch when changing those conversions.
 
 ## Public Interface
 
@@ -48,7 +48,7 @@ JSONL path in → `jsonl_parse` loads + extracts tool calls → `dispatch_contex
 
 **Purpose:** Renders tool calls, dispatch context, and session metadata into the final Markdown summary/detail output.
 **Reads:** nothing directly.
-**Writes:** output file via `write_output`.
+**Writes:** the Markdown output file.
 **Called by:** `jsonl_to_md.py`, `extract_calls.py`.
 **Calls out:** `dispatch_context` (dispatch section formatting).
 

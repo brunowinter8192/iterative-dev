@@ -2,7 +2,7 @@
 
 ## Role
 
-Three-phase git workflow utilities for pre-commit checks, staging, and post-commit verification. Touch this package when modifying how files are classified before staging, how hook health is detected, or how the working tree is verified after a commit. Do NOT touch for project-specific commit conventions — those live in the `tool-use` skill (`#### Git CLI` subsection).
+Git workflow utilities: pre-commit classification and staging, staging verification, post-commit verification. Touch when changing how files are classified before staging or how hook health is detected. Do not touch for project-specific commit conventions; those live in the `tool-use` skill.
 
 ## Public Interface
 
@@ -26,11 +26,11 @@ Three-phase git workflow utilities for pre-commit checks, staging, and post-comm
 
 ### commit.py (64 LOC)
 
-**Purpose:** One-call stage-all + commit, worktree-correct. Reuses `parse_status`/`classify_files`/`stage_all` from `check.py` — single source of truth for `SKIP_PATTERNS`.
-**Reads:** git status output (via `check.py` primitives).
-**Writes:** git index via `stage_all`, git commit via `do_commit`; stdout (summary or abort message).
+**Purpose:** One-call stage-all plus commit, worktree-correct. Reuses the status parsing, classification and staging of `check.py`, keeping one source for the skip list.
+**Reads:** git status output (via `check.py`).
+**Writes:** git index, git commit; stdout (summary or abort message).
 **Called by:** `~/.local/bin/gcommit`.
-**Calls out:** subprocess (git commands); `src/git/check.py` (`parse_status`, `classify_files`, `stage_all`).
+**Calls out:** subprocess (git commands); `src/git/check.py`.
 
 ---
 
@@ -54,4 +54,4 @@ Three-phase git workflow utilities for pre-commit checks, staging, and post-comm
 
 ## State
 
-`SKIP_PATTERNS` and the `run()`/`parse_status()`/`classify_files()` primitives are duplicated across `check.py`, `staged.py`, and `post.py` (`staged.py`/`post.py` keep their own non-`-z` copies) rather than shared — `commit.py` is the one module that imports `check.py`'s copies directly. No runtime-shared state otherwise.
+The skip list and the git-invocation and status-parsing helpers are duplicated across `check.py`, `staged.py` and `post.py` rather than shared; `staged.py` and `post.py` keep older non-`-z` copies whose skip lists lack the venv entries. `commit.py` is the only module importing from `check.py`. No runtime-shared state otherwise.
