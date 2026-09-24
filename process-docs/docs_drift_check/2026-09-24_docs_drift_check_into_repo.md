@@ -39,3 +39,7 @@ monitor-cc: Path 3, LOC 4, Rule-Violation 596 (393 function, 206 constant, count
 - Argparse metavars handled structurally: an ALL_CAPS token directly after `--flag` (space or `=`) inside one backtick span is not a constant reference. Fixture `argparse_metavar_not_constant`, with a project that assigns `PATH=` in a script.
 - Tests: 15/15 passed. Rerun (read-only): iterative-dev worktree Path 0, LOC 0, Rule-Violation 40. monitor-cc Path 3, LOC 4, Rule-Violation 593 (390 function, 203 constant), down from 596. The two remaining `PATH` hits in monitor-cc (`dev/menubar_per_project`-style launchd PATH prose) are real env var references, not metavars.
 - Pitfall: macOS `wc -l` pads its number with spaces; strip it before pasting into a DOCS.md heading, otherwise the heading no longer matches the LOC pattern and the check silently skips it.
+
+## Recap, 2026-09-24
+
+DOCS.md LOC headings in `src/docs_drift_check/` and `dev/docs_drift_check/` were checked against `wc -l` and all equal (the tool itself reports LOC-Drift 0 for this repo). `skills/iterative-dev-refactor/SKILL.md` shows up in `git diff integration` only because integration advanced after the branch point; this work did not edit it. What a successor should know: the rule-violation count in this repo (40) and in monitor-cc (593) is the remaining DOCS.md cleanup backlog, not tool defects; the tool has no exception mechanism by design.
