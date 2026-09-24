@@ -9,7 +9,6 @@ Source modules for the iterative-dev plugin infrastructure.
 - [pipeline/DOCS.md](pipeline/DOCS.md) — Session JSONL analysis (conversion, listing, extraction)
 - [poread_cli/DOCS.md](poread_cli/DOCS.md) — poread CLI (full-content export marker minting, cross-repo half with monitor-cc's inject_poread.py)
 - [docs_drift_check/DOCS.md](docs_drift_check/DOCS.md) — docs-drift-check CLI (DOCS.md rule checks: paths, LOC, function/constant references)
-- [docs_drift_check/DOCS.md](docs_drift_check/DOCS.md) — docs-drift-check CLI (DOCS.md rule checks: paths, LOC, function/constant references)
 
 ## Directory Map
 
