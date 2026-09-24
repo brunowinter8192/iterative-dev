@@ -1,29 +1,10 @@
 #!/bin/bash
-# Verify worker-model precedence for the 4 sites in src/spawn/tmux_spawn.sh that resolve a
-# worker model (model-selector milestone 3): spawn_claude_worker, spawn_claude_worker_from_file,
-# and worker_revive's WORKER_MODEL-absent fallback — all delegate to the real, shared
-# _resolve_worker_model(). Drives the REAL sourced function and the REAL "${4:-...}" expansion
-# pattern each site uses — no reimplementation of the resolution logic.
-#
-# 2026-08 milestone-3 fix follow-up: the isolated checks above passed even while the ASSEMBLED
-# path (bin/worker-cli spawn -> spawn.py -> tmux_spawn.sh) was dead code, because a 5th hardcode
-# site in bin/worker-cli itself pre-resolved the "no model" case before spawn.py ever ran. That
-# site is now fixed (MODEL="${4:-}"); the REAL-entry-point section below drives the actual
-# bin/worker-cli binary via subprocess — the only kind of check that would have caught this bug.
-#
-# Never touches the real ~/.claude/shared-rules/model_selection.json — all cases use a temp
-# path via the MODEL_SELECTION_FILE env override. The real-entry-point section also overrides
-# WORKER_REGISTRY_DIR and CLAUDE_BIN so it never touches the real worker registry or spawns a
-# real Claude process, and unsets PROXY_PROJECT_PATH so the scratch project path is never
-# redirected by an ambient proxied session.
-#
-# Usage: bash dev/model_selector/verify_worker_model_precedence.sh
-
-set -uo pipefail  # deliberately NOT -e — assertion failures must not abort the script
+set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SPAWN_SH="$PLUGIN_ROOT/src/spawn/tmux_spawn.sh"
+REVIVE_SH="$PLUGIN_ROOT/src/spawn/worker_revive.sh"
 
 PASS=0
 FAIL=0
@@ -133,11 +114,6 @@ _spawn_via_cli() {
       export MODEL_SELECTION_FILE="$config_path"
       export CLAUDE_BIN="$mock_claude"
       export WORKER_REGISTRY_DIR="$E2E_REGISTRY"
-      # bin/worker-cli resolves its own $PLUGIN from CLAUDE_PLUGIN_ROOT, falling back to the
-      # INSTALLED plugin cache copy if unset — NOT this worktree. Without this override the
-      # real call silently exercises the stale installed spawn.py instead of the code under
-      # test (confirmed live: the installed cache copy still has the old hardcoded default —
-      # this is exactly the kind of gap an isolated `source tmux_spawn.sh` test cannot catch).
       export CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT"
       "$WORKER_CLI" spawn "$e2e_name" "$e2e_prompt" "$e2e_project" "$model_arg" --no-worktree \
           > "$TMP_DIR/e2e_output_${e2e_name}.log" 2>&1
@@ -163,7 +139,6 @@ _assert_spawn_models() {
 }
 
 _run_e2e_spawn() {
-    # $1=worker name  $2=model arg ("" for none)  $3=config path  $4=expected model
     local e2e_name="$1" model_arg="$2" config_path="$3" expected="$4"
 
     local e2e_project="$TMP_DIR/e2e_project_${e2e_name}"
@@ -181,7 +156,7 @@ _run_e2e_spawn() {
 
     _spawn_via_cli "$e2e_name" "$model_arg" "$config_path" "$e2e_project" "$e2e_prompt" "$mock_claude"
 
-    sleep 1  # let the runner script materialize and the tmux env settle
+    sleep 1
 
     _assert_spawn_models "$e2e_name" "$model_arg" "$expected" "$session"
 
@@ -198,14 +173,14 @@ _run_e2e_spawn "mstestnomodel$$" "" "$E2E_CONFIG" "claude-e2e-verify-9999"
 _run_e2e_spawn "mstestexplicit$$" "claude-e2e-explicit-arg" "$E2E_CONFIG" "claude-e2e-explicit-arg"
 
 echo
-echo "=== structural check: all 3 tmux_spawn.sh call sites reference _resolve_worker_model ==="
-SITE_HITS=$(grep -c '_resolve_worker_model' "$SPAWN_SH")
-# 1 definition + 1 doc comment mention + 3 call sites = 5 (loosely bounded, just confirms wiring)
-if [ "$SITE_HITS" -ge 4 ]; then
-    echo "  [OK  ] _resolve_worker_model referenced $SITE_HITS times in tmux_spawn.sh (definition + call sites)"
+echo "=== structural check: _resolve_worker_model defined once, called from all 3 sites ==="
+DEFINITION_HITS=$(grep -c '^_resolve_worker_model()' "$SPAWN_SH")
+CALL_SITE_HITS=$(cat "$SPAWN_SH" "$REVIVE_SH" | grep -c '\$(_resolve_worker_model)')
+if [ "$DEFINITION_HITS" -eq 1 ] && [ "$CALL_SITE_HITS" -eq 3 ]; then
+    echo "  [OK  ] _resolve_worker_model defined $DEFINITION_HITS time, called at $CALL_SITE_HITS sites (tmux_spawn.sh, worker_revive.sh)"
     PASS=$((PASS + 1))
 else
-    echo "  [FAIL] _resolve_worker_model referenced only $SITE_HITS times — expected wiring at 3 call sites + definition"
+    echo "  [FAIL] _resolve_worker_model definitions=$DEFINITION_HITS call sites=$CALL_SITE_HITS — expected 1 definition + 3 call sites"
     FAIL=$((FAIL + 1))
     FAILURES+=("structural wiring check")
 fi

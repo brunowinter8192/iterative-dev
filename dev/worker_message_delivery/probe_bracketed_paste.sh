@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Verifies bracketed-paste delivery (tmux paste-buffer -p) into a real CC 2.1.280
-# worker pane via the real worker_send() from src/spawn/tmux_spawn.sh, across the
-# four message sizes from process-docs/worker_message_delivery/2026-09-23_paste_breaks_on_cc_280.md,
-# plus one run of the old (pre-fix) method to show the contrast. Measures paste-to-
-# render latency to justify the fixed 0.2s sleep before Enter.
-#
-# Usage: bash dev/worker_message_delivery/probe_bracketed_paste.sh
-
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -45,9 +37,6 @@ cleanup_case() {
     local session="$1" scratch="$2" jsonl_dir="${3:-}"
     tmux kill-session -t "$session" 2>/dev/null || true
     bash -c "source \"$SPAWN_SH\" && _orchestrator_signal_delete \"\$1\"" _ "$session" 2>/dev/null || true
-    # CC writes an async post-turn title record a moment after the turn is visible in the
-    # JSONL — without this delay, a kill-session right after verification can race that
-    # write and leave a one-line orphan project dir (observed live, see process-docs).
     sleep 1.5
     rm -rf "$scratch"
     [ -n "$jsonl_dir" ] && rm -rf "$jsonl_dir"

@@ -2,12 +2,12 @@
 
 ## Role
 
-Smoke test for `worker-cli janitor` (`bin/worker-cli`, `janitor` case) — the stale-worker
+Smoke test for `worker-cli janitor` (`src/worker_cli/janitor.sh`) — the stale-worker
 tmux/worktree/branch/registry cleanup sweep.
 
 ## Modules
 
-### test_janitor.sh
+### test_janitor.sh (149 LOC)
 
 **Purpose:** Exercise the real `worker-cli janitor` binary against real tmux sessions in a
 throwaway git repo, with `WORKER_REGISTRY_DIR`/`WORKER_LOGGER_DIR` overrides. Covers:

@@ -2,14 +2,14 @@
 
 ## Role
 
-Smoke test for `worker-cli sweep-logs` (`bin/worker-cli`, `sweep-logs` case; implementation
-`sweep_stale_logs` in `src/spawn/tmux_spawn.sh`) — the log-DIRECTORY retention sweep. Distinct
+Smoke test for `worker-cli sweep-logs` (`src/worker_cli/cmd_lifecycle.sh`; implementation
+`sweep_stale_logs` in `src/spawn/worker_log_sidecar.sh`) — the log-DIRECTORY retention sweep. Distinct
 from `worker-cli janitor` (`dev/worker_janitor/`), which sweeps stale tmux WORKER SESSIONS —
 the two share no code, no log file, and no naming.
 
 ## Modules
 
-### test_sweep_logs.sh
+### test_sweep_logs.sh (151 LOC)
 
 **Purpose:** Exercise the real `worker-cli sweep-logs` binary, and the real
 `_start_worker_logger` auto-trigger, against a throwaway `WORKER_LOGGER_DIR`. Covers:

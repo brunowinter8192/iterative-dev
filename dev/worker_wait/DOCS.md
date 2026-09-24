@@ -2,25 +2,25 @@
 
 ## Role
 
-Integration tests for `worker-cli wait` (`bin/worker-cli`, `wait` case) — the pull-based
+Integration tests for `worker-cli wait` (`src/worker_cli/wait.sh`) — the pull-based
 replacement for the orchestrator's background sleep-timer.
 
 ## Modules
 
-### test_worker_wait.sh (65 LOC)
+### test_worker_wait.sh (61 LOC)
 
 **Purpose:** Entry point of the suite: sets constants and the cleanup trap, sources the three sibling files, then calls every test function in order.
 **Calls out:** `fixtures.sh`, `tests_gate.sh`, `tests_transitions.sh` (sourced, not executed on their own).
 
-### fixtures.sh (295 LOC)
+### fixtures.sh (221 LOC)
 
 **Purpose:** Sourced fixture library: hooks.json backup/restore/set, fake-worker builders (`create_worker*`, `destroy_worker`), wrapper writers, fake bg-task handles.
 
-### tests_gate.sh (187 LOC)
+### tests_gate.sh (153 LOC)
 
 **Purpose:** Sourced test functions for Tests 1, 1b, 1c, 2, 2b, 3, 3b, 4 (transition-gate core proofs).
 
-### tests_transitions.sh (276 LOC)
+### tests_transitions.sh (215 LOC)
 
 **Purpose:** Sourced test functions for Tests 5 to 11 (bg handle, lsof error, no-hook self-heal, dead paths, mixed project, second transition).
 
@@ -37,7 +37,7 @@ busy path). An idle-at-arm or never-registered worker is a *state*, not a *trans
 (C3, 2026-08-18) is removed entirely: an empty roster is just another non-exiting state,
 same reasoning as idle-at-arm. Covers: idle-from-start and never-registered never exit
 early (run to the timeout ceiling instead), a genuinely `working` (chatty print-loop, keeps
-`#{window_activity}` fresh past the 10s demote threshold — `tmux_spawn.sh`) worker edging
+`#{window_activity}` fresh past the 10s demote threshold — `src/spawn/worker_status.sh`) worker edging
 to idle DOES exit `"workers idle"` within the existing 3-sample/5s-poll stability window,
 two concurrent `wait` processes armed during a real working phase exit together on the same
 edge, a working worker whose claude child is killed (session/pane stay alive via
@@ -48,9 +48,9 @@ the first idle phase. The `saw_working=` flag is on every per-poll and exit trac
 direct before/after diffing.
 
 **Working/idle/dead vocabulary (2026-09-02, milestone 2 of the status-vocabulary change):**
-`bin/worker-cli`'s own consumers of `_worker_detect_status`/`worker_status` were moved from
+the consumers in `src/worker_cli/` of `_worker_detect_status`/`worker_status` were moved from
 the retired `working`/`idle`/`"limit reached"`/`unknown` set to the closed three-value
-`working`/`idle`/`dead` set `tmux_spawn.sh` now returns (milestone 1, same area). `wait`'s
+`working`/`idle`/`dead` set `src/spawn/worker_status.sh` now returns (milestone 1, same area). `wait`'s
 classification switch collapsed the `"limit reached"|unknown)` arm into a single `dead)`
 arm — trace fields renamed `class=dead`, `reason=worker_dead`, `any_dead=`; exit line
 `"worker dead"`. A `worker_status`/`_worker_detect_status` subprocess-call FAILURE (not a

@@ -2,16 +2,16 @@
 
 ## Role
 
-Tests for worker status detection (`_worker_detect_status` in `src/spawn/tmux_spawn.sh`).
+Tests for worker status detection (`_worker_detect_status` in `src/spawn/worker_status.sh`).
 
 ## Modules
 
-### test_status_detection.sh (56 LOC)
+### test_status_detection.sh (49 LOC)
 
 **Purpose:** Verify tmux `#{pane_dead}` transitions from 0→1 after process exits (remain-on-exit mode).
 **Usage:** `bash dev/worker_status/test_status_detection.sh`
 
-### test_worker_status.sh (422 LOC)
+### test_worker_status.sh (362 LOC)
 
 **Purpose:** Integration coverage for the closed three-value status vocabulary
 (`working`/`idle`/`dead`, 2026-09-02) that replaced `working`/`idle`/`"limit reached"`/
@@ -37,7 +37,7 @@ signals are checked before hook_status, so they take precedence). A companion ca
 writes an ORDINARY aborted assistant message (real model, no marker fields) to prove the
 context-limit guard never false-positives on a plain ESC-interrupted turn. A final grep
 assertion checks the retired strings `limit reached` and `echo "unknown"` no longer occur
-anywhere in `tmux_spawn.sh`.
+anywhere in `src/spawn/worker_status.sh` (the file that defines `_worker_detect_status`; the test first asserts that definition is there, so the check cannot pass vacuously).
 
 **JSONL marker fixture:** `write_synthetic_marker_jsonl`/`write_normal_assistant_jsonl`
 overwrite the JSONL `create_worker` already touched empty, using `jq -n` to build the

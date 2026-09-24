@@ -2,12 +2,12 @@
 
 ## Role
 
-Test for `worker-cli merge` (`bin/worker-cli`, `merge` case) — the merge command's
+Test for `worker-cli merge` (`src/worker_cli/cmd_lifecycle.sh`) — the merge command's
 built-in outcome verification, which replaced the orchestrator's by-hand post-merge check.
 
 ## Modules
 
-### test_merge_verify.sh
+### test_merge_verify.sh (133 LOC)
 
 **Purpose:** Exercise the real `worker-cli merge` binary against a throwaway git repo
 (explicit `project_path` argument, no registry entry, no tmux). Covers a real merge

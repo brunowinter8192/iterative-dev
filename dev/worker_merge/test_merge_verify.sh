@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Test: worker-cli merge's built-in outcome verification (bin/worker-cli, merge case).
-# Uses a throwaway git repo + the explicit project_path argument — no registry, no tmux.
-#
-# Usage: bash dev/worker_merge/test_merge_verify.sh
-
 set -uo pipefail
 
 WCLI="$(cd "$(dirname "$0")/../.." && pwd)/bin/worker-cli"
@@ -28,13 +23,11 @@ check() {
     fi
 }
 
-# ── Init throwaway repo on main, with a real commit ──────────────────────────
 git init "$TMPPROJ" -b main -q
 echo "a" > "$TMPPROJ/a.txt"
 git -C "$TMPPROJ" add a.txt
 git -C "$TMPPROJ" commit -q -m init
 
-# ── Case 1: real merge — branch with a commit brings in a file ──────────────
 echo "=== Case 1: merge a branch that carries a commit ==="
 
 git -C "$TMPPROJ" checkout -q -b feat1
@@ -72,7 +65,6 @@ else
     check "merge commit landed on main" "not found"
 fi
 
-# ── Case 2: re-running merge on the same branch — no commits left, no-op ─────
 echo ""
 echo "=== Case 2: merge again — branch already fully merged (Already up to date) ==="
 
@@ -98,7 +90,6 @@ else
     check "stderr names both known causes" "missing from stderr"
 fi
 
-# ── Case 3: real conflict — git's own conflict output must reach the caller ──
 echo ""
 echo "=== Case 3: merge a branch that conflicts with main ==="
 
@@ -134,7 +125,6 @@ else
     check "'=== Files merged ===' NOT printed on conflict" "ok"
 fi
 
-# ── Summary ───────────────────────────────────────────────────────────────────
 rm -f /tmp/merge_case1_err.txt /tmp/merge_case2_err.txt /tmp/merge_case3_err.txt
 echo ""
 echo "=== Summary ==="

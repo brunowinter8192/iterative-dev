@@ -1,7 +1,3 @@
-# --- Test 1 (transition-gate core proof, New Case 1): idle worker FROM THE START, never
-# observed "working" in this invocation -> must NOT exit "workers idle"; runs to timeout.
-# Was: "idle worker -> exits promptly, reason 'workers idle'" (the pre-gate, level-triggered
-# contract) — an idle-at-arm worker no longer looks like a finished transition. ---
 test1_idle_from_start() {
     PROJ1="/tmp/${TEST_TAG}-1"
     SID1="${TEST_TAG}-sess-1"
@@ -18,13 +14,8 @@ test1_idle_from_start() {
     fi
 }
 
-# --- Test 1c (C1, 2026-08-18, adapted): trace shows the run started, never observed a
-# "working" poll (saw_working never reaches 1), and exited on the timeout ceiling. ---
 test1c_trace_observability() {
     if [ -f "$TRACE_FILE" ]; then
-        # Scoped to THIS test's project tag — the trace file is shared with any concurrently
-        # running real `wait` invocation on the machine, whose own lines (different project=)
-        # would otherwise pollute a byte-offset-only diff.
         TRACE_NEW1=$(tail -c "+$((TRACE_SIZE_BEFORE1 + 1))" "$TRACE_FILE" | grep "project=$(basename "$PROJ1")")
         if [[ "$TRACE_NEW1" == *"event=start"* ]] && [[ "$TRACE_NEW1" == *"event=exit reason=timeout"* ]] \
             && [[ "$TRACE_NEW1" != *"saw_working=1"* ]]; then
@@ -38,12 +29,6 @@ test1c_trace_observability() {
     destroy_worker w1 "$PROJ1" "$SID1"
 }
 
-# --- Test 1b (2026-08 incident regression, adapted for the transition gate): worker starts
-# genuinely "working" WITH a persistent tooling grandchild (never killed) — observed working
-# at least once — then flips to idle -> exits "workers idle" promptly once stable. Preserves
-# BOTH the original grandchild-ignored-by-the-bg-probe regression AND proves the gate
-# correctly unlocks after a real working poll (window_activity is fresh at t=0, well inside
-# the 2s pre-flip window here, so no chatty loop is needed for this brief a working phase). ---
 test1b_tooling_child_incident() {
     PROJ1B="/tmp/${TEST_TAG}-1b"
     SID1B="${TEST_TAG}-sess-1b"
@@ -67,11 +52,6 @@ test1b_tooling_child_incident() {
     destroy_worker w1 "$PROJ1B" "$SID1B"
 }
 
-# --- Test 2 (transition-gate core proof, New Case 2): no worker EVER registered for this
-# project -> the removed "no workers" fast-exit must never fire; `wait` just keeps polling an
-# empty roster (a non-exiting state, same as idle-from-start above) until the timeout ceiling.
-# Was: "no worker ever registered + long timeout -> fast-exits 'no workers'" (the C3,
-# 2026-08-18 contract this supersedes) — that whole exit path is now removed entirely. ---
 test2_no_worker_never_exits() {
     T0=$(date +%s)
     OUT2=$(bash "$BIN" wait "/tmp/${TEST_TAG}-nonexistent" --timeout 25)
@@ -84,9 +64,6 @@ test2_no_worker_never_exits() {
     fi
 }
 
-# --- Test 2b: short timeout with zero workers -> ordinary timeout. The old "two exit paths
-# don't interfere" rationale no longer applies (there is only ONE exit path for an empty
-# roster now: the timeout ceiling) — kept as a minimal short-timeout smoke test. ---
 test2b_timeout_short() {
     T0=$(date +%s)
     OUT2B=$(bash "$BIN" wait "/tmp/${TEST_TAG}-nonexistent-2b" --timeout 3)
@@ -99,10 +76,6 @@ test2b_timeout_short() {
     fi
 }
 
-# --- Test 3 (New Case 3): worker genuinely "working" (chatty, keeps #{window_activity} fresh)
-# for ~10s, then goes quiet and edges to idle -> exits "workers idle" within the existing
-# 3-sample/5s-poll stability window after the edge. Core positive-path proof of the transition
-# gate: a real working phase DOES unlock the exit. ---
 test3_working_then_idle_edge() {
     PROJ3="/tmp/${TEST_TAG}-3"
     SID3="${TEST_TAG}-sess-3"
@@ -127,9 +100,6 @@ test3_working_then_idle_edge() {
     destroy_worker w1 "$PROJ3" "$SID3"
 }
 
-# --- Test 3b (New Case 5, was Test 3 "concurrent-wait", adapted): two concurrent `wait`
-# processes both armed during a genuine working phase (chatty) -> both must exit "workers
-# idle" together on the same edge. ---
 test3b_concurrent_wait() {
     PROJ3B="/tmp/${TEST_TAG}-3b"
     SID3B="${TEST_TAG}-sess-3b"
@@ -155,10 +125,6 @@ test3b_concurrent_wait() {
     destroy_worker w1 "$PROJ3B" "$SID3B"
 }
 
-# --- Test 4 (unchanged — verified compatible with the transition gate): probe target
-# vanishes mid-wait (hard failure). The vanished-SESSION path routes entirely through the
-# empty-NAMES branch, which has no exit condition of its own regardless of SAW_WORKING ->
-# always ends in "timeout", same as before this change. ---
 test4_probe_vanishes() {
     PROJ4="/tmp/${TEST_TAG}-4"
     SID4="${TEST_TAG}-sess-4"

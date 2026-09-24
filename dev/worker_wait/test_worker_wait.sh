@@ -1,8 +1,4 @@
 #!/bin/bash
-# Integration tests for `worker-cli wait` (bin/worker-cli, wait case).
-# Exercises the REAL worker-cli binary + REAL tmux_spawn.sh status detection against
-# throwaway tmux sessions + a scoped hooks.json entry (backed up/restored, never left
-# dirty). Run: bash dev/worker_wait/test_worker_wait.sh
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
