@@ -9,6 +9,10 @@ description:
 - Der erste Request von Turn N+1 listet die Schlussantwort von Turn N unter seinem Separator.
 - Ein Turn, der die Session beendet, hat keinen nächsten Request, seine Schlussantwort fehlt im Dual-Log also vollständig.
 
+**Eine Untersuchung läuft ausschließlich über die duallog-Commands.**
+- Eigene Skripte oder grep auf Logs und Code ersetzen keinen Command.
+- Eine Zeitlücke wird mit `reqs --gap` gefunden und mit `expand --req` erklärt.
+
 ## Commands
 
 | Vorgang | Command |
@@ -18,6 +22,7 @@ description:
 | Die Msgs einer Session ansehen | `msgs <session> [from] [to]` |
 | Die Msgs einer Session über einen REQ-Bereich ansehen | `msgs <session> --req F [T]` |
 | Eine Msg mit allen ihren Blocks ausklappen | `expand <session> <msg> [--before N] [--after N] [--only classifier]` |
+| Ausklappen, was ein REQ erzeugt hat | `expand <session> --req N [--before N] [--after N] [--only classifier]` |
 | Über Sessions hinweg nach einem Literal suchen | `search <term> [scope] [--since D] [--until D] [--only classifier] [--case-sensitive]` |
 
 ### sessions
@@ -77,6 +82,7 @@ REQ 48  18:02:23  CR 152,851  CC 7,889
 - `session` — ein SESSION-Wert aus sessions oder ein eindeutiger Substring davon.
 - `from` und `to` — Msg-Indizes, jeweils einschließlich. Lässt du sie weg, wird die ganze Session gedruckt.
 - `--req F [T]` — nimmt stattdessen einen REQ-Bereich, jeweils einschließlich, wobei `T` auf `F` zurückfällt. Das ist nicht mit `from` und `to` kombinierbar.
+   - Die Ausgabe reicht bis einschließlich zur Gruppe des Folge-REQs, damit die Antwort auf `T` sichtbar ist.
 
 #### Output
 
@@ -102,6 +108,9 @@ REQ 48  18:02:23  CR 152,851  CC 7,889
 
 - `session` — ein SESSION-Wert aus sessions oder ein eindeutiger Substring davon.
 - `msg` — ein Msg-Index aus msgs oder search.
+- `--req N` — ersetzt `msg` und zeigt, was REQ N erzeugt hat, also seine Antwort mit dem tool_use und das zurückgekommene tool_result.
+   - Das beantwortet, welcher Befehl in einer Lücke von `reqs --gap` lief.
+   - Folgt auf REQ N ein Turn-Start oder ein nicht aufgezeichneter Request, nennt expand den Grund statt einer Ausgabe.
 - `--before N` und `--after N` — verbreitern das Fenster um N Msgs auf der jeweiligen Seite.
 - `--only classifier` — behält nur Msgs, die auf eine Rolle passen (`user`), auf einen Block-Typ (`tool_result`) oder auf beides (`user/text`). Eine Msg passt, wenn ihre Rolle passt und IRGENDEIN Block auf den Typ passt, und sie zeigt dann immer ALLE ihre Blocks.
 
