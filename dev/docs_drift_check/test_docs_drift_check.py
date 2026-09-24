@@ -119,6 +119,15 @@ CASES = {
         "contains": ["Total:          0"],
         "absent": [],
     },
+    "argparse_metavar_not_constant": {
+        "files": {
+            "dev/run.sh": "PATH=/usr/bin\n",
+            "dev/DOCS.md": "# dev/\n\nRun with `--baseline PATH` or `--out=PATH`.\n",
+        },
+        "exit": 0,
+        "contains": ["Rule-Violation: 0 findings"],
+        "absent": [],
+    },
     "build_artifact_docs_excluded": {
         "files": {
             "src/mod.py": "def run():\n    return 1\n",
@@ -143,9 +152,11 @@ CASES = {
 # ORCHESTRATOR
 
 def main() -> int:
+    missing_root = run_without_root_variable()
     with ThreadPoolExecutor(max_workers=len(CASES)) as pool:
         futures = {name: pool.submit(run_case, name, spec) for name, spec in CASES.items()}
         results = {name: future.result() for name, future in futures.items()}
+    results["missing_root_variable_aborts"] = missing_root
     return report(results)
 
 # FUNCTIONS
@@ -156,6 +167,16 @@ def run_case(name: str, spec: dict) -> str | None:
         build_fixture(project, spec["files"])
         completed = run_wrapper(project)
         return verify(completed, spec)
+
+def run_without_root_variable() -> str | None:
+    env = {k: v for k, v in os.environ.items() if k != "DOCS_DRIFT_ROOT"}
+    completed = subprocess.run(
+        [sys.executable, "-m", "src.docs_drift_check"],
+        cwd=REPO_ROOT, env=env, capture_output=True, text=True, timeout=60,
+    )
+    if completed.returncode != 2 or "DOCS_DRIFT_ROOT is not set" not in completed.stderr:
+        return f"exit {completed.returncode}\n{completed.stdout}{completed.stderr}"
+    return None
 
 def build_fixture(project: Path, files: dict) -> None:
     for rel, content in files.items():

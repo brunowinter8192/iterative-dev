@@ -10,7 +10,7 @@ Standalone CLI (`docs-drift-check`), run from a project root, that checks every 
 
 ## Flow
 
-Project root (environment variable, else cwd) → collect DOCS.md files and `.py`/`.sh` sources → build symbol index from sources → three checks (paths, LOC, rule violations) → markdown report on stdout, exit code.
+Project root (environment variable, abort if missing) → collect DOCS.md files and `.py`/`.sh` sources → build symbol index from sources → three checks (paths, LOC, rule violations) → markdown report on stdout, exit code.
 
 ## Modules
 
@@ -24,7 +24,7 @@ Project root (environment variable, else cwd) → collect DOCS.md files and `.py
 
 ---
 
-### collect.py (32 LOC)
+### collect.py (30 LOC)
 
 **Purpose:** Walk the project and return DOCS.md files and source files, skipping excluded directories.
 **Reads:** project file tree.
@@ -34,7 +34,7 @@ Project root (environment variable, else cwd) → collect DOCS.md files and `.py
 
 ---
 
-### symbols.py (47 LOC)
+### symbols.py (50 LOC)
 
 **Purpose:** Build the index of project-defined functions, constants and module owners; recognize module-dot-function references.
 **Reads:** source files.
@@ -64,7 +64,7 @@ Project root (environment variable, else cwd) → collect DOCS.md files and `.py
 
 ---
 
-### check_rules.py (50 LOC)
+### check_rules.py (56 LOC)
 
 **Purpose:** Report function-level and constant references to project-defined symbols in DOCS.md files.
 **Reads:** DOCS.md files, symbol index.
@@ -74,7 +74,7 @@ Project root (environment variable, else cwd) → collect DOCS.md files and `.py
 
 ---
 
-### markdown_scan.py (24 LOC)
+### markdown_scan.py (25 LOC)
 
 **Purpose:** Yield backtick spans per line of a DOCS.md file, outside fenced code blocks.
 **Reads:** one DOCS.md file.
@@ -94,25 +94,13 @@ Project root (environment variable, else cwd) → collect DOCS.md files and `.py
 
 ---
 
-### project_root.py (10 LOC)
+### project_root.py (15 LOC)
 
-**Purpose:** Resolve the project root from the environment variable or cwd.
-**Reads:** environment, cwd.
-**Writes:** nothing.
+**Purpose:** Resolve the project root from the environment variable; abort with an error when it is missing.
+**Reads:** environment.
+**Writes:** stderr and exit code 2 on a missing variable.
 **Called by:** `__main__.py`.
 **Calls out:** none.
-
----
-
-### config.py (17 LOC)
-
-**Purpose:** Constants shared by several modules (exclusions, extensions, backtick pattern).
-**Reads:** nothing.
-**Writes:** nothing.
-**Called by:** `collect.py`, `symbols.py`, `markdown_scan.py`, `project_root.py`.
-**Calls out:** none.
-
----
 
 ## State
 

@@ -1,7 +1,8 @@
 # INFRASTRUCTURE
+import re
 from pathlib import Path
 
-from src.docs_drift_check.config import BACKTICK_RE
+BACKTICK_RE = re.compile(r"`([^`]+)`")
 
 # FUNCTIONS
 

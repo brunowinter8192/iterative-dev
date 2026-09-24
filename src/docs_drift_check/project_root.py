@@ -1,10 +1,15 @@
 # INFRASTRUCTURE
 import os
+import sys
 from pathlib import Path
 
-from src.docs_drift_check.config import ROOT_ENV_VAR
+ROOT_ENV_VAR = "DOCS_DRIFT_ROOT"
 
 # FUNCTIONS
 
 def resolve_root() -> Path:
-    return Path(os.environ.get(ROOT_ENV_VAR) or Path.cwd()).resolve()
+    value = os.environ.get(ROOT_ENV_VAR)
+    if not value:
+        print(f"docs-drift-check: {ROOT_ENV_VAR} is not set; run via bin/docs-drift-check", file=sys.stderr)
+        sys.exit(2)
+    return Path(value).resolve()

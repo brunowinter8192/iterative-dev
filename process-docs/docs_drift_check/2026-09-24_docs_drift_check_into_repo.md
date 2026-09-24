@@ -30,3 +30,12 @@ monitor-cc: Path 3, LOC 4, Rule-Violation 596 (393 function, 206 constant, count
 - Path (3, all real): missing report file in `dev/sleep_pattern_analysis/DOCS.md:18`, dead `src/proxy_forensics.py` in `dev/tool_use_analysis/DOCS.md:37`, cross-repo `src/poread_cli/__main__.py` without `(Iterative_Dev)`-style marker in `src/proxy/DOCS.md:418`.
 - LOC (4, all real under strict rule): 128 vs 171, 120 vs 138, 83 vs 92 (`dev/proxy/DOCS.md:117`), 213 vs 212.
 - Questionable rule findings: `PATH` (argparse metavar in `--baseline PATH`, matched only because some script assigns `PATH=`). `PASS`/`FAIL`/`ERROR`: shell counters in dev scripts; DOCS name them as such, technically violations. mitmproxy hook names (`request()`, `response()`, `error()`) are real defined functions, real violations.
+
+## Review fixes, 2026-09-24
+
+- Wrapper comment lines removed (shebang only).
+- `config.py` deleted; each constant now sits in the single module that uses it (collect, project_root, symbols, markdown_scan).
+- `resolve_root` no longer falls back to cwd: missing `DOCS_DRIFT_ROOT` prints an error to stderr and exits 2. Test case `missing_root_variable_aborts` runs `python3 -m src.docs_drift_check` without the variable.
+- Argparse metavars handled structurally: an ALL_CAPS token directly after `--flag` (space or `=`) inside one backtick span is not a constant reference. Fixture `argparse_metavar_not_constant`, with a project that assigns `PATH=` in a script.
+- Tests: 15/15 passed. Rerun (read-only): iterative-dev worktree Path 0, LOC 0, Rule-Violation 40. monitor-cc Path 3, LOC 4, Rule-Violation 593 (390 function, 203 constant), down from 596. The two remaining `PATH` hits in monitor-cc (`dev/menubar_per_project`-style launchd PATH prose) are real env var references, not metavars.
+- Pitfall: macOS `wc -l` pads its number with spaces; strip it before pasting into a DOCS.md heading, otherwise the heading no longer matches the LOC pattern and the check silently skips it.

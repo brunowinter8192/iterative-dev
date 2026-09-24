@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# docs-drift-check: check DOCS.md files of the current project against the DOCS.md rules
-# Source: iterative-dev/bin/docs-drift-check — symlinked to ~/.local/bin/docs-drift-check
-# Usage: docs-drift-check (run from the project root)
 
 PLUGIN="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/cache/brunowinter-plugins/iterative-dev/1.0.0}"
 

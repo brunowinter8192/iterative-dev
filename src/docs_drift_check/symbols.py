@@ -2,7 +2,10 @@
 import re
 from pathlib import Path
 
-from src.docs_drift_check.config import FILE_EXTENSIONS
+FILE_EXTENSIONS = {
+    "py", "sh", "md", "json", "jsonl", "yaml", "yml", "txt", "toml", "cfg", "ini",
+    "log", "pid", "flock", "lock", "html", "js", "ts", "css", "csv", "png", "env",
+}
 
 PY_FUNCTION_RE = re.compile(r"^\s*(?:async\s+)?def\s+(\w+)", re.MULTILINE)
 SH_FUNCTION_RE = re.compile(r"^\s*(?:function\s+)?([A-Za-z_]\w*)\s*\(\)\s*\{?", re.MULTILINE)

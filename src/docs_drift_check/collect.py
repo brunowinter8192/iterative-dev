@@ -2,12 +2,10 @@
 import os
 from pathlib import Path
 
-from src.docs_drift_check.config import (
-    DOC_NAME,
-    EXCLUDED_DIR_NAMES,
-    EXCLUDED_REL_PREFIXES,
-    SOURCE_EXTENSIONS,
-)
+DOC_NAME = "DOCS.md"
+EXCLUDED_DIR_NAMES = {".git", ".venv", "venv", "node_modules", "__pycache__", "dist", "build"}
+EXCLUDED_REL_PREFIXES = (".claude/worktrees", "logs", "src/logs")
+SOURCE_EXTENSIONS = {".py", ".sh"}
 
 # FUNCTIONS
 

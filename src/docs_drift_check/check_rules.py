@@ -6,6 +6,7 @@ from src.docs_drift_check.markdown_scan import iter_backtick_lines
 from src.docs_drift_check.symbols import find_module_function_tokens
 
 ALL_CAPS_RE = re.compile(r"\b[A-Z][A-Z0-9_]{3,}\b")
+FLAG_METAVAR_RE = re.compile(r"--[\w-]+[ =]+([A-Z][A-Z0-9_]{3,})\b")
 CALL_RE = re.compile(r"\b([A-Za-z_]\w*)\(")
 
 # FUNCTIONS
@@ -46,5 +47,10 @@ def _find_span_hits(
         for name in CALL_RE.findall(span)
         if name in functions and name not in covered
     )
-    hits.extend(("constant reference", c) for c in ALL_CAPS_RE.findall(span) if c in constants)
+    metavars = set(FLAG_METAVAR_RE.findall(span))
+    hits.extend(
+        ("constant reference", c)
+        for c in ALL_CAPS_RE.findall(span)
+        if c in constants and c not in metavars
+    )
     return hits
