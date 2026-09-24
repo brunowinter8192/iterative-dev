@@ -9,8 +9,17 @@ description:
 - Eine Projektkonvention die von der Regelkonformen Struktur abweicht ist inakzeptabel.
     - im Zweifel muss der komplette Projektstandard auf den Standard der Rules angepasst werden. 
 
+**Main findet, ein Worker behebt, ein frischer Worker prüft gegen.**
+- Main führt jeden Scan selbst aus und gibt dem Worker die konkrete Befundliste.
+- Der behebende Worker scannt nie selbst.
+- Nach dem Merge scannt ein neu gespawnter Worker denselben Scope unabhängig.
+   - Er kennt weder die Befundliste noch die Arbeit seines Vorgängers.
+   - Er meldet Befunde und behebt nichts.
+- Meldet der frische Worker Befunde, läuft die Phase erneut mit diesen Befunden.
+- Null Befunde des frischen Workers schließen die Phase.
+
 **Ein Step nach dem anderen, eine Phase nach der anderen.**
-- Pro Step: Scan, Dispatch, Plan des Workers bewerten, Go, Diff reviewen, Recap, Merge.
+- Pro Step: Scan, Dispatch, Plan des Workers bewerten, Go, Diff reviewen, Recap, Merge, Gegenprüfung.
 - Ein Worker pro zusammenhängender Einheit, nie ein Bündel unzusammenhängender Refactorings.
 - Step N ist gemergt, bevor Step N+1 gescannt wird.
 - Phase N ist abgeschlossen, bevor Phase N+1 beginnt.
@@ -44,7 +53,7 @@ description:
 ### Step 2 — Dispatch
 
 **Der Worker teilt entlang der Verantwortungen auf, die er findet, und Main benennt keine Zielmodule.**
-- Nach dem Merge scannt Main erneut. Null Treffer schließen die Phase.
+- Nach dem Merge folgt die Gegenprüfung durch einen frischen Worker.
 
 ## Phase 2 — Konformität mit den Modul-Standards
 
@@ -71,7 +80,7 @@ description:
 **Der Worker verschiebt und löscht, und er entscheidet nichts.**
 - Der Prompt enthält im selben Lauf auch die Überarbeitung der `DOCS.md` des Verzeichnisses nach § DOCS.md-Format.
    - Alles, was gekürzt wird, um das Format zu erreichen, kommt wörtlich in dieselbe process-docs-Datei, unter einer einzigen Überschrift `## Salvage from <path>`.
-- Nach dem Merge scannt Main das Verzeichnis erneut. Null Treffer schließen die Phase.
+- Nach dem Merge folgt die Gegenprüfung durch einen frischen Worker.
 
 ## Phase 3 — Struktur der Tests
 
@@ -101,7 +110,7 @@ description:
 **Der Worker baut die Tests und Runner nach dem Standard um.**
 - Der Prompt enthält § Aufbau von Tests als Standard und die Trefferliste Datei für Datei.
 - Der Worker belegt, dass die umgebauten Tests weiter bestehen, und zeigt die Laufzeit vorher und nachher.
-- Nach dem Merge scannt Main erneut. Null Treffer schließen die Phase.
+- Nach dem Merge folgt die Gegenprüfung durch einen frischen Worker.
 
 ## Phase 4 — Struktur der Doku
 
