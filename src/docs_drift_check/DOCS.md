@@ -2,7 +2,7 @@
 
 ## Role
 
-Standalone CLI (`docs-drift-check`), run from a project root, that checks every DOCS.md of that project against the DOCS.md rules: referenced paths exist, module-heading LOC equals `wc -l`, and no function-level or constant references appear. Touch when the DOCS.md rules change. Do not touch for project-specific exceptions; there is no whitelist by design.
+Standalone CLI (`docs-drift-check`), run from a project root, checking every DOCS.md against the DOCS.md rules: referenced paths exist, module-heading LOC equals `wc -l`, no function-level or constant references. Touch when the rules change; there is no whitelist by design.
 
 ## Public Interface
 

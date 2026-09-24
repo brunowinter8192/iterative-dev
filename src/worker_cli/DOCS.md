@@ -6,11 +6,11 @@ Subcommand implementations of `bin/worker-cli`, split out of the former single s
 
 ## Public Interface
 
-No `__init__.py`. The `.sh` files are sourced by `bin/worker-cli` (resolved through the script's real path, so the symlink in `~/.local/bin` works) and define `cmd_<subcommand>` functions plus helpers.
+No `__init__.py`. The `.sh` files are sourced by `bin/worker-cli` (resolved through the script's real path, so the symlink in `~/.local/bin` works) and define one entry function per subcommand plus helpers.
 
 ## Flow
 
-`worker-cli <cmd> args` in -> `bin/worker-cli` sources the libs and dispatches to `cmd_<cmd>` -> the command resolves project/worker, calls the `src/spawn/` libs via `bash -c "source $SPAWN && ..."` -> stdout/exit code out.
+`worker-cli <cmd> args` in -> `bin/worker-cli` sources the libs and dispatches to `cmd_<cmd>` -> the command resolves project/worker, calls the `src/spawn/` libs through a fresh `bash -c` that sources `tmux_spawn.sh` -> stdout/exit code out.
 
 ## Modules
 
@@ -66,4 +66,4 @@ No `__init__.py`. The `.sh` files are sourced by `bin/worker-cli` (resolved thro
 
 ## State
 
-Cross-function state is held in prefixed globals (`_WAIT_*`, `_JANITOR_*`, `_MERGE_OUT`) set by the parse/poll helpers and read by later steps of the same command. Nothing persists across invocations except the registry, sidecar and log files.
+Cross-function state is held in prefixed shell globals (one prefix per command) set by the parse/poll helpers and read by later steps of the same command. Nothing persists across invocations except the registry, sidecar and log files.
