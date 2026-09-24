@@ -18,3 +18,4 @@ Development scripts for testing, debugging, and experimentation related to the i
 - [cc_hooks/DOCS.md](cc_hooks/DOCS.md) — CC hook-input inspection helpers
 - [git_automation/DOCS.md](git_automation/DOCS.md) — gcommit/git-check staging regression probes
 - [poread_cli/DOCS.md](poread_cli/DOCS.md) — poread CLI boundary-case regression suite
+- [docs_drift_check/DOCS.md](docs_drift_check/DOCS.md) — docs-drift-check fixture regression suite
