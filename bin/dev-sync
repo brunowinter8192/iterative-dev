@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# dev-sync: fast-forward main/master to dev HEAD without checkout
-# Source: Meta/blank/bin/dev-sync — symlinked to ~/.local/bin/dev-sync
-# Usage: dev-sync [project_path]
-# project_path: absolute path, or 'c' to resolve current git project root (worktree-aware).
 
 set -e
 

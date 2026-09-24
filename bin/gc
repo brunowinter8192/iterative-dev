@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# gc — git commit shortcut with implicit staging
-# Usage: gc "<msg>"           → stages tracked modifications, commits
-#        gc "<msg>" file...   → stages listed files, commits
 
 set -e
 

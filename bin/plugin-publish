@@ -1,31 +1,37 @@
 #!/usr/bin/env bash
-# plugin-publish — push + cache-sync + version-bump in one step.
-#
-# Run from inside a plugin source repo (a directory tree containing
-# .claude-plugin/plugin.json). Performs:
-#
-#   1. Locate plugin source root (searches upward for .claude-plugin/plugin.json)
-#   2. Refuse to run if working tree is dirty (commit first via `gc`)
-#   3. git push (--no-push to skip)
-#   4. Compare source plugin.json version vs installed_plugins.json version
-#   5. mkdir new cache dir if version bumped
-#   6. rsync source -> cache (preserves runtime artifacts, honors .gitignore)
-#   7. Update installed_plugins.json (installPath, version, gitCommitSha, lastUpdated)
-#      Atomic write via temp file + mv. Backup written to /tmp/.
-#   8. Print restart hint
-#
-# Usage:
-#   cd <plugin-source-repo>
-#   plugin-publish [--no-push] [--dry-run]
-#
-# Designed to be safe to invoke blindly: any failure aborts before mutating
-# state on disk; installed_plugins.json gets a backup on every successful run.
 
 set -euo pipefail
 
 MARKETPLACE="brunowinter-plugins"
 CACHE_BASE="$HOME/.claude/plugins/cache/$MARKETPLACE"
 INSTALLED_JSON="$HOME/.claude/plugins/installed_plugins.json"
+
+usage() {
+    cat <<'USAGE_EOF'
+plugin-publish — push + cache-sync + version-bump in one step.
+
+Run from inside a plugin source repo (a directory tree containing
+.claude-plugin/plugin.json). Performs:
+
+  1. Locate plugin source root (searches upward for .claude-plugin/plugin.json)
+  2. Refuse to run if working tree is dirty (commit first via `gc`)
+  3. git push (--no-push to skip)
+  4. Compare source plugin.json version vs installed_plugins.json version
+  5. mkdir new cache dir if version bumped
+  6. rsync source -> cache (preserves runtime artifacts, honors .gitignore)
+  7. Update installed_plugins.json (installPath, version, gitCommitSha, lastUpdated)
+     Atomic write via temp file + mv. Backup written to /tmp/.
+  8. Print restart hint
+
+Usage:
+  cd <plugin-source-repo>
+  plugin-publish [--no-push] [--dry-run]
+
+Designed to be safe to invoke blindly: any failure aborts before mutating
+state on disk; installed_plugins.json gets a backup on every successful run.
+
+USAGE_EOF
+}
 
 DO_PUSH=1
 DRY_RUN=0
@@ -35,7 +41,7 @@ while [ $# -gt 0 ]; do
         --no-push)    DO_PUSH=0 ;;
         --dry-run)    DRY_RUN=1 ;;
         -h|--help)
-            sed -n '2,/^set -euo/p' "$0" | sed '/^set -euo/d' | sed 's/^# \{0,1\}//'
+            usage
             exit 0
             ;;
         *)
@@ -46,8 +52,6 @@ while [ $# -gt 0 ]; do
     esac
     shift
 done
-
-# ---------- locate plugin source root ----------
 
 find_plugin_root() {
     local d
@@ -69,8 +73,6 @@ REPO_PATH="$(find_plugin_root)" || {
 }
 
 PLUGIN_JSON="$REPO_PATH/.claude-plugin/plugin.json"
-
-# ---------- read source plugin.json ----------
 
 PLUGIN_META=$(python3 - <<EOF
 import json, sys
@@ -100,14 +102,10 @@ echo "Source version: $SOURCE_VERSION"
 echo "Target cache:   $CACHE_DIR"
 echo
 
-# ---------- git repo sanity ----------
-
 if ! git -C "$REPO_PATH" rev-parse --git-dir >/dev/null 2>&1; then
     echo "ERROR: $REPO_PATH is not a git repo." >&2
     exit 1
 fi
-
-# ---------- read installed_plugins.json ----------
 
 if [ ! -f "$INSTALLED_JSON" ]; then
     echo "ERROR: $INSTALLED_JSON missing." >&2
@@ -131,8 +129,6 @@ if [ -z "$INSTALLED_VERSION" ]; then
     exit 1
 fi
 
-# ---------- DRY RUN summary ----------
-
 if [ "$DRY_RUN" = "1" ]; then
     DIRTY=$(git -C "$REPO_PATH" status --porcelain | grep -v '^.. \.beads/' || true)
     echo "[DRY RUN]"
@@ -154,8 +150,6 @@ if [ "$DRY_RUN" = "1" ]; then
     exit 0
 fi
 
-# ---------- working tree clean check (real run) ----------
-
 DIRTY=$(git -C "$REPO_PATH" status --porcelain | grep -v '^.. \.beads/' || true)
 if [ -n "$DIRTY" ]; then
     echo "ERROR: working tree has uncommitted changes outside .beads/. Commit first:" >&2
@@ -165,12 +159,9 @@ if [ -n "$DIRTY" ]; then
     exit 1
 fi
 
-# ---------- push ----------
-
 if [ "$DO_PUSH" = "1" ]; then
     echo "→ git push"
     PUSH_OUT=$(git -C "$REPO_PATH" push 2>&1) || {
-        # try first-time push with upstream
         BRANCH=$(git -C "$REPO_PATH" branch --show-current)
         echo "  initial push, retrying with -u origin $BRANCH"
         if ! git -C "$REPO_PATH" push -u origin "$BRANCH" 2>&1; then
@@ -182,20 +173,15 @@ if [ "$DO_PUSH" = "1" ]; then
     [ -n "$PUSH_OUT" ] && echo "  $PUSH_OUT" | sed 's/^/  /'
 fi
 
-# ---------- ensure cache dir ----------
-
 if [ "$SOURCE_VERSION" != "$INSTALLED_VERSION" ]; then
     echo "→ version bump: $INSTALLED_VERSION → $SOURCE_VERSION"
     mkdir -p "$CACHE_DIR"
 elif [ ! -d "$CACHE_DIR" ]; then
-    # version unchanged but cache dir missing — recreate
     echo "→ cache dir missing for current version, recreating"
     mkdir -p "$CACHE_DIR"
 else
     echo "→ version unchanged ($SOURCE_VERSION)"
 fi
-
-# ---------- rsync source -> cache ----------
 
 echo "→ rsync source -> cache"
 rsync -a \
@@ -208,8 +194,6 @@ rsync -a \
         echo "ERROR: rsync failed." >&2
         exit 1
     }
-
-# ---------- update installed_plugins.json (atomic + backup) ----------
 
 SHA=$(git -C "$REPO_PATH" rev-parse HEAD)
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")

@@ -18,7 +18,7 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 
 ## Modules
 
-### tmux_spawn.sh (238 LOC)
+### tmux_spawn.sh (172 LOC)
 
 **Purpose:** Entry point sourced by callers — sources the sibling libs, owns session naming, model resolution and `spawn_claude_worker`.
 **Reads:** `~/.claude/shared-rules/model_selection.json`.
@@ -28,7 +28,7 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 
 ---
 
-### worker_status.sh (203 LOC)
+### worker_status.sh (154 LOC)
 
 **Purpose:** Working/idle/dead status detection plus `worker_list` and `worker_status`.
 **Reads:** tmux pane state, session JSONL, `~/Library/Application Support/com.brunowinter.monitor-cc-menubar/hooks.json`.
@@ -38,7 +38,7 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 
 ---
 
-### worker_io.sh (194 LOC)
+### worker_io.sh (151 LOC)
 
 **Purpose:** Pane capture, message delivery, viewer window and orchestrator-signal file updates.
 **Reads:** tmux panes, `_capture_clean.py`.
@@ -48,7 +48,7 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 
 ---
 
-### worker_log_sidecar.sh (106 LOC)
+### worker_log_sidecar.sh (62 LOC)
 
 **Purpose:** Log-directory retention sweep and start/stop of the `worker_logger.sh` sidecar.
 **Reads:** log directory, `/tmp/worker-logger-<name>.pid`.
@@ -58,7 +58,7 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 
 ---
 
-### worker_proxy.sh (145 LOC)
+### worker_proxy.sh (108 LOC)
 
 **Purpose:** Per-worker mitmproxy setup shared by spawn and revive; publishes the `WORKER_PROXY_*` globals.
 **Reads:** proxy marker `/tmp/.monitor_cc_proxy_<session_id>`.
@@ -68,7 +68,7 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 
 ---
 
-### worker_revive.sh (186 LOC)
+### worker_revive.sh (148 LOC)
 
 **Purpose:** `worker_revive` — recreates a dead-pane worker session via `claude --resume`.
 **Reads:** tmux session environment, session JSONL, worktree dir.
@@ -78,7 +78,7 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 
 ---
 
-### worker_logger.sh (205 LOC)
+### worker_logger.sh (169 LOC)
 
 **Purpose:** Standalone sidecar sampling a worker pane and writing a forensic snapshot on death.
 **Reads:** tmux pane state, process table, session JSONL.

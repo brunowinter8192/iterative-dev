@@ -1,29 +1,4 @@
 #!/usr/bin/env bash
-# worker_logger.sh — sidecar diagnostic logger for a single tmux worker session.
-#
-# Spawned in background by worker_spawn / worker_revive. Samples every SAMPLE_INTERVAL
-# seconds while the worker's tmux pane is alive. On detected pane death (#{pane_dead}
-# transitions to 1), writes a comprehensive forensic snapshot before exiting.
-#
-# Goal: when a worker dies unexpectedly (SIGTERM from unknown source, OOM kill, etc.),
-# we have a record of: what the worker process looked like just before death (RSS,
-# process tree, parent chain), what the surrounding system state was (total RSS, vm_stat),
-# and what other watchdogs were reporting (oom-watchdog, menubar-abort).
-#
-# Args:
-#   $1 = worker name (e.g. "eval-sweep")
-#   $2 = tmux session name (e.g. "worker-RAG-eval-sweep")
-#   $3 = log directory (absolute path; logger creates files inside)
-#   $4 = lifecycle event marker — "spawn" or "revive" (only affects log filename suffix)
-#
-# Output files (in log_dir/):
-#   <name>_<spawn-ts>_<event>.log         — periodic samples, one line per sample
-#   <name>_<spawn-ts>_<event>_DEATH.txt   — forensic snapshot at death (only written on pane death)
-#
-# Self-exit conditions:
-#   1. tmux session no longer exists (worker fully killed)
-#   2. pane_dead transitions to 1 (worker process died — snapshot then exit)
-#   3. SIGTERM received (caller is stopping us, e.g. worker_kill)
 
 set -uo pipefail
 
@@ -32,7 +7,7 @@ SESSION="${2:?need session name}"
 LOG_DIR="${3:?need log dir}"
 EVENT="${4:-spawn}"
 
-SAMPLE_INTERVAL="${WORKER_LOGGER_INTERVAL:-10}"  # seconds between samples
+SAMPLE_INTERVAL="${WORKER_LOGGER_INTERVAL:-10}"
 PID_FILE="/tmp/worker-logger-${NAME}.pid"
 
 mkdir -p "$LOG_DIR"
@@ -40,26 +15,20 @@ TS="$(date +%Y%m%d_%H%M%S)"
 LOG_FILE="${LOG_DIR}/${NAME}_${TS}_${EVENT}.log"
 DEATH_FILE="${LOG_DIR}/${NAME}_${TS}_${EVENT}_DEATH.txt"
 
-# Register our own PID so worker_kill can stop us cleanly
 echo $$ > "$PID_FILE"
 
-# Cleanup on receiving SIGTERM (worker_kill flow)
 _self_cleanup() {
     rm -f "$PID_FILE"
     exit 0
 }
 trap _self_cleanup TERM INT HUP
 
-# Resolve JSONL path for last-mtime tracking
 ENCODED_DIR=""
 WORKTREE_PATH=""
 if PANE_PID=$(tmux display-message -t "${SESSION}:^" -p "#{pane_pid}" 2>/dev/null); then
-    # Try to find worktree path from session env
     WORKTREE_PATH=$(tmux show-environment -t "$SESSION" 2>/dev/null | grep -E '^WORKER_CWD=' | cut -d= -f2- || true)
 fi
 
-# JSONL location follows Claude Code's encoding (slashes → dashes)
-# Best-effort: scan ~/.claude/projects for any dir matching this worker pattern
 _find_jsonl() {
     local proj_pattern="*${NAME}*"
     local p
@@ -74,7 +43,6 @@ _find_jsonl() {
 
 JSONL_PATH="$(_find_jsonl || true)"
 
-# Initial baseline line
 {
     echo "# worker_logger v1 — diagnostic samples for worker '$NAME'"
     echo "# event=$EVENT session=$SESSION log_dir=$LOG_DIR"
@@ -96,7 +64,6 @@ _sample() {
 
     echo "$now pane_dead=$pane_dead claude_pid=${claude_pid:-?} claude_rss_mb=$claude_rss_mb total_rss_gb=$total_rss_gb jsonl_age_s=$jsonl_age_s" >> "$LOG_FILE"
 
-    # If pane died, capture forensic snapshot and exit
     if [ "$pane_dead" = "1" ]; then
         _capture_death "$now" "$pane_dead" "$claude_pid" "$claude_rss_mb" "$total_rss_gb" "$jsonl_age_s"
         rm -f "$PID_FILE"
@@ -108,7 +75,6 @@ _find_claude_pid() {
     local pane_pid
     pane_pid=$(tmux display-message -t "${SESSION}:^" -p "#{pane_pid}" 2>/dev/null || echo "")
     [ -n "$pane_pid" ] || return 0
-    # pgrep -P traverses one level; we walk up to 2 levels for descendants with comm claude.exe
     local children c comm gc g gcomm
     children=$(pgrep -P "$pane_pid" 2>/dev/null || true)
     for c in $children; do
@@ -192,10 +158,8 @@ _capture_death() {
     } > "$DEATH_FILE"
 }
 
-# Main sample loop — exit on session-gone or pane-dead
 while true; do
     if ! tmux has-session -t "$SESSION" 2>/dev/null; then
-        # Session vanished (worker_kill cleaned up before we noticed pane_dead)
         echo "$(date -Iseconds) session_gone=1 — exiting" >> "$LOG_FILE"
         rm -f "$PID_FILE"
         exit 0

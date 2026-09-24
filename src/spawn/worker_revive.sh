@@ -1,22 +1,5 @@
 #!/usr/bin/env bash
-# worker_revive.sh — revive a worker whose pane died, via claude --resume. Sourced by tmux_spawn.sh.
 
-# worker_revive NAME PROJECT_PATH
-#   Reanimate a worker whose pane died (tmux session still exists, pane_dead=1).
-#   Uses claude --resume with the session's stored JSONL to restore full conversation
-#   context. CRITICAL: sets up the same mitmproxy as spawn (via _worker_proxy_setup),
-#   so the prompt-cache prefix matches what Anthropic saw before the death — without
-#   this the cache invalidates and the entire conversation context gets re-uploaded.
-#
-#   Gates (return 2 + message on failure):
-#     1. tmux session must exist (else: worker was killed, use spawn)
-#     2. pane must be dead (else: worker alive, use send)
-#     3. worktree dir must exist
-#     4. session JSONL must exist
-#
-#   Restores stored env vars: WORKER_MODEL, WORKER_PURPOSE, WORKER_PARENT.
-#   Re-installs pane-died hook for death-log writing.
-#   Opens viewer window.
 worker_revive() {
     local name="$1"
     local project_path="$2"
@@ -65,8 +48,6 @@ worker_revive() {
     echo "$session"
 }
 
-# _revive_check_session SESSION
-#   Gate 1: tmux session must exist.
 _revive_check_session() {
     local session="$1"
     if ! tmux has-session -t "$session" 2>/dev/null; then
@@ -75,8 +56,6 @@ _revive_check_session() {
     fi
 }
 
-# _revive_check_pane_dead SESSION NAME
-#   Gate 2: pane must be dead.
 _revive_check_pane_dead() {
     local session="$1" name="$2"
     local pane_dead
@@ -90,8 +69,6 @@ _revive_check_pane_dead() {
     fi
 }
 
-# _revive_resolve_worktree PROJECT_PATH NAME
-#   Gate 3: worktree must exist. Echoes the path. A worktree path passed as PROJECT_PATH is respected.
 _revive_resolve_worktree() {
     local project_path="$1" name="$2"
     local worktree
@@ -107,9 +84,6 @@ _revive_resolve_worktree() {
     echo "$worktree"
 }
 
-# _revive_find_jsonl WORKTREE
-#   Gate 4: session JSONL must exist. Echoes the newest one. Claude Code encoding of paths:
-#   '/' -> '-', '.' -> '-', '_' -> '-'.
 _revive_find_jsonl() {
     local worktree="$1"
     local encoded jsonl encoded_dir
@@ -126,12 +100,6 @@ _revive_find_jsonl() {
     echo "$jsonl"
 }
 
-# _revive_load_env SESSION
-#   Reads stored env vars from the dead session BEFORE it is killed into _REVIVE_MODEL,
-#   _REVIVE_PURPOSE, _REVIVE_PARENT. The stored WORKER_MODEL always wins when present — revive's
-#   job is to restore the model the worker was ORIGINALLY spawned with, not to re-apply a
-#   possibly-since-changed config. The config (then the hardcoded fallback) only applies when
-#   WORKER_MODEL itself is absent.
 _revive_load_env() {
     local session="$1"
     _REVIVE_MODEL=$(tmux show-environment -t "$session" WORKER_MODEL 2>/dev/null | cut -d= -f2-)
@@ -142,10 +110,6 @@ _revive_load_env() {
     [ -z "$_REVIVE_PARENT" ] && _REVIVE_PARENT="unknown"
 }
 
-# _build_revive_runner NAME SESSION WORKTREE MODEL SESSION_ID DEATH_LOG
-#   Writes the runner script and echoes its path. Same trap pattern as spawn so the proxy is
-#   cleaned up on EXIT/INT/TERM/HUP. Reads the WORKER_PROXY_* globals populated by
-#   _worker_proxy_setup.
 _build_revive_runner() {
     local name="$1" session="$2" worktree="$3" model="$4" session_id="$5" death_log="$6"
     local proxy_env_prefix="$WORKER_PROXY_ENV_PREFIX"
@@ -174,8 +138,6 @@ RUNSCRIPT
     echo "$runner"
 }
 
-# _revive_restore_env SESSION PURPOSE PARENT MODEL
-#   Restores the env vars plus the revive marker on the recreated session.
 _revive_restore_env() {
     local session="$1" purpose="$2" parent="$3" model="$4"
     tmux set-environment -t "$session" WORKER_SPAWNED "$(date +%H:%M)"
