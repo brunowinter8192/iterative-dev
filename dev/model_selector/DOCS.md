@@ -16,7 +16,7 @@ No CLI input — each script drives the real `_resolve_worker_model()` (bash and
 
 ## Modules
 
-### verify_worker_model_precedence.sh (207 LOC)
+### verify_worker_model_precedence.sh (224 LOC)
 
 **Purpose:** Verifies `tmux_spawn.sh`'s `_resolve_worker_model()`, its 3 call-site expansion patterns, and a real `bin/worker-cli spawn` subprocess entry point.
 **Reads:** nothing persistent — all config cases use a `mktemp -d` path via `MODEL_SELECTION_FILE`.

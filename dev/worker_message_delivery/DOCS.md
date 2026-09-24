@@ -14,7 +14,7 @@ No shared input — the script generates its own test messages, boots throwaway 
 
 ## Modules
 
-### probe_bracketed_paste.sh (314 LOC)
+### probe_bracketed_paste.sh (333 LOC)
 
 **Purpose:** Verifies bracketed-paste delivery across four message sizes plus one contrasting run of the pre-fix (no `-p`) method; measures paste-render latency.
 **Reads:** `src/spawn/tmux_spawn.sh` (sourced for the real `worker_send`), `~/.local/bin/claude-280`.

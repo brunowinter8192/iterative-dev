@@ -133,15 +133,73 @@ wait_for_user_entry() {
     return 1
 }
 
+init_scratch_case() {
+    local worker_name="$1"
+    CASE_SCRATCH=$(mktemp -d "/tmp/pastefix-msgtest-XXXXXX")
+    git -C "$CASE_SCRATCH" init -q
+    SCRATCH_DIRS+=("$CASE_SCRATCH")
+    CASE_SESSION="worker-$(basename "$CASE_SCRATCH")-${worker_name}"
+    SESSIONS+=("$CASE_SESSION")
+}
+
+register_jsonl_dir() {
+    local scratch="$1"
+    local real_path enc
+    real_path=$(resolve_real_path "$scratch")
+    enc=$(encode_path "$real_path")
+    CASE_JSONL_DIR="$HOME/.claude/projects/$enc"
+    PROJECT_JSONL_DIRS+=("$CASE_JSONL_DIR")
+}
+
+sample_latencies() {
+    local case_name="$1" session="$2" message_file="$3" marker="$4"
+    for i in 1 2 3; do
+        local ms
+        ms=$(measure_paste_latency "$session" "$message_file" "$marker")
+        echo "  latency sample $i: ${ms}ms"
+        LATENCY_ROWS+=("| $case_name | $i | ${ms} |")
+    done
+}
+
+verify_delivery() {
+    local jsonl="$1" message_file="$2"
+    local verify_out
+    verify_out=$(python3 "$VERIFY_PY" "$jsonl" "$message_file")
+    VERIFY_RC=$?
+    echo "$verify_out" | sed 's/^/  /'
+    VERIFY_ENTRY_COUNT=$(echo "$verify_out" | grep '^USER_ENTRY_COUNT=' | cut -d= -f2)
+    VERIFY_MATCH=$(echo "$verify_out" | grep '^MATCH=' | cut -d= -f2)
+    VERIFY_EXPECTED_LEN=$(echo "$verify_out" | grep '^EXPECTED_LEN=' | cut -d= -f2)
+    VERIFY_ACTUAL_LEN=$(echo "$verify_out" | grep '^ACTUAL_LEN=' | cut -d= -f2)
+}
+
+send_via_worker_send() {
+    local worker_name="$1" message_file="$2" scratch="$3"
+    local msg
+    msg=$(cat "$message_file")
+    _WORKER_MSG="$msg" bash -c 'source "$1" && worker_send "$2" "$_WORKER_MSG" "$3"' \
+        _ "$SPAWN_SH" "$worker_name" "$scratch"
+}
+
+paste_old_method() {
+    local session="$1" message_file="$2"
+    local pane_id
+    pane_id=$(tmux list-panes -t "$session" -F "#{pane_id}" | head -1)
+    local msg
+    msg=$(cat "$message_file")
+    printf '%s' "$msg" | tmux load-buffer -
+    tmux paste-buffer -d -t "$pane_id"
+    sleep 0.2
+    tmux send-keys -t "$pane_id" Enter
+}
+
 run_delivery_case() {
     local case_name="$1" worker_name="$2" message_file="$3" marker="$4"
-    local scratch session real_path enc jsonl_dir
+    local scratch session jsonl_dir
 
-    scratch=$(mktemp -d "/tmp/pastefix-msgtest-XXXXXX")
-    git -C "$scratch" init -q
-    SCRATCH_DIRS+=("$scratch")
-    session="worker-$(basename "$scratch")-${worker_name}"
-    SESSIONS+=("$session")
+    init_scratch_case "$worker_name"
+    scratch="$CASE_SCRATCH"
+    session="$CASE_SESSION"
 
     echo "=== $case_name ==="
     if ! setup_session "$session" "$scratch"; then
@@ -151,22 +209,12 @@ run_delivery_case() {
         return
     fi
 
-    for i in 1 2 3; do
-        local ms
-        ms=$(measure_paste_latency "$session" "$message_file" "$marker")
-        echo "  latency sample $i: ${ms}ms"
-        LATENCY_ROWS+=("| $case_name | $i | ${ms} |")
-    done
+    sample_latencies "$case_name" "$session" "$message_file" "$marker"
 
-    real_path=$(resolve_real_path "$scratch")
-    enc=$(encode_path "$real_path")
-    jsonl_dir="$HOME/.claude/projects/$enc"
-    PROJECT_JSONL_DIRS+=("$jsonl_dir")
+    register_jsonl_dir "$scratch"
+    jsonl_dir="$CASE_JSONL_DIR"
 
-    local msg
-    msg=$(cat "$message_file")
-    _WORKER_MSG="$msg" bash -c 'source "$1" && worker_send "$2" "$_WORKER_MSG" "$3"' \
-        _ "$SPAWN_SH" "$worker_name" "$scratch"
+    send_via_worker_send "$worker_name" "$message_file" "$scratch"
 
     local jsonl
     jsonl=$(wait_for_user_entry "$jsonl_dir")
@@ -177,35 +225,24 @@ run_delivery_case() {
         return
     fi
 
-    local verify_out verify_rc
-    verify_out=$(python3 "$VERIFY_PY" "$jsonl" "$message_file")
-    verify_rc=$?
-    echo "$verify_out" | sed 's/^/  /'
+    verify_delivery "$jsonl" "$message_file"
 
-    local entry_count match_val expected_len actual_len
-    entry_count=$(echo "$verify_out" | grep '^USER_ENTRY_COUNT=' | cut -d= -f2)
-    match_val=$(echo "$verify_out" | grep '^MATCH=' | cut -d= -f2)
-    expected_len=$(echo "$verify_out" | grep '^EXPECTED_LEN=' | cut -d= -f2)
-    actual_len=$(echo "$verify_out" | grep '^ACTUAL_LEN=' | cut -d= -f2)
-
-    if [ "$verify_rc" -eq 0 ]; then
+    if [ "$VERIFY_RC" -eq 0 ]; then
         echo "  delivery PASS (one user entry, full text matched)"
-        REPORT_ROWS+=("| $case_name | PASS | entries=$entry_count match=$match_val | ${expected_len} | ${actual_len} |")
+        REPORT_ROWS+=("| $case_name | PASS | entries=$VERIFY_ENTRY_COUNT match=$VERIFY_MATCH | ${VERIFY_EXPECTED_LEN} | ${VERIFY_ACTUAL_LEN} |")
     else
         echo "  delivery FAIL"
-        REPORT_ROWS+=("| $case_name | FAIL | entries=$entry_count match=$match_val | ${expected_len} | ${actual_len} |")
+        REPORT_ROWS+=("| $case_name | FAIL | entries=$VERIFY_ENTRY_COUNT match=$VERIFY_MATCH | ${VERIFY_EXPECTED_LEN} | ${VERIFY_ACTUAL_LEN} |")
     fi
     cleanup_case "$session" "$scratch" "$jsonl_dir"
 }
 
 run_old_method_demo() {
-    local scratch session real_path enc jsonl_dir message_file="/tmp/pastefix-old-method-msg.txt"
+    local scratch session jsonl_dir message_file="/tmp/pastefix-old-method-msg.txt"
 
-    scratch=$(mktemp -d "/tmp/pastefix-msgtest-XXXXXX")
-    git -C "$scratch" init -q
-    SCRATCH_DIRS+=("$scratch")
-    session="worker-$(basename "$scratch")-oldmethod"
-    SESSIONS+=("$session")
+    init_scratch_case "oldmethod"
+    scratch="$CASE_SCRATCH"
+    session="$CASE_SESSION"
 
     echo "=== OLD METHOD (no -p, pre-fix) ==="
     if ! setup_session "$session" "$scratch"; then
@@ -215,19 +252,10 @@ run_old_method_demo() {
         return
     fi
 
-    local pane_id
-    pane_id=$(tmux list-panes -t "$session" -F "#{pane_id}" | head -1)
-    local msg
-    msg=$(cat "$message_file")
-    printf '%s' "$msg" | tmux load-buffer -
-    tmux paste-buffer -d -t "$pane_id"
-    sleep 0.2
-    tmux send-keys -t "$pane_id" Enter
+    paste_old_method "$session" "$message_file"
 
-    real_path=$(resolve_real_path "$scratch")
-    enc=$(encode_path "$real_path")
-    jsonl_dir="$HOME/.claude/projects/$enc"
-    PROJECT_JSONL_DIRS+=("$jsonl_dir")
+    register_jsonl_dir "$scratch"
+    jsonl_dir="$CASE_JSONL_DIR"
 
     local jsonl
     jsonl=$(wait_for_user_entry "$jsonl_dir")
@@ -238,23 +266,14 @@ run_old_method_demo() {
         return
     fi
 
-    local verify_out verify_rc
-    verify_out=$(python3 "$VERIFY_PY" "$jsonl" "$message_file")
-    verify_rc=$?
-    echo "$verify_out" | sed 's/^/  /'
+    verify_delivery "$jsonl" "$message_file"
 
-    local entry_count match_val expected_len actual_len
-    entry_count=$(echo "$verify_out" | grep '^USER_ENTRY_COUNT=' | cut -d= -f2)
-    match_val=$(echo "$verify_out" | grep '^MATCH=' | cut -d= -f2)
-    expected_len=$(echo "$verify_out" | grep '^EXPECTED_LEN=' | cut -d= -f2)
-    actual_len=$(echo "$verify_out" | grep '^ACTUAL_LEN=' | cut -d= -f2)
-
-    if [ "$verify_rc" -eq 0 ]; then
+    if [ "$VERIFY_RC" -eq 0 ]; then
         echo "  UNEXPECTED: old method delivered cleanly this run"
-        REPORT_ROWS+=("| OLD METHOD (demo) | PASS (unexpected) | entries=$entry_count match=$match_val | ${expected_len} | ${actual_len} |")
+        REPORT_ROWS+=("| OLD METHOD (demo) | PASS (unexpected) | entries=$VERIFY_ENTRY_COUNT match=$VERIFY_MATCH | ${VERIFY_EXPECTED_LEN} | ${VERIFY_ACTUAL_LEN} |")
     else
         echo "  reproduced pre-fix failure (content corrupted/incomplete)"
-        REPORT_ROWS+=("| OLD METHOD (demo) | FAIL (expected) | entries=$entry_count match=$match_val | ${expected_len} | ${actual_len} |")
+        REPORT_ROWS+=("| OLD METHOD (demo) | FAIL (expected) | entries=$VERIFY_ENTRY_COUNT match=$VERIFY_MATCH | ${VERIFY_EXPECTED_LEN} | ${VERIFY_ACTUAL_LEN} |")
     fi
     cleanup_case "$session" "$scratch" "$jsonl_dir"
 }
