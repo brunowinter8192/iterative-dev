@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+PLUGIN="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/cache/brunowinter-plugins/iterative-dev/1.0.0}"
+
+export DOCS_DRIFT_ROOT="$PWD"
+
+cd "$PLUGIN" && python3 -m src.docs_drift_check "$@"
