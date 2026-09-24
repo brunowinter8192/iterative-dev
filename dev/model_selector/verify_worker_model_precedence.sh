@@ -117,28 +117,18 @@ WORKER_CLI="$PLUGIN_ROOT/bin/worker-cli"
 E2E_REGISTRY="$TMP_DIR/registry"
 mkdir -p "$E2E_REGISTRY"
 
-_run_e2e_spawn() {
-    # $1=worker name  $2=model arg ("" for none)  $3=config path  $4=expected model
-    local e2e_name="$1" model_arg="$2" config_path="$3" expected="$4"
-
-    local e2e_project="$TMP_DIR/e2e_project_${e2e_name}"
-    mkdir -p "$e2e_project"
-    local e2e_prompt="$TMP_DIR/e2e_prompt_${e2e_name}.txt"
-    echo "# e2e test prompt" > "$e2e_prompt"
-
-    local mock_claude="$TMP_DIR/mock_claude_${e2e_name}.sh"
+_write_mock_claude() {
+    local mock_claude="$1"
     cat > "$mock_claude" << 'MOCKEOF'
 #!/bin/bash
 echo "❯"
 sleep 8
 MOCKEOF
     chmod +x "$mock_claude"
+}
 
-    local session
-    session="worker-$(basename "$e2e_project")-${e2e_name}"
-    tmux kill-session -t "$session" 2>/dev/null || true
-    rm -f /tmp/.worker_"${e2e_name}".* 2>/dev/null
-
+_spawn_via_cli() {
+    local e2e_name="$1" model_arg="$2" config_path="$3" e2e_project="$4" e2e_prompt="$5" mock_claude="$6"
     ( unset PROXY_PROJECT_PATH
       export MODEL_SELECTION_FILE="$config_path"
       export CLAUDE_BIN="$mock_claude"
@@ -152,9 +142,10 @@ MOCKEOF
       "$WORKER_CLI" spawn "$e2e_name" "$e2e_prompt" "$e2e_project" "$model_arg" --no-worktree \
           > "$TMP_DIR/e2e_output_${e2e_name}.log" 2>&1
     )
+}
 
-    sleep 1  # let the runner script materialize and the tmux env settle
-
+_assert_spawn_models() {
+    local e2e_name="$1" model_arg="$2" expected="$3" session="$4"
     local runner_file runner_model
     runner_file=$(ls /tmp/.worker_"${e2e_name}".* 2>/dev/null | head -1)
     if [ -n "$runner_file" ] && [ -f "$runner_file" ]; then
@@ -169,7 +160,33 @@ MOCKEOF
     env_model=$(tmux show-environment -t "$session" WORKER_MODEL 2>/dev/null | cut -d= -f2-)
     _assert_eq "real worker-cli spawn (model_arg='$model_arg') -> tmux WORKER_MODEL env" \
         "$expected" "$env_model"
+}
 
+_run_e2e_spawn() {
+    # $1=worker name  $2=model arg ("" for none)  $3=config path  $4=expected model
+    local e2e_name="$1" model_arg="$2" config_path="$3" expected="$4"
+
+    local e2e_project="$TMP_DIR/e2e_project_${e2e_name}"
+    mkdir -p "$e2e_project"
+    local e2e_prompt="$TMP_DIR/e2e_prompt_${e2e_name}.txt"
+    echo "# e2e test prompt" > "$e2e_prompt"
+
+    local mock_claude="$TMP_DIR/mock_claude_${e2e_name}.sh"
+    _write_mock_claude "$mock_claude"
+
+    local session
+    session="worker-$(basename "$e2e_project")-${e2e_name}"
+    tmux kill-session -t "$session" 2>/dev/null || true
+    rm -f /tmp/.worker_"${e2e_name}".* 2>/dev/null
+
+    _spawn_via_cli "$e2e_name" "$model_arg" "$config_path" "$e2e_project" "$e2e_prompt" "$mock_claude"
+
+    sleep 1  # let the runner script materialize and the tmux env settle
+
+    _assert_spawn_models "$e2e_name" "$model_arg" "$expected" "$session"
+
+    local runner_file
+    runner_file=$(ls /tmp/.worker_"${e2e_name}".* 2>/dev/null | head -1)
     tmux kill-session -t "$session" 2>/dev/null || true
     rm -f "$runner_file" "/tmp/worker-${e2e_name}.done" 2>/dev/null
 }

@@ -7,7 +7,24 @@ replacement for the orchestrator's background sleep-timer.
 
 ## Modules
 
-### test_worker_wait.sh
+### test_worker_wait.sh (65 LOC)
+
+**Purpose:** Entry point of the suite: sets constants and the cleanup trap, sources the three sibling files, then calls every test function in order.
+**Calls out:** `fixtures.sh`, `tests_gate.sh`, `tests_transitions.sh` (sourced, not executed on their own).
+
+### fixtures.sh (295 LOC)
+
+**Purpose:** Sourced fixture library: hooks.json backup/restore/set, fake-worker builders (`create_worker*`, `destroy_worker`), wrapper writers, fake bg-task handles.
+
+### tests_gate.sh (187 LOC)
+
+**Purpose:** Sourced test functions for Tests 1, 1b, 1c, 2, 2b, 3, 3b, 4 (transition-gate core proofs).
+
+### tests_transitions.sh (276 LOC)
+
+**Purpose:** Sourced test functions for Tests 5 to 11 (bg handle, lsof error, no-hook self-heal, dead paths, mixed project, second transition).
+
+The description below applies to the suite as a whole.
 
 **Purpose:** Exercise the real `worker-cli wait` binary against real tmux sessions + a
 scoped `hooks.json` entry (backed up/restored around the run, never left dirty).
