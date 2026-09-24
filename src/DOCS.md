@@ -18,4 +18,4 @@ Source modules for the iterative-dev plugin infrastructure.
 | git/ | Git automation utilities | 446 | 4 (check.py, commit.py, staged.py, post.py) |
 | pipeline/ | Session JSONL analysis | 670 | 6 (jsonl_to_md.py, jsonl_parse.py, dispatch_context.py, markdown_format.py, list_agents.py, extract_calls.py) |
 | poread_cli/ | poread CLI (marker-minting half) | 77 | 1 (__main__.py) |
-| docs_drift_check/ | docs-drift-check CLI | 345 | 9 (__main__.py, collect.py, symbols.py, check_paths.py, check_loc.py, check_rules.py, markdown_scan.py, report.py, project_root.py) |
+| docs_drift_check/ | docs-drift-check CLI | 347 | 9 (__main__.py, collect.py, symbols.py, check_paths.py, check_loc.py, check_rules.py, markdown_scan.py, report.py, project_root.py) |
