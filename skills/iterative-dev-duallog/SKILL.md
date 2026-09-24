@@ -64,6 +64,9 @@ REQ 48  18:02:23  CR 152,851  CC 7,889
 ```
 
 - Ein Turn läuft von einem getippten Prompt bis zur idle Textantwort des Modells, wobei der Prompt vom Menschen oder über `worker-cli send` vom Orchestrator kommt. Der Separator zeigt den ersten Send, die Spanne und den Prompt.
+- REQ-Nummer und Uhrzeit sind dieselben wie im Token-Pane und im Proxy-Window, die Uhrzeit ist das Ende der Antwort.
+- `REQ ?` ist ein Request ohne Gegenstück im Transkript, etwa ein 404, er gehört zu keinem Turn.
+- Eine Zeile auf stderr nennt den Weg, ohne auflösbares Transkript zeigt reqs nur die vollen Requests mit eigenen Nummern und Sendezeiten.
 - `CR` steht für cache_read_input_tokens und `CC` für cache_creation_input_tokens dieses Requests. Ein `?` erscheint, wenn der Join mit dem Transkript fehlgeschlagen ist.
 - Unter `--merged` folgt der Session-Tag auf einer REQ-Zeile der Uhrzeit und auf einem Separator der Spanne.
 
