@@ -3,174 +3,174 @@ name: iterative-dev-refactor
 description:
 ---
 
-# Refactor Scan
+# Refactor-Scan
 
-## Core Rules
+## Kernregeln
 
-**The rules are the standard, and they win over the project's current state.**
-- An existing structure is never a project convention that excuses a deviation.
-   - A consistent deviation is still a deviation.
-- Every review judges against the rule, never against the neighbouring code or the neighbouring entry.
+**Die Regeln sind der Standard, und sie gewinnen gegen den aktuellen Stand des Projekts.**
+- Eine bestehende Struktur ist nie eine Projektkonvention, die eine Abweichung entschuldigt.
+   - Eine durchgängige Abweichung bleibt eine Abweichung.
+- Jedes Review misst an der Regel, nie am benachbarten Code oder am benachbarten Eintrag.
 
-**Main scans, workers fix.**
-- Main runs every scan and every classification itself, by AST walk, grep, or `wc`.
-- The worker never scans and never classifies.
-- The worker receives one concrete refactor and implements it.
+**Main scannt, Worker beheben.**
+- Main führt jeden Scan und jede Klassifizierung selbst aus, per AST-Walk, grep oder `wc`.
+- Der Worker scannt nie und klassifiziert nie.
+- Der Worker bekommt genau ein konkretes Refactoring und setzt es um.
 
-**One Step at a time, one Phase at a time.**
-- Per Step: scan, dispatch, evaluate the worker's plan, Go, review the diff, recap, merge.
-- One worker per coherent unit, never a bundle of unrelated refactors.
-- Step N is merged before Step N+1 is scanned.
-- Phase N is closed before Phase N+1 starts.
+**Ein Step nach dem anderen, eine Phase nach der anderen.**
+- Pro Step: Scan, Dispatch, Plan des Workers bewerten, Go, Diff reviewen, Recap, Merge.
+- Ein Worker pro zusammenhängender Einheit, nie ein Bündel unzusammenhängender Refactorings.
+- Step N ist gemergt, bevor Step N+1 gescannt wird.
+- Phase N ist abgeschlossen, bevor Phase N+1 beginnt.
 
-**Execution is autonomous up to Phase 5.**
-- No user stop between Steps in Phases 1 to 4.
-- One consolidated summary before Phase 5, per Step: what was found, what was refactored and merged.
-- Phase 5 is iterated with the user.
+**Die Ausführung läuft bis Phase 5 autonom.**
+- Zwischen den Steps der Phasen 1 bis 4 gibt es keinen Stopp für den User.
+- Vor Phase 5 kommt eine konsolidierte Zusammenfassung, pro Step: was gefunden wurde, was refactored und gemergt wurde.
+- Phase 5 wird mit dem User iteriert.
 
-**Thresholds are fixed.**
-- No number below is softened to fit a project.
-- Cosmetic LOC shrinking is never a split.
+**Die Schwellenwerte sind fest.**
+- Keine der Zahlen unten wird für ein Projekt aufgeweicht.
+- Kosmetisches Kürzen von LOC ist nie ein Split.
 
 ## Scope
 
-**The user names the directory.**
-- Ask for the source root or a chosen subtree before the first scan.
+**Der User benennt das Verzeichnis.**
+- Frage vor dem ersten Scan nach dem Source-Root oder einem gewählten Teilbaum.
 
-**Every scan root is an area directory, meaning `dev/<area>/`.**
-- The area name matches its `process-docs/<area>/` folder exactly.
-- A named subtree spanning several areas is scanned area by area.
+**Jede Scan-Wurzel ist ein Area-Verzeichnis, also `dev/<area>/`.**
+- Der Area-Name entspricht exakt seinem Ordner `process-docs/<area>/`.
+- Ein benannter Teilbaum, der mehrere Areas umfasst, wird Area für Area gescannt.
 
-## Phase 1 — Cohesion and Concern-Splitting
+## Phase 1 — Kohäsion und Aufteilung nach Verantwortung
 
 ### Step 1 — Scan
 
-**Main scans every module against the two size thresholds.**
-- File size: over 400 LOC is a split.
-- Function size: 50 LOC or more extracts a helper, and 100 LOC or more is a hard target.
+**Main scannt jedes Modul gegen die zwei Größen-Schwellenwerte.**
+- Dateigröße: über 400 LOC ist ein Split.
+- Funktionsgröße: ab 50 LOC wird ein Helper extrahiert, ab 100 LOC ist es ein hartes Ziel.
 
 ### Step 2 — Dispatch
 
-**The worker splits along the concerns it finds, and Main names no target modules.**
-- After merge, Main re-scans. Zero hits closes the Phase.
+**Der Worker teilt entlang der Verantwortungen auf, die er findet, und Main benennt keine Zielmodule.**
+- Nach dem Merge scannt Main erneut. Null Treffer schließen die Phase.
 
-## Phase 2 — Module Standards Conformance
+## Phase 2 — Konformität mit den Modul-Standards
 
-### Step 1 — Read the standard
+### Step 1 — Den Standard lesen
 
-**The worker code standard is read each run.**
-- Main reads `shared-rules/global/code-standards`, extracts the concrete standards, and checks every module.
+**Der Code-Standard für Worker wird bei jedem Lauf gelesen.**
+- Main liest `shared-rules/global/code-standards`, zieht die konkreten Standards heraus und prüft jedes Modul.
 
 ### Step 2 — Scan
 
-**Main scans per file, and every docstring and every comment is a violation.**
-- `ast.get_docstring` on the module node and on every `FunctionDef`, `AsyncFunctionDef`, `ClassDef`.
-- `tokenize.COMMENT` for every comment token, minus the shebang and the three section markers.
-   - A `#` inside a string literal is not a comment, and a raw line-prefix test reports it as one.
+**Main scannt pro Datei, und jeder Docstring und jeder Kommentar ist ein Verstoß.**
+- `ast.get_docstring` auf dem Modul-Knoten und auf jedem `FunctionDef`, `AsyncFunctionDef` und `ClassDef`.
+- `tokenize.COMMENT` für jedes Kommentar-Token, ohne den Shebang und die drei Section Marker.
+   - Ein `#` in einem String-Literal ist kein Kommentar, ein einfacher Test auf den Zeilenanfang meldet es aber als einen.
 
 ### Step 3 — Triage
 
-**Main checks every hit against process-docs and `DOCS.md`.**
-- A hit already covered there is deleted.
-- Every other hit is relocated into the author's own dated `process-docs/<area>/` file, then deleted.
+**Main prüft jeden Treffer gegen die process-docs und die `DOCS.md`.**
+- Ein Treffer, der dort schon abgedeckt ist, wird gelöscht.
+- Jeder andere Treffer wird in die eigene datierte Datei des Autors unter `process-docs/<area>/` verschoben und dann gelöscht.
 
 ### Step 4 — Dispatch
 
-**The worker relocates and deletes, and decides nothing.**
-- The prompt also carries the directory's `DOCS.md` rewrite to § DOCS.md Format, in the same run.
-   - Everything cut to reach the format goes verbatim into the same process-docs file, under one `## Salvage from <path>` heading.
-- After merge, Main re-scans the directory. Zero hits closes the Phase.
+**Der Worker verschiebt und löscht, und er entscheidet nichts.**
+- Der Prompt enthält im selben Lauf auch die Überarbeitung der `DOCS.md` des Verzeichnisses nach § DOCS.md-Format.
+   - Alles, was gekürzt wird, um das Format zu erreichen, kommt wörtlich in dieselbe process-docs-Datei, unter einer einzigen Überschrift `## Salvage from <path>`.
+- Nach dem Merge scannt Main das Verzeichnis erneut. Null Treffer schließen die Phase.
 
-## Phase 3 — Test Structure
+## Phase 3 — Struktur der Tests
 
-**The project's tests carry the testing rule, or the rule has no effect.**
-- A new test copies the pattern of the tests already in the project.
-- A sequential test suite in the project therefore produces the next sequential test suite.
+**Die Tests des Projekts tragen die Testing-Regel, sonst zeigt die Regel keine Wirkung.**
+- Ein neuer Test kopiert das Muster der Tests, die schon im Projekt liegen.
+- Eine sequentielle Test-Suite im Projekt erzeugt deshalb die nächste sequentielle Test-Suite.
 
-### Step 1 — Read the standard
+### Step 1 — Den Standard lesen
 
-**The testing standard is read each run.**
-- Main reads `shared-rules/global/testing`, § Aufbau von Tests, and extracts the concrete standards.
+**Der Testing-Standard wird bei jedem Lauf gelesen.**
+- Main liest `shared-rules/global/testing`, § Aufbau von Tests, und zieht die konkreten Standards heraus.
 
 ### Step 2 — Scan
 
-**Main scans every test file and every test runner in scope.**
-- Test runners include the runner module a test file imports and every script that launches test files, such as a `package.json` script or a shell loop.
+**Main scannt jede Testdatei und jeden Test-Runner im Scope.**
+- Zu den Test-Runnern gehören das Runner-Modul, das eine Testdatei importiert, und jedes Skript, das Testdateien startet, etwa ein Skript in `package.json` oder eine Shell-Schleife.
 
-**Each of these is a hit.**
-- Independent test cases run one after another, for example a loop that awaits each case before starting the next.
-- Independent test files or suites are launched one after another, for example `for f in verify-*.mjs`.
-- Parallel strands share a port, a cache directory, or a file.
-- A strand runs on after its first failure instead of stopping.
-- A repeat count is raised inside a run instead of being fixed before the run.
+**Jeder der folgenden Fälle ist ein Treffer.**
+- Unabhängige Testfälle laufen nacheinander, zum Beispiel in einer Schleife, die jeden Fall abwartet, bevor sie den nächsten startet.
+- Unabhängige Testdateien oder Suiten werden nacheinander gestartet, zum Beispiel mit `for f in verify-*.mjs`.
+- Parallele Stränge teilen sich einen Port, einen Cache-Ordner oder eine Datei.
+- Ein Strang läuft nach seinem ersten Fehlschlag weiter, statt abzubrechen.
+- Eine Wiederholungszahl wird während eines Laufs erhöht, statt vor dem Lauf festzustehen.
 
 ### Step 3 — Dispatch
 
-**The worker restructures the tests and runners to the standard.**
-- The prompt carries § Aufbau von Tests as the standard, and the hit list file by file.
-- The worker proves the restructured tests still pass, and shows wall-clock time before and after.
-- After merge, Main re-scans. Zero hits closes the Phase.
+**Der Worker baut die Tests und Runner nach dem Standard um.**
+- Der Prompt enthält § Aufbau von Tests als Standard und die Trefferliste Datei für Datei.
+- Der Worker belegt, dass die umgebauten Tests weiter bestehen, und zeigt die Laufzeit vorher und nachher.
+- Nach dem Merge scannt Main erneut. Null Treffer schließen die Phase.
 
-## Phase 4 — Doc Structure
+## Phase 4 — Struktur der Doku
 
-### Step 1 — Check
+### Step 1 — Prüfung
 
-**Phase 3 is merged before the check runs, and is merged now if it is not.**
+**Phase 3 ist gemergt, bevor die Prüfung läuft, und wird jetzt gemergt, falls nicht.**
 
-**Every `DOCS.md` in scope is checked against the 400-line threshold.**
-- 400 lines or more splits its directory into unit subfolders.
-- Under 400 lines the directory stays flat.
+**Jede `DOCS.md` im Scope wird gegen den Schwellenwert von 400 Zeilen geprüft.**
+- Ab 400 Zeilen wird ihr Verzeichnis in Unterordner pro Einheit aufgeteilt.
+- Unter 400 Zeilen bleibt das Verzeichnis flach.
 
-**A unit is one entry script plus the modules reached only by that script's import closure.**
-- An entry script is a module that no other module in the directory imports.
-- A module reached by two or more closures is shared.
-- A module reached by no closure is unowned, and the user decides it.
-- `__init__.py` is skipped.
+**Eine Einheit ist ein Einstiegsskript plus die Module, die nur über die Import-Hülle dieses Skripts erreicht werden.**
+- Ein Einstiegsskript ist ein Modul, das kein anderes Modul im Verzeichnis importiert.
+- Ein Modul, das von zwei oder mehr Import-Hüllen erreicht wird, ist geteilt.
+- Ein Modul, das von keiner Import-Hülle erreicht wird, hat keinen Besitzer, und der User entscheidet darüber.
+- `__init__.py` wird übersprungen.
 
 ### Step 2 — Plan
 
-**Main plans the split before any file moves.**
-- A unit holding one or more exclusive modules moves into `<unit>/`, named after its entry script without the number prefix.
-- A unit holding no exclusive module stays as a single file at the area root, and so does every shared module.
-- The entry script keeps its number.
+**Main plant den Split, bevor irgendeine Datei verschoben wird.**
+- Eine Einheit mit einem oder mehr exklusiven Modulen wandert nach `<unit>/`, benannt nach ihrem Einstiegsskript ohne das Nummern-Präfix.
+- Eine Einheit ohne exklusives Modul bleibt als einzelne Datei in der Area-Wurzel, ebenso jedes geteilte Modul.
+- Das Einstiegsskript behält seine Nummer.
 
-**Output directories stay at the area root and never move.**
-- `md/`, `png/`, `csv/`, `data/` and `npz/` are the area's bus, read across units.
+**Ausgabeverzeichnisse bleiben in der Area-Wurzel und wandern nie.**
+- `md/`, `png/`, `csv/`, `data/` und `npz/` sind der Bus der Area und werden über Einheiten hinweg gelesen.
 
-**Depth-dependent path resolution is removed before any move.**
-- Every `parents[N]` walk on `__file__` is replaced by a resolution independent of the module's depth.
-- Every output path is anchored at the area root, never at the module's own directory.
+**Pfadauflösung, die von der Tiefe abhängt, wird vor jedem Verschieben entfernt.**
+- Jeder `parents[N]`-Walk auf `__file__` wird durch eine Auflösung ersetzt, die unabhängig von der Tiefe des Moduls ist.
+- Jeder Ausgabepfad ist an der Area-Wurzel verankert, nie am eigenen Verzeichnis des Moduls.
 
-**Every new subfolder gets its own `DOCS.md`.**
-- The area `DOCS.md` keeps Role, Flow, the shared modules, the single-file units, and one line per subfolder.
+**Jeder neue Unterordner bekommt seine eigene `DOCS.md`.**
+- Die `DOCS.md` der Area behält Role, Flow, die geteilten Module, die Einheiten aus einer einzelnen Datei und eine Zeile pro Unterordner.
 
 ### Step 3 — Dispatch
 
-**The worker executes the plan.**
-- After merge, Main re-checks. Every `DOCS.md` under 400 lines closes the Step.
+**Der Worker führt den Plan aus.**
+- Nach dem Merge prüft Main erneut. Jede `DOCS.md` unter 400 Zeilen schließt den Step.
 
-### Step 4 — Doc-Drift Check
+### Step 4 — Doc-Drift-Check
 
-**Workers update the touched DOCS.md with their change.**
+**Worker aktualisieren die berührte DOCS.md zusammen mit ihrer Änderung.**
 
-**One drift check closes the autonomous part.**
-- After Step 3 is merged, `docs-drift-check` runs once in the cwd.
-- Residual drift goes to a worker, then the consolidated summary goes to the user and Phase 5 begins.
+**Ein einziger Drift-Check schließt den autonomen Teil ab.**
+- Nachdem Step 3 gemergt ist, läuft `docs-drift-check` einmal im cwd.
+- Verbleibender Drift geht an einen Worker, danach geht die konsolidierte Zusammenfassung an den User, und Phase 5 beginnt.
 
-**The drift findings, file by file, belong in the worker prompt.**
+**Die Drift-Befunde gehören Datei für Datei in den Worker-Prompt.**
 
-## Phase 5 — Control-Flow Integrity
+## Phase 5 — Integrität des Kontrollflusses
 
-### Step 1 — Main scans
+### Step 1 — Main scannt
 
-**Main finds every branch § Fallback and Tripwire covers, and classifies nothing.**
+**Main findet jeden Zweig, den § Fallback und Tripwire abdeckt, und klassifiziert nichts.**
 
-### Step 2 — The worker scans
+### Step 2 — Der Worker scannt
 
-**The worker scans the same scope independently.**
-- The prompt carries § Fallback and Tripwire as the standard, and "classify nothing, fix nothing".
+**Der Worker scannt denselben Scope unabhängig.**
+- Der Prompt enthält § Fallback und Tripwire als Standard und die Vorgabe "nichts klassifizieren, nichts beheben".
 
-### Step 3 — Report
+### Step 3 — Bericht
 
-**The combined list goes to the user.**
-- Every step from there is decided with the user.
+**Die zusammengeführte Liste geht an den User.**
+- Jeder weitere Schritt ab hier wird mit dem User entschieden.
