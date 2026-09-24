@@ -7,7 +7,7 @@ tmux/worktree/branch/registry cleanup sweep.
 
 ## Modules
 
-### test_janitor.sh (149 LOC)
+### test_janitor.sh (127 LOC)
 
 **Purpose:** Exercise the real `worker-cli janitor` binary against real tmux sessions in a
 throwaway git repo, with `WORKER_REGISTRY_DIR`/`WORKER_LOGGER_DIR` overrides. Covers:

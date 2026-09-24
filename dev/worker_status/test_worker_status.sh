@@ -1,34 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SELF_DIR/../.." && pwd)"
 SPAWN="$PLUGIN_ROOT/src/spawn/tmux_spawn.sh"
-HOOKS_FILE="$HOME/Library/Application Support/com.brunowinter.monitor-cc-menubar/hooks.json"
-HOOKS_BACKUP="/tmp/status-test-hooks-backup-$$.json"
-RESULT=0
-TEST_TAG="statustest$$"
 
-pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1"; RESULT=1; }
-
-backup_hooks() {
-    if [ -f "$HOOKS_FILE" ]; then
-        cp "$HOOKS_FILE" "$HOOKS_BACKUP"
-    else
-        : > "$HOOKS_BACKUP.missing"
-        mkdir -p "$(dirname "$HOOKS_FILE")"
-        echo '{}' > "$HOOKS_FILE"
-    fi
-}
-
-restore_hooks() {
-    if [ -f "$HOOKS_BACKUP" ]; then
-        mv "$HOOKS_BACKUP" "$HOOKS_FILE"
-    elif [ -f "$HOOKS_BACKUP.missing" ]; then
-        rm -f "$HOOKS_FILE" "$HOOKS_BACKUP.missing"
-    fi
-}
+source "$SELF_DIR/../strand_runner.sh"
 
 set_hook_status() {
     local session_id="$1" status="$2" cwd="$3"
@@ -240,123 +217,139 @@ check_status() {
     fi
 }
 
-cleanup_all() {
-    destroy_worker w1 "/tmp/${TEST_TAG}-1" "${TEST_TAG}-sess-1" 2>/dev/null || true
-    destroy_worker w1 "/tmp/${TEST_TAG}-2" "${TEST_TAG}-sess-2" 2>/dev/null || true
-    destroy_worker w1 "/tmp/${TEST_TAG}-3" "${TEST_TAG}-sess-3" 2>/dev/null || true
-    destroy_worker w1 "/tmp/${TEST_TAG}-4" "${TEST_TAG}-sess-4" 2>/dev/null || true
-    destroy_worker w1 "/tmp/${TEST_TAG}-5" "${TEST_TAG}-sess-5" 2>/dev/null || true
-    destroy_worker w1 "/tmp/${TEST_TAG}-6" "" 2>/dev/null || true
-    destroy_worker w1 "/tmp/${TEST_TAG}-7" "${TEST_TAG}-sess-7" 2>/dev/null || true
-    destroy_worker w1 "/tmp/${TEST_TAG}-8" "" 2>/dev/null || true
-    destroy_worker w1 "/tmp/${TEST_TAG}-9" "${TEST_TAG}-sess-9" 2>/dev/null || true
-    destroy_worker w1 "/tmp/${TEST_TAG}-10" "${TEST_TAG}-sess-10" 2>/dev/null || true
-    destroy_worker w1 "/tmp/${TEST_TAG}-11" "${TEST_TAG}-sess-11" 2>/dev/null || true
-    restore_hooks
+strand_init() {
+    HOOKS_FILE="$HOME/Library/Application Support/com.brunowinter.monitor-cc-menubar/hooks.json"
+    mkdir -p "$(dirname "$HOOKS_FILE")"
+    echo '{}' > "$HOOKS_FILE"
+    TEST_TAG="statustest$$${STRAND_NAME}"
 }
-trap cleanup_all EXIT
 
-backup_hooks
+strand_cleanup() {
+    rm -rf /tmp/${TEST_TAG}-*
+}
 
-echo "=== _worker_detect_status — integration tests (working/idle/dead vocabulary) ==="
+strand_t1() {
+    PROJ1="/tmp/${TEST_TAG}-1"
+    SID1="${TEST_TAG}-sess-1"
+    SESSION1=$(create_worker w1 "$PROJ1" "$SID1" idle 0)
+    check_status "test1 hook-idle-quiet" "$SESSION1" "idle"
+    destroy_worker w1 "$PROJ1" "$SID1"
+}
 
-PROJ1="/tmp/${TEST_TAG}-1"
-SID1="${TEST_TAG}-sess-1"
-SESSION1=$(create_worker w1 "$PROJ1" "$SID1" idle 0)
-check_status "test1 hook-idle-quiet" "$SESSION1" "idle"
-destroy_worker w1 "$PROJ1" "$SID1"
+strand_t2() {
+    PROJ2="/tmp/${TEST_TAG}-2"
+    SID2="${TEST_TAG}-sess-2"
+    SESSION2=$(create_worker w1 "$PROJ2" "$SID2" working 0 1)
+    check_status "test2 hook-working-chatty" "$SESSION2" "working"
+    go_quiet "$PROJ2"
+    destroy_worker w1 "$PROJ2" "$SID2"
+}
 
-PROJ2="/tmp/${TEST_TAG}-2"
-SID2="${TEST_TAG}-sess-2"
-SESSION2=$(create_worker w1 "$PROJ2" "$SID2" working 0 1)
-check_status "test2 hook-working-chatty" "$SESSION2" "working"
-go_quiet "$PROJ2"
-destroy_worker w1 "$PROJ2" "$SID2"
+strand_t3() {
+    PROJ3="/tmp/${TEST_TAG}-3"
+    SID3="${TEST_TAG}-sess-3"
+    SESSION3=$(create_worker w1 "$PROJ3" "$SID3" working 0)
+    sleep 11
+    check_status "test3 esc-interrupt-quiet-over-10s" "$SESSION3" "idle"
+    destroy_worker w1 "$PROJ3" "$SID3"
+}
 
-PROJ3="/tmp/${TEST_TAG}-3"
-SID3="${TEST_TAG}-sess-3"
-SESSION3=$(create_worker w1 "$PROJ3" "$SID3" working 0)
-sleep 11
-check_status "test3 esc-interrupt-quiet-over-10s" "$SESSION3" "idle"
-destroy_worker w1 "$PROJ3" "$SID3"
+strand_t4() {
+    PROJ4="/tmp/${TEST_TAG}-4"
+    SID4="${TEST_TAG}-sess-4"
+    SESSION4=$(create_worker w1 "$PROJ4" "$SID4" idle 0 1)
+    delete_hook_entry "$SID4"
+    check_status "test4 no-hook-entry-chatty" "$SESSION4" "working"
+    go_quiet "$PROJ4"
+    destroy_worker w1 "$PROJ4" "$SID4"
+}
 
-PROJ4="/tmp/${TEST_TAG}-4"
-SID4="${TEST_TAG}-sess-4"
-SESSION4=$(create_worker w1 "$PROJ4" "$SID4" idle 0 1)
-delete_hook_entry "$SID4"
-check_status "test4 no-hook-entry-chatty" "$SESSION4" "working"
-go_quiet "$PROJ4"
-destroy_worker w1 "$PROJ4" "$SID4"
+strand_t5() {
+    PROJ5="/tmp/${TEST_TAG}-5"
+    SID5="${TEST_TAG}-sess-5"
+    SESSION5=$(create_worker w1 "$PROJ5" "$SID5" idle 0)
+    delete_hook_entry "$SID5"
+    sleep 11
+    check_status "test5 no-hook-entry-quiet" "$SESSION5" "idle"
+    destroy_worker w1 "$PROJ5" "$SID5"
+}
 
-PROJ5="/tmp/${TEST_TAG}-5"
-SID5="${TEST_TAG}-sess-5"
-SESSION5=$(create_worker w1 "$PROJ5" "$SID5" idle 0)
-delete_hook_entry "$SID5"
-sleep 11
-check_status "test5 no-hook-entry-quiet" "$SESSION5" "idle"
-destroy_worker w1 "$PROJ5" "$SID5"
+strand_t6() {
+    PROJ6="/tmp/${TEST_TAG}-6"
+    SESSION6=$(create_worker_no_jsonl w1 "$PROJ6")
+    check_status "test6 no-jsonl-fresh-spawn" "$SESSION6" "working"
+    destroy_worker w1 "$PROJ6" ""
+}
 
-PROJ6="/tmp/${TEST_TAG}-6"
-SESSION6=$(create_worker_no_jsonl w1 "$PROJ6")
-check_status "test6 no-jsonl-fresh-spawn" "$SESSION6" "working"
-destroy_worker w1 "$PROJ6" ""
+strand_t7() {
+    PROJ7="/tmp/${TEST_TAG}-7"
+    SID7="${TEST_TAG}-sess-7"
+    SESSION7=$(create_worker w1 "$PROJ7" "$SID7" working 0)
+    kill_claude_child "$PROJ7"
+    sleep 1
+    check_status "test7 claude-child-killed" "$SESSION7" "dead"
+    destroy_worker w1 "$PROJ7" "$SID7"
+}
 
-PROJ7="/tmp/${TEST_TAG}-7"
-SID7="${TEST_TAG}-sess-7"
-SESSION7=$(create_worker w1 "$PROJ7" "$SID7" working 0)
-kill_claude_child "$PROJ7"
-sleep 1
-check_status "test7 claude-child-killed" "$SESSION7" "dead"
-destroy_worker w1 "$PROJ7" "$SID7"
+strand_t8() {
+    PROJ8="/tmp/${TEST_TAG}-8"
+    SESSION8=$(create_worker_limit_reached w1 "$PROJ8")
+    check_status "test8 pane-dead" "$SESSION8" "dead"
+    destroy_worker w1 "$PROJ8" ""
+}
 
-PROJ8="/tmp/${TEST_TAG}-8"
-SESSION8=$(create_worker_limit_reached w1 "$PROJ8")
-check_status "test8 pane-dead" "$SESSION8" "dead"
-destroy_worker w1 "$PROJ8" ""
+strand_t9() {
+    PROJ9="/tmp/${TEST_TAG}-9"
+    SID9="${TEST_TAG}-sess-9"
+    create_worker w1 "$PROJ9" "$SID9" working 0 >/dev/null
+    tmux kill-session -t "worker-$(basename "$PROJ9")-w1" 2>/dev/null || true
+    STATUS9=$(bash -c "source \"$SPAWN\" && worker_status \"\$1\" \"\$2\"" _ w1 "$PROJ9" 2>/dev/null || echo "ERROR")
+    if [ "$STATUS9" = "dead" ]; then
+        pass "test9 session-killed-via-worker-status: got '$STATUS9'"
+    else
+        fail "test9 session-killed-via-worker-status: got '$STATUS9' (expected 'dead')"
+    fi
+    destroy_worker w1 "$PROJ9" "$SID9"
+}
 
-PROJ9="/tmp/${TEST_TAG}-9"
-SID9="${TEST_TAG}-sess-9"
-create_worker w1 "$PROJ9" "$SID9" working 0 >/dev/null
-tmux kill-session -t "worker-$(basename "$PROJ9")-w1" 2>/dev/null || true
-STATUS9=$(bash -c "source \"$SPAWN\" && worker_status \"\$1\" \"\$2\"" _ w1 "$PROJ9" 2>/dev/null || echo "ERROR")
-if [ "$STATUS9" = "dead" ]; then
-    pass "test9 session-killed-via-worker-status: got '$STATUS9'"
-else
-    fail "test9 session-killed-via-worker-status: got '$STATUS9' (expected 'dead')"
-fi
-destroy_worker w1 "$PROJ9" "$SID9"
+strand_t10() {
+    PROJ10="/tmp/${TEST_TAG}-10"
+    SID10="${TEST_TAG}-sess-10"
+    SESSION10=$(create_worker w1 "$PROJ10" "$SID10" idle 0)
+    write_synthetic_marker_jsonl "$PROJ10" "$SID10"
+    check_status "test10 synthetic-context-limit-marker" "$SESSION10" "dead"
+    destroy_worker w1 "$PROJ10" "$SID10"
+}
 
-PROJ10="/tmp/${TEST_TAG}-10"
-SID10="${TEST_TAG}-sess-10"
-SESSION10=$(create_worker w1 "$PROJ10" "$SID10" idle 0)
-write_synthetic_marker_jsonl "$PROJ10" "$SID10"
-check_status "test10 synthetic-context-limit-marker" "$SESSION10" "dead"
-destroy_worker w1 "$PROJ10" "$SID10"
+strand_t11() {
+    PROJ11="/tmp/${TEST_TAG}-11"
+    SID11="${TEST_TAG}-sess-11"
+    SESSION11=$(create_worker w1 "$PROJ11" "$SID11" working 0)
+    write_normal_assistant_jsonl "$PROJ11" "$SID11"
+    sleep 11
+    check_status "test11 normal-aborted-message-not-dead" "$SESSION11" "idle"
+    destroy_worker w1 "$PROJ11" "$SID11"
+}
 
-PROJ11="/tmp/${TEST_TAG}-11"
-SID11="${TEST_TAG}-sess-11"
-SESSION11=$(create_worker w1 "$PROJ11" "$SID11" working 0)
-write_normal_assistant_jsonl "$PROJ11" "$SID11"
-sleep 11
-check_status "test11 normal-aborted-message-not-dead" "$SESSION11" "idle"
-destroy_worker w1 "$PROJ11" "$SID11"
+strand_greps() {
+    STATUS_FILE="$PLUGIN_ROOT/src/spawn/worker_status.sh"
+    if grep -q '^_worker_detect_status()' "$STATUS_FILE" 2>/dev/null; then
+        pass "grep: _worker_detect_status is defined in worker_status.sh (retired-string checks scan real code)"
+    else
+        fail "grep: _worker_detect_status not found in worker_status.sh"
+    fi
+    if grep -q "limit reached" "$STATUS_FILE" 2>/dev/null; then
+        fail "grep: 'limit reached' still present in worker_status.sh"
+    else
+        pass "grep: 'limit reached' no longer present in worker_status.sh"
+    fi
+    if grep -qF 'echo "unknown"' "$STATUS_FILE" 2>/dev/null; then
+        fail 'grep: echo "unknown" still present in worker_status.sh'
+    else
+        pass 'grep: echo "unknown" no longer present in worker_status.sh'
+    fi
+}
 
-STATUS_FILE="$PLUGIN_ROOT/src/spawn/worker_status.sh"
-if grep -q '^_worker_detect_status()' "$STATUS_FILE" 2>/dev/null; then
-    pass "grep: _worker_detect_status is defined in worker_status.sh (retired-string checks scan real code)"
-else
-    fail "grep: _worker_detect_status not found in worker_status.sh"
-fi
-if grep -q "limit reached" "$STATUS_FILE" 2>/dev/null; then
-    fail "grep: 'limit reached' still present in worker_status.sh"
-else
-    pass "grep: 'limit reached' no longer present in worker_status.sh"
-fi
-if grep -qF 'echo "unknown"' "$STATUS_FILE" 2>/dev/null; then
-    fail 'grep: echo "unknown" still present in worker_status.sh'
-else
-    pass 'grep: echo "unknown" no longer present in worker_status.sh'
-fi
+STRANDS=(t1 t2 t3 t4 t5 t6 t7 t8 t9 t10 t11 greps)
 
-echo "=== $([ $RESULT -eq 0 ] && echo ALL PASSED || echo SOME FAILED) ==="
-exit $RESULT
+strand_main "$@"

@@ -14,7 +14,7 @@ Fixture definitions → one temp project per case, all cases in parallel → wra
 
 ## Modules
 
-### test_docs_drift_check.py (224 LOC)
+### test_docs_drift_check.py (223 LOC)
 
 **Purpose:** Fixture-based regression cases for path, LOC and rule checks, scope exclusions and cwd independence.
 **Reads:** nothing external; builds its own temp projects.

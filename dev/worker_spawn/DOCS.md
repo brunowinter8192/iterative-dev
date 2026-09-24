@@ -14,7 +14,7 @@ No shared input — each script drives `src/spawn/` (directly or via `bin/worker
 
 ## Modules
 
-### test_capture_clean.py (149 LOC)
+### test_capture_clean.py (156 LOC)
 
 **Purpose:** Fixture-based smoke for `src/spawn/_capture_clean.py`.
 **Reads:** nothing external — writes its own fixture to a temp file.
@@ -24,7 +24,7 @@ No shared input — each script drives `src/spawn/` (directly or via `bin/worker
 
 ---
 
-### test_direct_command.sh (45 LOC)
+### test_direct_command.sh (28 LOC)
 
 **Purpose:** Verifies tmux session inherits env vars (GH_TOKEN, PATH) when using direct command arg.
 **Reads:** ambient env vars (GH_TOKEN, PATH).
@@ -34,7 +34,7 @@ No shared input — each script drives `src/spawn/` (directly or via `bin/worker
 
 ---
 
-### test_spawn_flow.sh (182 LOC)
+### test_spawn_flow.sh (158 LOC)
 
 **Purpose:** Tests the full spawn flow without starting a real Claude Code session (dummy command instead of `claude-patched`).
 **Reads:** `src/spawn/tmux_spawn.sh` (sourced).
@@ -44,7 +44,7 @@ No shared input — each script drives `src/spawn/` (directly or via `bin/worker
 
 ---
 
-### test_xproject_worktrees.sh (173 LOC)
+### test_xproject_worktrees.sh (159 LOC)
 
 **Purpose:** Smoke test for cross-project worktree tracking in `worker-cli`.
 **Reads:** nothing persistent — uses `WORKER_REGISTRY_DIR` + throwaway git repos.

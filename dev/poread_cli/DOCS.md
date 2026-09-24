@@ -14,7 +14,7 @@ No CLI input — drives `main()` directly against temp fixtures for each boundar
 
 ## Modules
 
-### test_poread_cli.py (132 LOC)
+### test_poread_cli.py (122 LOC)
 
 **Purpose:** Unit-level regression guard for `main()`'s five boundary cases, asserted against a pinned literal copy of the marker contract (not imported from the module under test).
 **Reads:** nothing external — builds its own temp files/directories per test, cleans them up.

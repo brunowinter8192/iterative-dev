@@ -6,12 +6,12 @@ Tests for worker status detection (`_worker_detect_status` in `src/spawn/worker_
 
 ## Modules
 
-### test_status_detection.sh (49 LOC)
+### test_status_detection.sh (31 LOC)
 
 **Purpose:** Verify tmux `#{pane_dead}` transitions from 0→1 after process exits (remain-on-exit mode).
 **Usage:** `bash dev/worker_status/test_status_detection.sh`
 
-### test_worker_status.sh (362 LOC)
+### test_worker_status.sh (355 LOC)
 
 **Purpose:** Integration coverage for the closed three-value status vocabulary
 (`working`/`idle`/`dead`, 2026-09-02) that replaced `working`/`idle`/`"limit reached"`/

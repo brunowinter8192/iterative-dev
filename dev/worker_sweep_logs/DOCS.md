@@ -9,7 +9,7 @@ the two share no code, no log file, and no naming.
 
 ## Modules
 
-### test_sweep_logs.sh (151 LOC)
+### test_sweep_logs.sh (148 LOC)
 
 **Purpose:** Exercise the real `worker-cli sweep-logs` binary, and the real
 `_start_worker_logger` auto-trigger, against a throwaway `WORKER_LOGGER_DIR`. Covers:

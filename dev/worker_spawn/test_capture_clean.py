@@ -5,6 +5,11 @@ import os
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from dev.strand_runner import run_strands
 
 SCRIPT = os.path.join(os.path.dirname(__file__), '../../src/spawn/_capture_clean.py')
 
@@ -54,15 +59,13 @@ FIXTURE = (
 # ORCHESTRATOR
 
 def test_capture_clean_workflow():
-    output = _run_script(FIXTURE, 'testworker')
-    failures = _assert_cases(output)
-    print()
-    if failures:
-        print(f'FAILED: {len(failures)} assertion(s):')
-        for f in failures:
-            print(f'  {f}')
-        sys.exit(1)
-    print('All assertions passed.')
+    cases = {
+        "basic_output": case_basic_output,
+        "stripped_lines": case_stripped_lines,
+        "kept_lines": case_kept_lines,
+    }
+    code, _ = run_strands(cases, sys.argv[1:])
+    return code
 
 
 # FUNCTIONS
@@ -85,18 +88,22 @@ def _run_script(fixture_text, worker_name):
             os.unlink(pane_file)
 
 
-def _assert_cases(output):
-    failures = []
+def _check(label, cond, detail=''):
+    if not cond:
+        raise AssertionError(f'{label}{": " + detail if detail else ""}')
+    print(f'  PASS: {label}')
 
-    def check(label, cond, detail=''):
-        if not cond:
-            failures.append(f'{label}{": " + detail if detail else ""}')
 
-    _check_basic_output(output, check)
-    _check_stripped_lines(output, check)
-    _check_kept_lines(output, check)
+def case_basic_output():
+    _check_basic_output(_run_script(FIXTURE, 'testworker'), _check)
 
-    return failures
+
+def case_stripped_lines():
+    _check_stripped_lines(_run_script(FIXTURE, 'testworker'), _check)
+
+
+def case_kept_lines():
+    _check_kept_lines(_run_script(FIXTURE, 'testworker'), _check)
 
 
 def _check_basic_output(output, check):
@@ -146,4 +153,4 @@ def _check_kept_lines(output, check):
 
 
 if __name__ == '__main__':
-    test_capture_clean_workflow()
+    sys.exit(test_capture_clean_workflow())

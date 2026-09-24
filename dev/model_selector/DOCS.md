@@ -16,7 +16,7 @@ No CLI input — each script drives the real `_resolve_worker_model()` (bash and
 
 ## Modules
 
-### verify_worker_model_precedence.sh (199 LOC)
+### verify_worker_model_precedence.sh (185 LOC)
 
 **Purpose:** Verifies the spawn library's `_resolve_worker_model()`, its 3 call-site expansion patterns (wiring checked statically in `tmux_spawn.sh` and `worker_revive.sh`), and a real `bin/worker-cli spawn` subprocess entry point.
 **Reads:** nothing persistent — all config cases use a `mktemp -d` path via `MODEL_SELECTION_FILE`.
@@ -26,7 +26,7 @@ No CLI input — each script drives the real `_resolve_worker_model()` (bash and
 
 ---
 
-### verify_spawn_model_resolution.py (118 LOC)
+### verify_spawn_model_resolution.py (159 LOC)
 
 **Purpose:** Verifies `spawn.py`'s `_resolve_worker_model()` config-resolution cases and confirms argparse's omitted-arg default never leaks the string `"None"`.
 **Reads:** nothing persistent — all config cases use a `tempfile.TemporaryDirectory()`.

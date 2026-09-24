@@ -196,3 +196,105 @@ test_worker_status.sh
   quiet > 10s) reads idle, 4/5 no hook entry chatty vs quiet, 6 no JSONL reads working, 7 killed
   claude child dead, 8 pane dead, 9 killed session via worker_status dead (worker_status gates
   on has-session itself), 10 synthetic marker dead, 11 ordinary aborted message idle.
+
+# Phase 3 (test structure of dev/), 2026-09-25, base integration c14831e
+
+## Design
+
+- dev/strand_runner.sh (sourced by every shell suite) and dev/strand_runner.py (Python suites)
+  run each independent case as a strand in parallel. A suite declares `STRANDS=(...)`, defines
+  one function `strand_<name>` per strand and ends with `strand_main "$@"`. Arguments select
+  strands: `bash suite.sh conflict` re-runs only that strand.
+- Fail-fast: `fail` prints and `exit 1` inside the strand subshell (`check` and `pass` are the
+  shared helpers); a failing strand stops at its first failure, the other strands keep
+  running, the suite exits 1 if any strand failed. In Python a failed assert raises and ends
+  that strand only.
+- Isolation per shell strand, no production change: HOME, WORKER_LOGGER_DIR and
+  WORKER_REGISTRY_DIR point into a private mktemp dir; a PATH-shadowing tmux wrapper pins the
+  strand to its own `tmux -L` server (with TMUX unset); git identity is exported through env.
+  Because hooks.json (src/spawn/worker_status.sh), ~/.claude/projects and the default log dir
+  all hang off $HOME, each strand has its own hooks.json without a WORKER_HOOKS_FILE override.
+  The src/ override was proposed as a fallback and was not needed.
+- Optional per-suite hooks: `strand_init` (runs inside the strand after the isolation) and
+  `strand_cleanup` (runs from the EXIT trap, also after a fail-fast exit).
+- Python runner uses a process pool (not threads): redirect_stdout and monkeypatching a module
+  attribute are process-global. Case functions and the runner live at module top level so the
+  spawn start method can pickle them; run_strands returns (exit_code, outputs) so a suite can
+  still assemble its report file.
+- One run per suite, no repetitions; a flake is reported, not re-run.
+
+## Findings while converting (observed, each cost time)
+
+- HOME override changes worker-cli's plugin fallback: without CLAUDE_PLUGIN_ROOT, bin/worker-cli
+  resolves $HOME/.claude/plugins/cache/... (the INSTALLED copy). The janitor suite never set
+  CLAUDE_PLUGIN_ROOT, so it had been testing the installed plugin copy, not the checkout. Under
+  the fake HOME the janitor read "working" for every session (source of a missing file failed,
+  the fallback answers working). Every suite that runs bin/worker-cli now exports
+  CLAUDE_PLUGIN_ROOT to the checkout.
+- Hidden case dependency: in test_sweep_logs.sh the fresh file of case 2 was created by case 1.
+  Run as its own strand the case reported "stale file removed" as PASS although the stale file
+  had never existed (a vacuous pass) and then failed on the missing fresh file. Fixed by giving
+  each case its own fixture. Cases 1+2 of merge, and 1+2 of xproject (kill uses the cross-project
+  worktree of case 1) are really dependent and stay together in one strand.
+- Race on a fixed sleep: the sweep-logs case that starts the real worker logger checked for the
+  new log file after `sleep 1`. Under 5 parallel strands the detached logger needed longer; the
+  check now polls up to 10s for the file.
+- test_worker_wait Test 6 strips /usr/sbin from PATH to make lsof unresolvable. Replacing PATH
+  wholesale also drops the tmux wrapper, so the strand would have talked to the default tmux
+  server and "passed" vacuously with timeout. PATH now keeps "$STRAND_DIR/bin" first.
+- The wait trace: with a private WORKER_LOGGER_DIR per strand the byte-offset diff and the
+  project= grep against the shared wait_trace.log are no longer needed for isolation (the
+  project= grep stays, it is harmless and pins the assertion to the test's own project).
+- test_direct_command.sh asserted `GH_TOKEN=ghp_` in the pane, i.e. it depended on the
+  developer's real token. It now exports its own probe variable and asserts that it is inherited.
+- Two PASS lines the old suites printed were environment checks, not code checks: spawn_flow
+  Test 2 ("proxy marker exists") only proved that a monitor-cc proxy was running.
+
+## test_spawn_flow.sh: why 3 of 7 failed, and the rebuild
+
+1. TEST_PROJECT was .../ai/Monitor_CC (does not exist; the repo is monitor-cc).
+2. The proxy marker /tmp/.monitor_cc_proxy_<md5> and /tmp/.monitor_cc_root exist only while a
+   monitor-cc proxy session runs for that exact project. Tests 2 and 3 measured the machine.
+3. The mock was named claude-patched on PATH, but spawn_claude_worker runs
+   ${CLAUDE_BIN:-$HOME/.local/bin/claude-280}. The mock never ran; a real claude-280 started
+   (token cost) in a nonexistent directory, hence "mock claude not found in pane".
+4. spawn_claude_worker opens a Ghostty window in the background; --no-ghostty only covered Test 1.
+5. The old mock did not print the `❯` prompt that _wait_for_input_ready waits for, so even a
+   working mock would have hit the 30s timeout.
+
+Rebuild (3 strands, all pass): viewer (open_tmux_viewer with stubbed ghostty/osascript/open, asserts
+the tmux attach command reaches the launcher and returns fast), proxy (real _worker_proxy_setup
+against a fixture marker + fake monitor root; only mitmdump is a stub that binds the requested
+port, so port selection, wait-ready, env prefix, per-worker log file and cleanup are real; a real
+mitmdump/addon is NOT exercised), spawn (real spawn_claude_worker with CLAUDE_BIN pointing at a
+mock that prints the prompt line, viewer stubbed, project = throwaway git repo).
+Limit: nothing in dev/ verifies that the real mitmdump proxy actually intercepts traffic.
+
+## Runtime and counts (single runs, 2026-09-25)
+
+| suite | strands | result | before | after |
+|---|---|---|---|---|
+| worker_wait/test_worker_wait.sh | 15 | 15 pass (22 asserts, same as before) | 319s | 41s |
+| worker_status/test_worker_status.sh | 12 | 12 pass (14 asserts, +1 new grep) | 44s | 15s |
+| worker_status/test_status_detection.sh | 1 | pass | 4s | 4s |
+| worker_janitor/test_janitor.sh | 4 | pass (11) | 4s | 2s |
+| worker_merge/test_merge_verify.sh | 2 | pass (10) | 0s | 1s |
+| worker_sweep_logs/test_sweep_logs.sh | 5 | pass (12) | 2s | 2s |
+| worker_spawn/test_xproject_worktrees.sh | 3 | pass (14) | 0s | 1s |
+| worker_spawn/test_direct_command.sh | 1 | pass (2) | 2s | 1s |
+| worker_spawn/test_spawn_flow.sh | 3 | pass (10 checks) | not timed, 4 pass / 3 fail | 3s |
+| model_selector/verify_worker_model_precedence.sh | 4 | pass (16) | 5s | 3s |
+| poread_cli/test_poread_cli.py | 5 | pass | 0s | 0s |
+| worker_spawn/test_capture_clean.py | 3 | pass | 0s | 0s |
+| model_selector/verify_spawn_model_resolution.py | 6 | pass | 0s | 0s |
+| docs_drift_check/test_docs_drift_check.py | 16 (15 fixtures + missing-root) | pass | 1s | 1s |
+
+Parallelism is bounded by the slowest strand: wait now costs about its slowest test (Test 11).
+The wait and status suites no longer touch the real hooks.json; running them concurrently with
+another worker's suites needs no lock.
+
+## Not done / remaining
+
+- probe_* scripts and other experiments are out of scope by the findings.
+- The DOCS.md files of the dev areas still describe the old sequential/shared-hooks.json shape
+  until the Phase 4 rewrite.

@@ -7,7 +7,7 @@ built-in outcome verification, which replaced the orchestrator's by-hand post-me
 
 ## Modules
 
-### test_merge_verify.sh (133 LOC)
+### test_merge_verify.sh (126 LOC)
 
 **Purpose:** Exercise the real `worker-cli merge` binary against a throwaway git repo
 (explicit `project_path` argument, no registry entry, no tmux). Covers a real merge

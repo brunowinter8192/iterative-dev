@@ -1,173 +1,159 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-WCLI="$(cd "$(dirname "$0")/../.." && pwd)/bin/worker-cli"
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SELF_DIR/../.." && pwd)"
+WCLI="$PLUGIN_ROOT/bin/worker-cli"
+export CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT"
+source "$SELF_DIR/../strand_runner.sh"
 
-TMPREG=$(mktemp -d)
-TMPTARGET=$(mktemp -d)
-TMPSPAWN=$(mktemp -d)
+STRANDS=(worktree_then_kill list_skips_sidecars worktree_rm)
 
-export WORKER_REGISTRY_DIR="$TMPREG"
+commit_init() {
+    echo "init" > "$1/init.txt"
+    git -C "$1" add init.txt
+    git -C "$1" commit -m "init" -q
+}
 
-cleanup() { rm -rf "$TMPREG" "$TMPTARGET" "$TMPSPAWN"; }
-trap cleanup EXIT
+strand_worktree_then_kill() {
+    TMPTARGET="$STRAND_DIR/target"
+    TMPSPAWN="$STRAND_DIR/spawn"
+    mkdir -p "$TMPTARGET" "$TMPSPAWN"
+    git init "$TMPTARGET" -b main -q
+    commit_init "$TMPTARGET"
+    git init "$TMPSPAWN" -b main -q
+    commit_init "$TMPSPAWN"
 
-pass=0; fail=0
+    echo "=== Case 1: worker-cli worktree tw1 <target> ==="
 
-check() {
-    local label="$1" result="$2"
-    if [ "$result" = "ok" ]; then
-        echo "  PASS: $label"
-        ((pass++)) || true
+    OUTPUT=$("$WCLI" worktree tw1 "$TMPTARGET" 2>&1)
+    echo "  output: $OUTPUT"
+
+    if [ -d "$TMPTARGET/.claude/worktrees/tw1" ]; then
+        check "worktree dir exists in target" "ok"
     else
-        echo "  FAIL: $label — $result"
-        ((fail++)) || true
+        check "worktree dir exists in target" "not found at $TMPTARGET/.claude/worktrees/tw1"
+    fi
+
+    if git -C "$TMPTARGET" rev-parse --verify tw1 >/dev/null 2>&1; then
+        check "branch tw1 exists in target" "ok"
+    else
+        check "branch tw1 exists in target" "branch not found"
+    fi
+
+    if [ -f "$WORKER_REGISTRY_DIR/tw1.worktrees" ]; then
+        SIDECAR_CONTENT=$(cat "$WORKER_REGISTRY_DIR/tw1.worktrees")
+        if printf '%s' "$SIDECAR_CONTENT" | grep -qF "$TMPTARGET"; then
+            check "sidecar contains target path" "ok"
+        else
+            check "sidecar contains target path" "content was: $SIDECAR_CONTENT"
+        fi
+    else
+        check "sidecar file exists" "not found at $WORKER_REGISTRY_DIR/tw1.worktrees"
+    fi
+
+    echo "=== Case 2: worker-cli kill tw1 cleans both spawn + cross-project ==="
+
+    git -C "$TMPSPAWN" worktree add "$TMPSPAWN/.claude/worktrees/tw1" -b tw1 -q
+    echo "$TMPSPAWN" > "$WORKER_REGISTRY_DIR/tw1"
+
+    "$WCLI" kill tw1 2>&1 | sed 's/^/  /'
+
+    if [ ! -d "$TMPSPAWN/.claude/worktrees/tw1" ]; then
+        check "spawn worktree removed" "ok"
+    else
+        check "spawn worktree removed" "still exists at $TMPSPAWN/.claude/worktrees/tw1"
+    fi
+
+    if ! git -C "$TMPSPAWN" rev-parse --verify tw1 >/dev/null 2>&1; then
+        check "spawn branch deleted" "ok"
+    else
+        check "spawn branch deleted" "still exists"
+    fi
+
+    if [ ! -d "$TMPTARGET/.claude/worktrees/tw1" ]; then
+        check "cross-project worktree removed" "ok"
+    else
+        check "cross-project worktree removed" "still exists at $TMPTARGET/.claude/worktrees/tw1"
+    fi
+
+    if ! git -C "$TMPTARGET" rev-parse --verify tw1 >/dev/null 2>&1; then
+        check "cross-project branch deleted" "ok"
+    else
+        check "cross-project branch deleted" "still exists"
+    fi
+
+    if [ ! -f "$WORKER_REGISTRY_DIR/tw1.worktrees" ]; then
+        check "sidecar removed" "ok"
+    else
+        check "sidecar removed" "still exists"
+    fi
+
+    if [ ! -f "$WORKER_REGISTRY_DIR/tw1" ]; then
+        check "registry entry removed" "ok"
+    else
+        check "registry entry removed" "still exists"
     fi
 }
 
-git init "$TMPTARGET" -b main -q
-git -C "$TMPTARGET" commit --allow-empty -m "init" -q
+strand_list_skips_sidecars() {
+    echo "=== Case 3: list / status --all skip sidecar files ==="
 
-git init "$TMPSPAWN" -b main -q
-git -C "$TMPSPAWN" commit --allow-empty -m "init" -q
+    TMPSPAWN2="$STRAND_DIR/spawn2"; mkdir -p "$TMPSPAWN2"
+    git init "$TMPSPAWN2" -b main -q
+    commit_init "$TMPSPAWN2"
 
-echo "=== Case 1: worker-cli worktree tw1 <target> ==="
+    echo "$TMPSPAWN2" > "$WORKER_REGISTRY_DIR/realworker"
+    touch "$WORKER_REGISTRY_DIR/realworker.worktrees"
 
-OUTPUT=$("$WCLI" worktree tw1 "$TMPTARGET" 2>&1)
-echo "  output: $OUTPUT"
+    LIST_OUT=$("$WCLI" list 2>&1)
+    echo "  list output:"
+    echo "$LIST_OUT" | sed 's/^/    /'
 
-if [ -d "$TMPTARGET/.claude/worktrees/tw1" ]; then
-    check "worktree dir exists in target" "ok"
-else
-    check "worktree dir exists in target" "not found at $TMPTARGET/.claude/worktrees/tw1"
-fi
-
-if git -C "$TMPTARGET" rev-parse --verify tw1 >/dev/null 2>&1; then
-    check "branch tw1 exists in target" "ok"
-else
-    check "branch tw1 exists in target" "branch not found"
-fi
-
-if [ -f "$TMPREG/tw1.worktrees" ]; then
-    SIDECAR_CONTENT=$(cat "$TMPREG/tw1.worktrees")
-    if printf '%s' "$SIDECAR_CONTENT" | grep -qF "$TMPTARGET"; then
-        check "sidecar contains target path" "ok"
+    if echo "$LIST_OUT" | grep -qE "^realworker:"; then
+        check "list shows realworker" "ok"
     else
-        check "sidecar contains target path" "content was: $SIDECAR_CONTENT"
+        check "list shows realworker" "not found in list output"
     fi
-else
-    check "sidecar file exists" "not found at $TMPREG/tw1.worktrees"
-fi
 
-echo ""
-echo "=== Case 2: worker-cli kill tw1 cleans both spawn + cross-project ==="
+    if echo "$LIST_OUT" | grep -qE "^realworker\.worktrees:"; then
+        check "list does NOT show sidecar as worker" "sidecar appeared as worker"
+    else
+        check "list does NOT show sidecar as worker" "ok"
+    fi
 
-git -C "$TMPSPAWN" worktree add "$TMPSPAWN/.claude/worktrees/tw1" -b tw1 -q
-echo "$TMPSPAWN" > "$TMPREG/tw1"
+    STATUS_OUT=$("$WCLI" status --all 2>&1)
+    echo "  status --all output:"
+    echo "$STATUS_OUT" | sed 's/^/    /'
 
-"$WCLI" kill tw1 2>&1 | sed 's/^/  /'
+    if echo "$STATUS_OUT" | grep -qE "^realworker\.worktrees:"; then
+        check "status --all does NOT show sidecar as worker" "sidecar appeared as worker"
+    else
+        check "status --all does NOT show sidecar as worker" "ok"
+    fi
+}
 
-if [ ! -d "$TMPSPAWN/.claude/worktrees/tw1" ]; then
-    check "spawn worktree removed" "ok"
-else
-    check "spawn worktree removed" "still exists at $TMPSPAWN/.claude/worktrees/tw1"
-fi
+strand_worktree_rm() {
+    echo "=== Case 4: worktree-rm removes orphaned worktree + branch ==="
 
-if ! git -C "$TMPSPAWN" rev-parse --verify tw1 >/dev/null 2>&1; then
-    check "spawn branch deleted" "ok"
-else
-    check "spawn branch deleted" "still exists"
-fi
+    TMPTARGET2="$STRAND_DIR/target2"; mkdir -p "$TMPTARGET2"
+    git init "$TMPTARGET2" -b main -q
+    commit_init "$TMPTARGET2"
+    git -C "$TMPTARGET2" worktree add "$TMPTARGET2/.claude/worktrees/orphan" -b orphan -q
 
-if [ ! -d "$TMPTARGET/.claude/worktrees/tw1" ]; then
-    check "cross-project worktree removed" "ok"
-else
-    check "cross-project worktree removed" "still exists at $TMPTARGET/.claude/worktrees/tw1"
-fi
+    "$WCLI" worktree-rm "$TMPTARGET2" orphan 2>&1 | sed 's/^/  /'
 
-if ! git -C "$TMPTARGET" rev-parse --verify tw1 >/dev/null 2>&1; then
-    check "cross-project branch deleted" "ok"
-else
-    check "cross-project branch deleted" "still exists"
-fi
+    if [ ! -d "$TMPTARGET2/.claude/worktrees/orphan" ]; then
+        check "worktree-rm: worktree removed" "ok"
+    else
+        check "worktree-rm: worktree removed" "still exists"
+    fi
 
-if [ ! -f "$TMPREG/tw1.worktrees" ]; then
-    check "sidecar removed" "ok"
-else
-    check "sidecar removed" "still exists"
-fi
+    if ! git -C "$TMPTARGET2" rev-parse --verify orphan >/dev/null 2>&1; then
+        check "worktree-rm: branch deleted" "ok"
+    else
+        check "worktree-rm: branch deleted" "still exists"
+    fi
+}
 
-if [ ! -f "$TMPREG/tw1" ]; then
-    check "registry entry removed" "ok"
-else
-    check "registry entry removed" "still exists"
-fi
-
-echo ""
-echo "=== Case 3: list / status --all skip sidecar files ==="
-
-TMPSPAWN2=$(mktemp -d)
-git init "$TMPSPAWN2" -b main -q
-git -C "$TMPSPAWN2" commit --allow-empty -m "init" -q
-
-echo "$TMPSPAWN2" > "$TMPREG/realworker"
-touch "$TMPREG/realworker.worktrees"
-
-LIST_OUT=$("$WCLI" list 2>&1)
-echo "  list output:"
-echo "$LIST_OUT" | sed 's/^/    /'
-
-if echo "$LIST_OUT" | grep -qE "^realworker:"; then
-    check "list shows realworker" "ok"
-else
-    check "list shows realworker" "not found in list output"
-fi
-
-if echo "$LIST_OUT" | grep -qE "^realworker\.worktrees:"; then
-    check "list does NOT show sidecar as worker" "sidecar appeared as worker"
-else
-    check "list does NOT show sidecar as worker" "ok"
-fi
-
-STATUS_OUT=$("$WCLI" status --all 2>&1)
-echo "  status --all output:"
-echo "$STATUS_OUT" | sed 's/^/    /'
-
-if echo "$STATUS_OUT" | grep -qE "^realworker\.worktrees:"; then
-    check "status --all does NOT show sidecar as worker" "sidecar appeared as worker"
-else
-    check "status --all does NOT show sidecar as worker" "ok"
-fi
-
-rm -f "$TMPREG/realworker" "$TMPREG/realworker.worktrees"
-rm -rf "$TMPSPAWN2"
-
-echo ""
-echo "=== Case 4: worktree-rm removes orphaned worktree + branch ==="
-
-TMPTARGET2=$(mktemp -d)
-git init "$TMPTARGET2" -b main -q
-git -C "$TMPTARGET2" commit --allow-empty -m "init" -q
-git -C "$TMPTARGET2" worktree add "$TMPTARGET2/.claude/worktrees/orphan" -b orphan -q
-
-"$WCLI" worktree-rm "$TMPTARGET2" orphan 2>&1 | sed 's/^/  /'
-
-if [ ! -d "$TMPTARGET2/.claude/worktrees/orphan" ]; then
-    check "worktree-rm: worktree removed" "ok"
-else
-    check "worktree-rm: worktree removed" "still exists"
-fi
-
-if ! git -C "$TMPTARGET2" rev-parse --verify orphan >/dev/null 2>&1; then
-    check "worktree-rm: branch deleted" "ok"
-else
-    check "worktree-rm: branch deleted" "still exists"
-fi
-
-rm -rf "$TMPTARGET2"
-
-echo ""
-echo "=== Summary ==="
-echo "  PASS: $pass"
-echo "  FAIL: $fail"
-[ "$fail" -eq 0 ] && exit 0 || exit 1
+strand_main "$@"

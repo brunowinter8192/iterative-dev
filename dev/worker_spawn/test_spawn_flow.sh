@@ -1,182 +1,158 @@
-#!/bin/bash
-set -euo pipefail
+#!/usr/bin/env bash
+set -uo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SELF_DIR/../.." && pwd)"
 SPAWN_SH="$PLUGIN_ROOT/src/spawn/tmux_spawn.sh"
+export CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT"
+source "$SELF_DIR/../strand_runner.sh"
 
-TEST_PROJECT="/Users/brunowinter2000/Documents/ai/Monitor_CC"
-TEST_NAME="test-spawn-flow"
-TEST_SESSION="worker-Monitor_CC-${TEST_NAME}"
-SKIP_GHOSTTY=false
+STRANDS=(viewer proxy spawn)
 
-for arg in "$@"; do
-    case "$arg" in
-        --no-ghostty) SKIP_GHOSTTY=true ;;
-    esac
+strand_cleanup() {
+    [ -n "${MARKER:-}" ] && rm -f "$MARKER"
+    [ -n "${SPAWN_NAME:-}" ] && rm -f "/tmp/worker-logger-${SPAWN_NAME}.pid" /tmp/.worker_"${SPAWN_NAME}".* "/tmp/worker-${SPAWN_NAME}.done"
+    [ -n "${PROXY_PID:-}" ] && kill "$PROXY_PID" 2>/dev/null
+    return 0
+}
+
+init_project() {
+    PROJ="$STRAND_DIR/spawnproj"
+    mkdir -p "$PROJ"
+    git init "$PROJ" -b main -q
+    echo "init" > "$PROJ/init.txt"
+    git -C "$PROJ" add init.txt
+    git -C "$PROJ" commit -m "init" -q
+}
+
+install_viewer_stubs() {
+    VIEWER_LOG="$STRAND_DIR/viewer_calls.log"
+    printf '#!/usr/bin/env bash\necho "Ghostty 1.3.1"\n' > "$STRAND_DIR/bin/ghostty"
+    printf '#!/usr/bin/env bash\necho "osascript $*" >> "%s"\n' "$VIEWER_LOG" > "$STRAND_DIR/bin/osascript"
+    printf '#!/usr/bin/env bash\necho "open $*" >> "%s"\n' "$VIEWER_LOG" > "$STRAND_DIR/bin/open"
+    chmod +x "$STRAND_DIR/bin/ghostty" "$STRAND_DIR/bin/osascript" "$STRAND_DIR/bin/open"
+}
+
+install_mitmdump_stub() {
+    cat > "$STRAND_DIR/bin/mitmdump" <<'STUB'
+#!/usr/bin/env bash
+port=""
+while [ $# -gt 0 ]; do
+    [ "$1" = "-p" ] && port="$2"
+    shift
 done
+exec python3 -c "
+import socket, sys, time
+s = socket.socket()
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s.bind(('127.0.0.1', int(sys.argv[1])))
+s.listen(1)
+time.sleep(600)
+" "$port"
+STUB
+    chmod +x "$STRAND_DIR/bin/mitmdump"
+}
 
-PASS=0
-FAIL=0
-pass() { echo "  ✅ $1"; PASS=$((PASS + 1)); }
-fail() { echo "  ❌ $1"; FAIL=$((FAIL + 1)); }
+write_mock_claude() {
+    MOCK_CLAUDE="$STRAND_DIR/mock_claude.sh"
+    cat > "$MOCK_CLAUDE" <<'MOCK'
+#!/usr/bin/env bash
+echo "MOCK Claude Code started with args: $@"
+echo "❯"
+sleep 300
+MOCK
+    chmod +x "$MOCK_CLAUDE"
+}
 
-cleanup() {
-    echo ""
-    echo "=== Cleanup ==="
-    tmux kill-session -t "$TEST_SESSION" 2>/dev/null && echo "  killed tmux session" || true
-    pkill -f "mitmdump.*test-spawn-flow" 2>/dev/null && echo "  killed test proxy" || true
-    if [ -d "$TEST_PROJECT/.claude/worktrees/$TEST_NAME" ]; then
-        git -C "$TEST_PROJECT" worktree remove ".claude/worktrees/$TEST_NAME" --force 2>/dev/null || true
-        git -C "$TEST_PROJECT" branch -D "$TEST_NAME" 2>/dev/null || true
-        echo "  removed worktree + branch"
+project_hash() {
+    echo -n "$1" | md5 | head -c 8
+}
+
+strand_viewer() {
+    install_viewer_stubs
+    source "$SPAWN_SH"
+    local session="viewer-target"
+    tmux new-session -d -s "$session" "sleep 30"
+
+    local start elapsed
+    start=$(date +%s)
+    open_tmux_viewer "$session" 2>/dev/null || true
+    elapsed=$(( $(date +%s) - start ))
+
+    [ "$elapsed" -le 5 ] && pass "open_tmux_viewer returned in ${elapsed}s" || fail "open_tmux_viewer took ${elapsed}s (should be <5s)"
+    if grep -q "tmux attach -t $session" "$VIEWER_LOG" 2>/dev/null; then
+        pass "viewer invoked the (stubbed) Ghostty launcher with the tmux attach command"
+    else
+        fail "stubbed launcher was not called with 'tmux attach -t $session' (log: $(cat "$VIEWER_LOG" 2>/dev/null))"
     fi
 }
-trap cleanup EXIT
 
-cleanup 2>/dev/null
-
-echo "=== Test 1: open_tmux_viewer blocking test ==="
-DUMMY_SESSION="test-ghostty-block"
-tmux kill-session -t "$DUMMY_SESSION" 2>/dev/null || true
-tmux new-session -d -s "$DUMMY_SESSION" "sleep 30"
-
-if [ "$SKIP_GHOSTTY" = true ]; then
-    pass "skipped (--no-ghostty)"
-else
+strand_proxy() {
+    init_project
+    install_mitmdump_stub
     source "$SPAWN_SH"
-    START_TIME=$(date +%s)
-    open_tmux_viewer "$DUMMY_SESSION" 2>/dev/null || true
-    ELAPSED=$(( $(date +%s) - START_TIME ))
-    if [ "$ELAPSED" -le 5 ]; then
-        pass "open_tmux_viewer returned in ${ELAPSED}s"
+
+    local monitor_root="$STRAND_DIR/monitor_root" main_port=$((47000 + RANDOM % 1000))
+    mkdir -p "$monitor_root/src/proxy"
+    echo "# addon stub" > "$monitor_root/src/proxy_addon.py"
+    MARKER="/tmp/.monitor_cc_proxy_$(project_hash "$PROJ")"
+    printf '%s\n%s\n%s\n' "$main_port" "fixture" "$monitor_root" > "$MARKER"
+
+    _worker_proxy_setup "proxyflow" "$PROJ" || fail "_worker_proxy_setup returned non-zero"
+    PROXY_PID="$WORKER_PROXY_PID"
+
+    kill -0 "$PROXY_PID" 2>/dev/null && pass "worker proxy started (PID $PROXY_PID)" || fail "worker proxy died immediately"
+
+    local worker_port
+    worker_port=$(echo "$WORKER_PROXY_ENV_PREFIX" | grep -oE 'localhost:[0-9]+' | cut -d: -f2)
+    if [ -n "$worker_port" ] && [ "$worker_port" -gt "$main_port" ] && lsof -iTCP:"$worker_port" -sTCP:LISTEN >/dev/null 2>&1; then
+        pass "worker proxy listens on its own port $worker_port (main port $main_port), env prefix exported to the worker"
     else
-        fail "open_tmux_viewer took ${ELAPSED}s (should be <5s)"
+        fail "no separate listening worker port found (prefix: '$WORKER_PROXY_ENV_PREFIX')"
     fi
-fi
-tmux kill-session -t "$DUMMY_SESSION" 2>/dev/null || true
 
-echo ""
-echo "=== Test 2: Proxy marker files exist ==="
-PROJECT_HASH=$(echo -n "$TEST_PROJECT" | md5 | head -c 8)
-MARKER="/tmp/.monitor_cc_proxy_${PROJECT_HASH}"
-if [ -f "$MARKER" ]; then
-    MARKER_PORT=$(head -1 "$MARKER")
-    MARKER_LINES=$(wc -l < "$MARKER" | tr -d ' ')
-    pass "marker exists: port=$MARKER_PORT, lines=$MARKER_LINES"
-else
-    fail "marker not found: $MARKER (is proxy running for Monitor_CC?)"
-fi
+    if ls "$monitor_root/src/logs"/proxy_errors_worker_*_proxyflow_*.log >/dev/null 2>&1; then
+        pass "worker proxy has its own per-worker log file"
+    else
+        fail "no per-worker proxy log file in $monitor_root/src/logs"
+    fi
 
-echo ""
-echo "=== Test 3: Worker proxy spawn (isolated) ==="
-source "$SPAWN_SH"
+    kill "$PROXY_PID" 2>/dev/null
+    sleep 0.5
+    kill -0 "$PROXY_PID" 2>/dev/null && fail "worker proxy still alive after kill" || pass "worker proxy cleaned up"
+}
 
-PROXY_PROJECT_PATH="$TEST_PROJECT"
-if command -v md5 >/dev/null 2>&1; then
-    WORKER_SESSION_ID=$(echo -n "worker-${TEST_NAME}-${PROXY_PROJECT_PATH}" | md5 | head -c 8)
-else
-    WORKER_SESSION_ID=$(echo -n "worker-${TEST_NAME}-${PROXY_PROJECT_PATH}" | md5sum | head -c 8)
-fi
-WORKER_LOG_ID="${WORKER_SESSION_ID}_$(date +%s)"
+strand_spawn() {
+    init_project
+    install_viewer_stubs
+    write_mock_claude
+    export CLAUDE_BIN="$MOCK_CLAUDE"
+    SPAWN_NAME="spawnflow$$"
+    source "$SPAWN_SH"
 
-if [ -f "$MARKER" ] && [ -f "/tmp/.monitor_cc_root" ]; then
-    MAIN_PORT=$(head -1 "$MARKER")
-    MONITOR_CC_ROOT=$(cat "/tmp/.monitor_cc_root")
-    WORKER_PORT=$((MAIN_PORT + 100))
-    while lsof -iTCP:${WORKER_PORT} -sTCP:LISTEN >/dev/null 2>&1; do
-        WORKER_PORT=$((WORKER_PORT + 1))
-    done
+    local session="worker-$(basename "$PROJ")-$SPAWN_NAME"
+    local start_ms end_ms elapsed_ms
+    start_ms=$(python3 -c "import time; print(int(time.time() * 1000))")
+    spawn_claude_worker "workers" "$SPAWN_NAME" "$PROJ" "sonnet" "Test prompt for a mock spawn." > "$STRAND_DIR/spawn_output.txt" 2>&1
+    end_ms=$(python3 -c "import time; print(int(time.time() * 1000))")
+    elapsed_ms=$(( end_ms - start_ms ))
+    echo "  spawn output: $(cat "$STRAND_DIR/spawn_output.txt")"
+    echo "  elapsed: ${elapsed_ms}ms"
 
-    LOG_DIR="${MONITOR_CC_ROOT}/src/logs"
-    WORKER_LOG="${LOG_DIR}/api_requests_${WORKER_LOG_ID}.jsonl"
+    [ "$elapsed_ms" -le 10000 ] && pass "spawn returned in ${elapsed_ms}ms (< 10s)" || fail "spawn took ${elapsed_ms}ms (should be < 10s)"
+    tmux has-session -t "$session" 2>/dev/null && pass "tmux session '$session' exists" || fail "tmux session '$session' not found"
 
-    MONITOR_CC_ROOT="$MONITOR_CC_ROOT" PROXY_LOG_ID="$WORKER_LOG_ID" \
-        mitmdump -p "$WORKER_PORT" -s "${MONITOR_CC_ROOT}/src/proxy_addon.py" \
-        --set flow_detail=0 -q \
-        2>"${LOG_DIR}/proxy_errors_test.log" &
-    TEST_PROXY_PID=$!
     sleep 1
-
-    if kill -0 "$TEST_PROXY_PID" 2>/dev/null; then
-        pass "worker proxy started on port $WORKER_PORT (PID $TEST_PROXY_PID)"
+    local pane
+    pane=$(tmux capture-pane -p -t "$session" 2>/dev/null || echo "")
+    if echo "$pane" | grep -q "MOCK Claude Code"; then
+        pass "mock claude running in pane"
     else
-        fail "worker proxy died immediately"
+        fail "mock claude not found in pane output: $pane"
     fi
+    grep -q "tmux attach -t $session" "$VIEWER_LOG" 2>/dev/null && pass "spawn opened the (stubbed) viewer for the session" \
+        || fail "spawn did not call the viewer launcher"
+    _stop_worker_logger "$SPAWN_NAME"
+}
 
-    echo "  Expected log: $WORKER_LOG"
-
-    kill "$TEST_PROXY_PID" 2>/dev/null || true
-    pass "worker proxy cleaned up"
-else
-    fail "no proxy marker — can't test worker proxy spawn"
-fi
-
-echo ""
-echo "=== Test 4: Full spawn timing (dummy command) ==="
-MOCK_CLAUDE="/tmp/claude-patched"
-cat > "$MOCK_CLAUDE" << 'MOCKEOF'
-#!/bin/bash
-echo "MOCK Claude Code started with args: $@"
-echo "Waiting for input (simulating idle)..."
-sleep 300
-MOCKEOF
-chmod +x "$MOCK_CLAUDE"
-
-export PATH="/tmp:$PATH"
-
-source "$SPAWN_SH"
-TASK_PROMPT="Test prompt — this is a mock spawn for timing measurement."
-
-START_TIME=$(date +%s%N 2>/dev/null || date +%s)
-spawn_claude_worker "workers" "$TEST_NAME" "$TEST_PROJECT" "sonnet" "$TASK_PROMPT" > /tmp/spawn-test-output.txt 2>&1
-END_TIME=$(date +%s%N 2>/dev/null || date +%s)
-
-if [[ "$START_TIME" =~ ^[0-9]{10,}$ ]]; then
-    ELAPSED_MS=$(( (END_TIME - START_TIME) / 1000000 ))
-    ELAPSED_STR="${ELAPSED_MS}ms"
-else
-    ELAPSED_MS=$(( (END_TIME - START_TIME) * 1000 ))
-    ELAPSED_STR="${ELAPSED_MS}ms (second precision)"
-fi
-
-SPAWN_OUTPUT=$(cat /tmp/spawn-test-output.txt)
-echo "  spawn output: $SPAWN_OUTPUT"
-echo "  elapsed: $ELAPSED_STR"
-
-if [ "$ELAPSED_MS" -le 10000 ]; then
-    pass "spawn returned in $ELAPSED_STR (< 10s)"
-else
-    fail "spawn took $ELAPSED_STR (should be < 10s — likely Ghostty blocking)"
-fi
-
-if tmux has-session -t "$TEST_SESSION" 2>/dev/null; then
-    pass "tmux session '$TEST_SESSION' exists"
-else
-    fail "tmux session '$TEST_SESSION' not found"
-fi
-
-sleep 1
-PANE_CONTENT=$(tmux capture-pane -p -t "$TEST_SESSION" 2>/dev/null || echo "")
-if echo "$PANE_CONTENT" | grep -q "MOCK Claude Code"; then
-    pass "mock claude running in pane"
-else
-    fail "mock claude not found in pane output"
-    echo "  pane content: $PANE_CONTENT"
-fi
-
-echo ""
-echo "=== Test 5: Worker proxy was started ==="
-WORKER_PROXY=$(ps aux | grep "mitmdump.*proxy_addon" | grep -v grep | grep -v "test-spawn-flow" || true)
-if [ -n "$WORKER_PROXY" ]; then
-    pass "worker proxy process found"
-else
-    echo "  ⚠ no worker proxy found (may be expected if no marker)"
-fi
-
-echo ""
-echo "========================================="
-echo "Results: $PASS passed, $FAIL failed"
-echo "========================================="
-
-exit $FAIL
+strand_main "$@"

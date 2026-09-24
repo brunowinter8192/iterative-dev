@@ -1,36 +1,31 @@
 # INFRASTRUCTURE
 import importlib.util
 import json
+import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT))
+
+from dev.strand_runner import run_strands
 
 # ORCHESTRATOR
 
-def verify_spawn_model_resolution_workflow() -> None:
-    spawn = _load_spawn_module()
-    lines = [f"# spawn.py model-resolution verification — {datetime.now().isoformat(timespec='seconds')}", ""]
-
-    with tempfile.TemporaryDirectory() as tmp:
-        lines.append(_verify_missing_config_file(spawn, tmp))
-        valid_line, valid_path = _verify_valid_config_file(spawn, tmp)
-        lines.append(valid_line)
-        lines.append(_verify_malformed_config_file(spawn, tmp))
-        lines.append(_verify_missing_key_config_file(spawn, tmp))
-
-        lines.append("")
-        lines.append("## argparse resolution (real parser, default=None)")
-        lines.append(_verify_explicit_cli_arg(spawn))
-        lines.extend(_verify_omitted_cli_arg(spawn, valid_path))
-
-    lines.append("")
-    lines.append("RESULT: PASS — _resolve_worker_model correct for valid/missing/malformed/missing-key "
-                "config; args.model is real None (never the string 'None') when omitted; the "
-                "resolved model passed onward is always a concrete non-empty string.")
-
-    _write_report(lines)
+def verify_spawn_model_resolution_workflow() -> int:
+    cases = {
+        "missing_config": case_missing_config,
+        "valid_config": case_valid_config,
+        "malformed_config": case_malformed_config,
+        "missing_key_config": case_missing_key_config,
+        "explicit_cli_arg": case_explicit_cli_arg,
+        "omitted_cli_arg": case_omitted_cli_arg,
+    }
+    code, outputs = run_strands(cases, sys.argv[1:])
+    if code == 0 and len(outputs) == len(cases):
+        _write_report(_report_lines(outputs))
+    return code
 
 # FUNCTIONS
 
@@ -40,6 +35,52 @@ def _load_spawn_module():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def case_missing_config() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        print(_verify_missing_config_file(_load_spawn_module(), tmp))
+
+
+def case_valid_config() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        print(_verify_valid_config_file(_load_spawn_module(), tmp)[0])
+
+
+def case_malformed_config() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        print(_verify_malformed_config_file(_load_spawn_module(), tmp))
+
+
+def case_missing_key_config() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        print(_verify_missing_key_config_file(_load_spawn_module(), tmp))
+
+
+def case_explicit_cli_arg() -> None:
+    print(_verify_explicit_cli_arg(_load_spawn_module()))
+
+
+def case_omitted_cli_arg() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        spawn = _load_spawn_module()
+        _, valid_path = _verify_valid_config_file(spawn, tmp)
+        print("\n".join(_verify_omitted_cli_arg(spawn, valid_path)))
+
+
+def _report_lines(outputs: dict) -> list[str]:
+    lines = [f"# spawn.py model-resolution verification — {datetime.now().isoformat(timespec='seconds')}", ""]
+    for name in ("missing_config", "valid_config", "malformed_config", "missing_key_config"):
+        lines.append(outputs[name].strip())
+    lines.append("")
+    lines.append("## argparse resolution (real parser, default=None)")
+    lines.append(outputs["explicit_cli_arg"].strip())
+    lines.append(outputs["omitted_cli_arg"].strip())
+    lines.append("")
+    lines.append("RESULT: PASS — _resolve_worker_model correct for valid/missing/malformed/missing-key "
+                 "config; args.model is real None (never the string 'None') when omitted; the "
+                 "resolved model passed onward is always a concrete non-empty string.")
+    return lines
 
 
 def _verify_missing_config_file(spawn, tmp) -> str:
@@ -115,4 +156,4 @@ def _write_report(lines) -> None:
 
 
 if __name__ == "__main__":
-    verify_spawn_model_resolution_workflow()
+    sys.exit(verify_spawn_model_resolution_workflow())

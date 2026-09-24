@@ -13,6 +13,7 @@ from pathlib import Path
 _HERE = Path(__file__).parent.resolve()
 sys.path.insert(0, str(_HERE.parents[1]))
 
+from dev.strand_runner import run_strands
 from src.poread_cli.__main__ import main
 
 _PINNED_MAX_BYTES = 50_000
@@ -23,18 +24,12 @@ _PINNED_NOTICE = (
     "this file again until then."
 )
 
-PASS_LIST = []
-FAIL_LIST = []
-
-
 # FUNCTIONS
 
 def check(name: str, condition: bool, detail: str = "") -> None:
-    if condition:
-        PASS_LIST.append(name)
-    else:
-        FAIL_LIST.append(name)
-        print(f"  FAIL: {name}  {detail}")
+    if not condition:
+        raise AssertionError(f"{name}  {detail}")
+    print(f"  PASS: {name}")
 
 
 def _run(argv):
@@ -85,9 +80,7 @@ def test_oversize_file_refused_without_reading():
 
 
 def test_missing_file_refused():
-    missing = "/tmp/poread_cli_test_definitely_missing_12345.txt"
-    if os.path.exists(missing):
-        os.unlink(missing)
+    missing = os.path.join(tempfile.mkdtemp(), "definitely_missing.txt")
     code, out, err = _run([missing])
     check("exit code 1 for a missing file", code == 1, code)
     check("no marker printed for a missing file", out == "", repr(out))
@@ -113,20 +106,17 @@ def test_bad_argv_exits_2():
 
 # ORCHESTRATOR
 
-def test_poread_cli_workflow() -> None:
-    test_valid_file_prints_marker()
-    test_oversize_file_refused_without_reading()
-    test_missing_file_refused()
-    test_directory_refused_not_treated_as_file()
-    test_bad_argv_exits_2()
-
-    total = len(PASS_LIST) + len(FAIL_LIST)
-    print(f"{len(PASS_LIST)}/{total} checks passed")
-    if FAIL_LIST:
-        print(f"\nFAILED: {FAIL_LIST}")
-        sys.exit(1)
-    print("ALL PASS")
+def test_poread_cli_workflow() -> int:
+    cases = {
+        "valid_file": test_valid_file_prints_marker,
+        "oversize_file": test_oversize_file_refused_without_reading,
+        "missing_file": test_missing_file_refused,
+        "directory": test_directory_refused_not_treated_as_file,
+        "bad_argv": test_bad_argv_exits_2,
+    }
+    code, _ = run_strands(cases, sys.argv[1:])
+    return code
 
 
 if __name__ == "__main__":
-    test_poread_cli_workflow()
+    sys.exit(test_poread_cli_workflow())
