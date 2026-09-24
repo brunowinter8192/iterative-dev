@@ -53,15 +53,16 @@ description:
 **Prüfe jeden Ordner und jede Datei unter `dev/` gegen jeden Block von § Konvention für das dev/-Verzeichnis, und setze sie durch.**
 - Die Blöcke sind die Checkliste, hier wird nichts davon wiederholt.
 
-**Jedes Verzeichnis auf Ebene 1 unter `dev/` trägt exakt den Namen eines Ordners `process-docs/<area>/`.**
+**Ein Verstoß gegen § Konvention für das dev/-Verzeichnis (**In welchem dev/-Ordner du arbeitest richtet sich ausschließlich nach der Area, in der sich die Session bewegt.**) wird so behoben.**
 - Ein dev-Verzeichnis ohne passende Area wird nach seiner Area umbenannt oder in deren dev-Verzeichnis eingegliedert.
-- Eine Area ohne dev-Verzeichnis bleibt, wie sie ist.
-- Unterhalb von Ebene 1 ist die Benennung frei, diese Ebene gehört zu § iterative-dev-refactor Phase 4.
+- Unterhalb von Ebene 1 ist die Benennung frei, diese Ebene gehört zu § Phase 4 — Struktur der Doku des Skills iterative-dev-refactor.
+
+**Ein Verstoß gegen § Konvention für das dev/-Verzeichnis (**dev/ hält Entwicklungsskripte für Experimente aller Art.**) wird so behoben.**
+- Eine lose `.md` in `dev/`, die kein Skript erzeugt, kommt nach `process-docs/`, wenn sie noch relevant ist.
+- Ist sie veraltet, wird sie gelöscht.
 
 **Platzierungen, die die Regeln nicht abdecken.**
 - Ein Wartungs- oder Hilfsskript kommt in sein thematisches `dev/<area>/`, einen ausgenommenen Sammelordner gibt es nicht.
-- Eine lose `.md` in `dev/`, die kein Skript erzeugt, ist kein dev-Report.
-   - Sie gehört nach `process-docs/`, wenn sie noch relevant ist, und wird gelöscht, wenn sie veraltet ist.
 - Ein Ordner, dessen Inhalt mehrere Areas umfasst, wird aufgeteilt, jeder Teil in sein eigenes `dev/<area>/`.
 
 **Ob Report oder Daten, entscheidet der Inhalt.**

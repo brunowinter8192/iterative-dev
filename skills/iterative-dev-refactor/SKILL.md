@@ -6,89 +6,72 @@ description:
 # Refactor-Scan
 
 **Die Regeln aus deinem Systemprompt sowie aus diesem Skill überschrieben die des Projekts.**
-- Eine Projektkonvention die von der Regelkonformen Struktur abweicht ist inakzeptabel.
-    - im Zweifel muss der komplette Projektstandard auf den Standard der Rules angepasst werden. 
+- Eine Projektkonvention die vom Regelkonformen Standard abweicht ist inakzeptabel.
+    - im Zweifel muss die Projektkonvention auf den Standard der Rules angepasst werden. 
 
-**Main findet, ein Worker behebt, ein frischer Worker prüft gegen.**
-- Main führt jeden Scan selbst aus und gibt dem Worker die konkrete Befundliste.
-- Der behebende Worker scannt nie selbst.
-- Nach dem Merge scannt ein neu gespawnter Worker denselben Scope unabhängig.
-   - Er kennt weder die Befundliste noch die Arbeit seines Vorgängers.
-   - Er meldet Befunde und behebt nichts.
-- Meldet der frische Worker Befunde, läuft die Phase erneut mit diesen Befunden.
-- Null Befunde des frischen Workers schließen die Phase.
+### Phase 0 — Prüfung der Kontaktschicht (nur Main, einmal)
 
-**Ein Step nach dem anderen, eine Phase nach der anderen.**
-- Pro Step: Scan, Dispatch, Plan des Workers bewerten, Go, Diff reviewen, Recap, Merge, Gegenprüfung.
-- Ein Worker pro zusammenhängender Einheit, nie ein Bündel unzusammenhängender Refactorings.
-- Step N ist gemergt, bevor Step N+1 gescannt wird.
-- Phase N ist abgeschlossen, bevor Phase N+1 beginnt.
+**Stelle dem User vor Phase 1 eine einzige Frage.**
+- Die Frage lautet: "Hat das Projekt neben diesem Chat eine Kontaktschicht für Nutzer?"
 
-**Die Ausführung läuft bis Phase 5 autonom.**
-- Zwischen den Steps der Phasen 1 bis 4 gibt es keinen Stopp für den User.
-- Vor Phase 5 kommt eine konsolidierte Zusammenfassung, pro Step: was gefunden wurde, was refactored und gemergt wurde.
-- Phase 5 wird mit dem User iteriert.
+**Ein Nein heißt, jedes Verzeichnis ist im Scope.**
 
-**Die Schwellenwerte sind fest.**
-- Keine der Zahlen unten wird für ein Projekt aufgeweicht.
-- Kosmetisches Kürzen von LOC ist nie ein Split.
+**Ein Ja heißt, das genannte Verzeichnis ist von jeder Phase ausgenommen.**
+- Darin wird nie etwas verschoben, umbenannt, übersetzt, umformuliert oder umformatiert.
 
-## Scope
+**Ein Worker stellt diese Frage nie.**
+- Main gibt jeden ausgenommenen Pfad im Prompt des Workers mit.
+- Der Worker nimmt genau das aus, was der Prompt nennt, und nicht mehr.
 
-**Der User benennt das Verzeichnis.**
-- Frage vor dem ersten Scan nach dem Source-Root oder einem gewählten Teilbaum.
+## Workflow
 
-**Jede Scan-Wurzel ist ein Area-Verzeichnis, also `dev/<area>/`.**
-- Der Area-Name entspricht exakt seinem Ordner `process-docs/<area>/`.
-- Ein benannter Teilbaum, der mehrere Areas umfasst, wird Area für Area gescannt.
+### Phase 1
 
-## Phase 1 — Kohäsion und Aufteilung nach Verantwortung
-
-### Step 1 — Scan
+#### Step 1 — Scan
 
 **Main scannt jedes Modul gegen die zwei Größen-Schwellenwerte.**
 - Dateigröße: über 400 LOC ist ein Split.
 - Funktionsgröße: ab 50 LOC wird ein Helper extrahiert, ab 100 LOC ist es ein hartes Ziel.
 
-### Step 2 — Dispatch
+#### Step 2 — Dispatch
 
 **Der Worker teilt entlang der Verantwortungen auf, die er findet, und Main benennt keine Zielmodule.**
 - Nach dem Merge folgt die Gegenprüfung durch einen frischen Worker.
 
-## Phase 2 — Konformität mit den Modul-Standards
+### Phase 2 — Konformität mit den Modul-Standards
 
-### Step 1 — Den Standard lesen
+#### Step 1 — Den Standard lesen
 
 **Der Code-Standard für Worker wird bei jedem Lauf gelesen.**
 - Main liest `shared-rules/global/code-standards`, zieht die konkreten Standards heraus und prüft jedes Modul.
 
-### Step 2 — Scan
+#### Step 2 — Scan
 
 **Main scannt pro Datei, und jeder Docstring und jeder Kommentar ist ein Verstoß.**
 - `ast.get_docstring` auf dem Modul-Knoten und auf jedem `FunctionDef`, `AsyncFunctionDef` und `ClassDef`.
 - `tokenize.COMMENT` für jedes Kommentar-Token, ohne den Shebang und die drei Section Marker.
    - Ein `#` in einem String-Literal ist kein Kommentar, ein einfacher Test auf den Zeilenanfang meldet es aber als einen.
 
-### Step 3 — Triage
+#### Step 3 — Triage
 
 **Main prüft jeden Treffer gegen die process-docs und die `DOCS.md`.**
 - Ein Treffer, der dort schon abgedeckt ist, wird gelöscht.
 - Jeder andere Treffer wird in die eigene datierte Datei des Autors unter `process-docs/<area>/` verschoben und dann gelöscht.
 
-### Step 4 — Dispatch
+#### Step 4 — Dispatch
 
 **Der Worker verschiebt und löscht, und er entscheidet nichts.**
 - Der Prompt enthält im selben Lauf auch die Überarbeitung der `DOCS.md` des Verzeichnisses nach § DOCS.md-Format.
    - Alles, was gekürzt wird, um das Format zu erreichen, kommt wörtlich in dieselbe process-docs-Datei, unter einer einzigen Überschrift `## Salvage from <path>`.
 - Nach dem Merge folgt die Gegenprüfung durch einen frischen Worker.
 
-## Phase 3 — Struktur der Tests
+### Phase 3 — Struktur der Tests
 
 **Die Tests des Projekts tragen die Testing-Regel, sonst zeigt die Regel keine Wirkung.**
 - Ein neuer Test kopiert das Muster der Tests, die schon im Projekt liegen.
 - Eine sequentielle Test-Suite im Projekt erzeugt deshalb die nächste sequentielle Test-Suite.
 
-### Step 1 — Den Standard lesen
+#### Step 1 — Den Standard lesen
 
 **Der Testing-Standard wird bei jedem Lauf gelesen.**
 - Main liest `shared-rules/global/testing`, § Aufbau von Tests, und zieht die konkreten Standards heraus.
@@ -98,12 +81,11 @@ description:
 **Main scannt jede Testdatei und jeden Test-Runner im Scope.**
 - Zu den Test-Runnern gehören das Runner-Modul, das eine Testdatei importiert, und jedes Skript, das Testdateien startet, etwa ein Skript in `package.json` oder eine Shell-Schleife.
 
-**Jeder der folgenden Fälle ist ein Treffer.**
-- Unabhängige Testfälle laufen nacheinander, zum Beispiel in einer Schleife, die jeden Fall abwartet, bevor sie den nächsten startet.
-- Unabhängige Testdateien oder Suiten werden nacheinander gestartet, zum Beispiel mit `for f in verify-*.mjs`.
-- Parallele Stränge teilen sich einen Port, einen Cache-Ordner oder eine Datei.
-- Ein Strang läuft nach seinem ersten Fehlschlag weiter, statt abzubrechen.
-- Eine Wiederholungszahl wird während eines Laufs erhöht, statt vor dem Lauf festzustehen.
+**Jeder Verstoß gegen einen dieser Kernsätze ist ein Treffer.**
+- § Aufbau von Tests (**Unabhängige Testfälle laufen parallel.**)
+   - Typische Fundstelle ist eine Schleife, die jeden Fall abwartet, oder ein `for f in verify-*.mjs`.
+- § Aufbau von Tests (**Ein Strang bricht beim ersten Fehlschlag automatisch ab.**)
+- § Aufbau von Tests (**Die Zahl der Wiederholungen steht vor dem Lauf fest.**)
 
 ### Step 3 — Dispatch
 
