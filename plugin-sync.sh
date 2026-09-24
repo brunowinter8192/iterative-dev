@@ -1,17 +1,10 @@
 #!/bin/bash
-# Sync local plugin repo to Claude Code plugin cache.
-# Bypasses /plugin install — direct, reliable, no version-check issues.
-#
-# Usage: plugin-sync.sh <plugin-name> <local-repo-path>
-# Example: plugin-sync.sh rag ~/Documents/ai/Meta/ClaudeCode/cli/rag-cli
 
 set -euo pipefail
 
 MARKETPLACE="brunowinter-plugins"
 CACHE_BASE="$HOME/.claude/plugins/cache/$MARKETPLACE"
 INSTALLED_JSON="$HOME/.claude/plugins/installed_plugins.json"
-
-# --- Validate args ---
 
 if [ $# -ne 2 ]; then
     echo "Usage: plugin-sync.sh <plugin-name> <local-repo-path>"
@@ -32,8 +25,6 @@ if [ ! -f "$PLUGIN_JSON" ]; then
     echo "ERROR: No .claude-plugin/plugin.json found in $REPO_PATH"
     exit 1
 fi
-
-# --- Resolve version: installed first, source as reference ---
 
 INSTALLED_VERSION=$(python3 -c "
 import json
@@ -69,22 +60,16 @@ if [ ! -d "$CACHE_DIR" ]; then
     exit 1
 fi
 
-# --- Sync files ---
-
 echo "Syncing $PLUGIN_NAME v$VERSION..."
 echo "  From: $REPO_PATH"
 echo "  To:   $CACHE_DIR"
 
-# Use .gitignore to exclude untracked files from transfer.
-# Protect runtime artifacts (installed by /plugin install) from --delete.
 rsync -av \
     --filter='P venv/' --filter='P .venv/' --filter='P node_modules/' --filter='P .env' \
     --filter=':- .gitignore' \
     --exclude='.git' \
     --delete \
     "$REPO_PATH/" "$CACHE_DIR/"
-
-# --- Update installed_plugins.json ---
 
 SHA=$(cd "$REPO_PATH" && git rev-parse HEAD)
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")

@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# gcommit: stage all (tracked mods + untracked, minus skip-list) + commit, worktree-correct
-# Source: iterative-dev/bin/gcommit (install/symlink to ~/.local/bin is the orchestrator's concern)
-# Usage: gcommit "<message>" [repo_path]
-# repo_path: absolute or relative path (relative resolves against caller's cwd; no worktree stripping). Defaults to caller's cwd. Refuses the plugin directory.
 
 PLUGIN="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/cache/brunowinter-plugins/iterative-dev/1.0.0}"
 

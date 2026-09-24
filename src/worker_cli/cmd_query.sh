@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# cmd_query.sh — read-only worker-cli subcommands: list, status, capture, response. Sourced by bin/worker-cli.
 
 cmd_list() {
     if [ $# -eq 0 ]; then
@@ -11,8 +10,6 @@ cmd_list() {
     fi
 }
 
-# _print_registry_workers EMPTY_MESSAGE WITH_PATH
-#   One "<name>: <status>" line per registry entry (plus "  (<project>)" when WITH_PATH=1).
 _print_registry_workers() {
     local empty_message="$1" with_path="$2"
     if [ ! -d "$REGISTRY_DIR" ] || [ -z "$(ls -A "$REGISTRY_DIR" 2>/dev/null)" ]; then
@@ -119,8 +116,6 @@ cmd_response() {
     echo "$text"
 }
 
-# _response_find_jsonl NAME PROJECT
-#   Echoes the newest session JSONL of the worker's worktree; exits 2/3/4 with a message otherwise.
 _response_find_jsonl() {
     local name="$1" project="$2"
     local worktree="$project/.claude/worktrees/$name"
@@ -143,8 +138,6 @@ _response_find_jsonl() {
     echo "$jsonl"
 }
 
-# _response_extract_text JSONL COUNT
-#   Echoes the text of the last COUNT assistant turns, each under a "=== msg i/N ===" header.
 _response_extract_text() {
     local jsonl="$1" count="$2"
     jq -rs --argjson n "$count" '[.[] | select(.type == "assistant" and (.message.content // [] | map(select(.type == "text")) | length > 0))] | if length == 0 then "" else (.[-($n):] | length as $L | to_entries | map("=== msg \(.key + 1)/\($L) ===\n" + (.value.message.content | map(select(.type == "text")) | map(.text) | join("\n\n"))) | join("\n\n")) end' "$jsonl" 2>/dev/null || true

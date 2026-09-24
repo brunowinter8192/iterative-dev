@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# cmd_lifecycle.sh — state-changing worker-cli subcommands: merge, kill, send, spawn, revive, worktree, worktree-rm, sweep-logs. Sourced by bin/worker-cli.
 
 cmd_merge() {
     [ $# -lt 1 ] && { echo "worker-cli merge: need <name> [project_path]" >&2; exit 2; }
@@ -16,13 +15,6 @@ cmd_merge() {
     _merge_verify "$project" "$name" "$current"
 }
 
-# _merge_run PROJECT NAME CURRENT
-#   set +e around the merge itself: under this script's set -e, a failing
-#   assignment (`VAR=$(cmd)` where cmd exits non-zero — a real conflict) would abort
-#   BEFORE the echo below ever ran, swallowing git's own conflict output. Capture the
-#   exit code explicitly instead and echo the output unconditionally, so a conflict
-#   is exactly as visible as it was before this command captured anything.
-#   Stores the merge output in _MERGE_OUT; exits with git's code on failure.
 _merge_run() {
     local project="$1" name="$2"
     local merge_rc
@@ -35,15 +27,6 @@ _merge_run() {
     return 0
 }
 
-# _merge_verify PROJECT NAME CURRENT
-#   Loud, deterministic outcome check (2026, retired the orchestrator's by-hand
-#   post-merge verification) — "Already up to date." means the branch carried zero
-#   commits into $CURRENT; the two known causes are a cross-project worker merged
-#   without its project_path (branch lives in the other repo) and a worker that
-#   never committed.
-#   ORIG_HEAD is the pre-merge tip of $CURRENT — a diff against it covers every
-#   commit the merge brought in, unlike HEAD~1 which would miss earlier commits on
-#   a multi-commit branch.
 _merge_verify() {
     local project="$1" name="$2" current="$3"
     if [[ "$_MERGE_OUT" == *"Already up to date"* ]]; then
@@ -79,8 +62,6 @@ cmd_kill() {
     echo "  registry: removed"
 }
 
-# _kill_cross_project_worktrees NAME
-#   Cleans cross-project worktrees registered in the sidecar (best-effort — never blocks registry_delete).
 _kill_cross_project_worktrees() {
     local name="$1"
     local sidecar="$REGISTRY_DIR/$name.worktrees"
@@ -117,11 +98,6 @@ cmd_spawn() {
     local prompt_file="$2"; [[ "$prompt_file" != /* ]] && prompt_file="$(pwd)/$prompt_file"
     local project
     project=$(_spawn_resolve_project "$3")
-    # 2026-08 (model-selector milestone 3 fix): do NOT pre-resolve a hardcoded default here —
-    # that shadowed spawn.py's own config-file resolution (args.model was never actually
-    # None on this path, since a concrete literal always arrived as the 4th positional).
-    # Pass through empty when no model arg was given; spawn.py's `args.model or
-    # _resolve_worker_model()` treats an empty string as falsy and resolves it correctly.
     local model="${4:-}"
     local worktree_flag=""
     [ "${5:-}" = "--no-worktree" ] && worktree_flag="--no-worktree"
@@ -130,9 +106,6 @@ cmd_spawn() {
     _spawn_install_death_hook "$name" "$project"
 }
 
-# _spawn_resolve_project REQUESTED_ARG
-#   Echoes the project to spawn into: the PROXY_PROJECT_PATH policy override (with a stderr
-#   notice when the requested path differs) or the requested path itself.
 _spawn_resolve_project() {
     local requested project
     requested=$(resolve_project_path "$1")
@@ -161,10 +134,6 @@ cmd_revive() {
     local override="${2:-}"
     local project
     project=$(resolve_worker_project "$name" "$override")
-    # Delegate full revive flow (gates + proxy setup + session recreate) to worker_revive
-    # in tmux_spawn.sh. CRITICAL: this now includes _worker_proxy_setup so the prompt-cache
-    # prefix on the Anthropic side matches what the worker had before death — without that
-    # the entire conversation context would be re-uploaded on resume (cache miss).
     bash -c "source \"$SPAWN\" && worker_revive \"\$1\" \"\$2\"" _ "$name" "$project"
 }
 
@@ -203,17 +172,6 @@ cmd_worktree_rm() {
         && echo "  branch '$branch' deleted" || echo "  branch '$branch' not found"
 }
 
-# cmd_sweep_logs [--dry-run] [--max-age-hours N] [LOG_DIR]
-#   Retention sweep for the log DIRECTORY (WORKER_LOGGER_DIR / its default) — a
-#   different concern from `janitor`, which sweeps stale tmux WORKER SESSIONS.
-#   Deliberately not named or logged anywhere near "janitor" so the two can never be
-#   conflated: this one deletes old files by mtime, that one kills old sessions by
-#   session_created age. See process-docs/worker_sweep_logs/ for the 2026-09-17
-#   decision (destination move off Meta/blank + this sweep, in the same milestone).
-#   sweep_stale_logs (src/spawn/worker_log_sidecar.sh) owns the actual default (72h) and the
-#   wait_trace.log exclusion — this is a thin CLI delegate, same pattern as
-#   `wait`/`revive`/`list`, so the auto-triggered call from `_start_worker_logger` and this
-#   manual call share one implementation.
 cmd_sweep_logs() {
     local dry_run=0 max_age_hours="" logdir_override=""
     while [ $# -gt 0 ]; do

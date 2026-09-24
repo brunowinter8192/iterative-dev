@@ -1,10 +1,5 @@
 #!/usr/bin/env bash
-# janitor.sh — worker-cli janitor: stale-worker cleanup (age-gated session sweep + orphan registry sweep). Sourced by bin/worker-cli.
 
-# --- janitor (stale-worker cleanup) ---
-# Same shared-file + fail-open pattern as _wait_trace (WORKER_LOGGER_DIR override,
-# every write guarded by `|| true` so a logging hiccup can never abort the sweep
-# under this file's `set -e`). Default dir moved 2026-09-17, same as _WAIT_TRACE_FILE above.
 _JANITOR_LOG_FILE="${WORKER_LOGGER_DIR:-$HOME/Documents/ai/Meta/iterative-dev/src/logs}/janitor.log"
 _JANITOR_ORPHAN_GRACE_SECS=30
 
@@ -13,17 +8,6 @@ _janitor_log() {
     echo "$(date -Iseconds) $1" >> "$_JANITOR_LOG_FILE" 2>/dev/null || true
 }
 
-# _janitor_resolve_worker SESSION
-#   Resolves (name, project) for a raw worker-* tmux session name — the registry is
-#   keyed by name, not session, so this is the inverse of _worker_session_name.
-#   Order: registry (any entry whose recomputed session matches) -> pane_current_path
-#   (worktree-mode spawns cd into PROJECT/.claude/worktrees/NAME — same lookup
-#   _worker_detect_status already relies on; --no-worktree spawns cd into PROJECT
-#   directly, matched via exact "worker-<basename>-" prefix) -> tmux_scan_project
-#   fallback (existing helper, keyed off the session's trailing segment as a name
-#   guess). Every candidate is round-trip verified via _worker_session_name before
-#   being accepted — a wrong split/guess must never masquerade as resolved.
-#   Echoes "name|project" on success; silent + returns 1 on failure.
 _janitor_resolve_worker() {
     local session="$1"
     local f rname rproj rsession
@@ -74,8 +58,6 @@ _janitor_resolve_worker() {
     return 1
 }
 
-# _janitor_has_uncommitted PROJECT NAME
-#   yes/no/n-a (worktree dir absent) — logged before every real kill.
 _janitor_has_uncommitted() {
     local project="$1" name="$2"
     local wt="$project/.claude/worktrees/$name"
@@ -97,8 +79,6 @@ cmd_janitor() {
     _janitor_log "event=end"
 }
 
-# _janitor_parse_args ARGS...
-#   Sets _JANITOR_DRY_RUN and _JANITOR_MAX_AGE_HOURS (default 12); exits 2 on an unknown arg.
 _janitor_parse_args() {
     _JANITOR_DRY_RUN=0
     _JANITOR_MAX_AGE_HOURS=12
@@ -112,8 +92,6 @@ _janitor_parse_args() {
     done
 }
 
-# _janitor_sweep_sessions
-#   Pass 1: age-gated sweep over live worker-* tmux sessions.
 _janitor_sweep_sessions() {
     local sessions sess created
     sessions=$(tmux list-sessions -F "#{session_name} #{session_created}" 2>/dev/null | grep "^worker-" || true)
@@ -124,17 +102,11 @@ _janitor_sweep_sessions() {
     done <<< "$sessions"
 }
 
-# _janitor_process_session SESS CREATED
-#   Skips young, working and unresolvable sessions; dry-runs or kills the rest.
 _janitor_process_session() {
     local sess="$1" created="$2"
     local age=$((_JANITOR_NOW_TS - created))
     [ "$age" -lt "$_JANITOR_THRESHOLD_SECS" ] && return 0
 
-    # A failed probe here means the check itself broke, not that the worker died —
-    # $sess was just confirmed live via `tmux list-sessions`, so fall back to
-    # a direct has-session recheck: genuinely gone -> dead, else -> working (same
-    # decision as the display commands' _status_or_probe_error).
     local status
     status=$(bash -c "source \"$SPAWN\" && _worker_detect_status \"\$1\"" _ "$sess" 2>/dev/null) \
         || status=$(tmux has-session -t "$sess" 2>/dev/null && echo "working" || echo "dead")
@@ -165,10 +137,6 @@ _janitor_process_session() {
     fi
 }
 
-# _janitor_sweep_orphans
-#   Pass 2: orphan registry entries — registry file whose tmux session no longer
-#   exists. Grace window on file mtime absorbs the spawn race (registry written
-#   moments before the tmux session appears).
 _janitor_sweep_orphans() {
     [ -d "$REGISTRY_DIR" ] || return 0
     local f
@@ -179,7 +147,6 @@ _janitor_sweep_orphans() {
     done
 }
 
-# _janitor_process_orphan REGISTRY_FILE
 _janitor_process_orphan() {
     local f="$1"
     local oname oproj osession mtime fage dirty

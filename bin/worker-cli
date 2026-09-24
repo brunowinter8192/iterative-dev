@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# worker-cli: worker lifecycle operations via iterative-dev plugin
-# Source: Meta/iterative-dev/bin/worker-cli — symlinked to ~/.local/bin/worker-cli
 
 set -e
 
