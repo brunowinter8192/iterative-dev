@@ -1,0 +1,69 @@
+# src/worker_cli/
+
+## Role
+
+Subcommand implementations of `bin/worker-cli`, split out of the former single script. Touch this directory when changing what a `worker-cli` subcommand does; `bin/worker-cli` itself only dispatches.
+
+## Public Interface
+
+No `__init__.py`. The `.sh` files are sourced by `bin/worker-cli` (resolved through the script's real path, so the symlink in `~/.local/bin` works) and define `cmd_<subcommand>` functions plus helpers.
+
+## Flow
+
+`worker-cli <cmd> args` in -> `bin/worker-cli` sources the libs and dispatches to `cmd_<cmd>` -> the command resolves project/worker, calls the `src/spawn/` libs via `bash -c "source $SPAWN && ..."` -> stdout/exit code out.
+
+## Modules
+
+### registry.sh (148 LOC)
+
+**Purpose:** Project/worker path resolution, registry and sidecar file helpers, status probe wrapper.
+**Reads:** worker registry dir, tmux session list.
+**Writes:** registry and sidecar files.
+**Called by:** all other worker_cli libs.
+**Calls out:** tmux, git, `src/spawn/tmux_spawn.sh` (via `bash -c source`).
+
+---
+
+### cmd_query.sh (151 LOC)
+
+**Purpose:** Read-only subcommands: list, status, capture, response.
+**Reads:** registry, session JSONL, tmux via spawn libs.
+**Writes:** stdout.
+**Called by:** bin/worker-cli.
+**Calls out:** tmux, git, `src/spawn/tmux_spawn.sh` (via `bash -c source`).
+
+---
+
+### cmd_lifecycle.sh (230 LOC)
+
+**Purpose:** State-changing subcommands: merge, kill, send, spawn, revive, worktree, worktree-rm, sweep-logs.
+**Reads:** registry, sidecar files.
+**Writes:** git branches/worktrees, tmux sessions, registry, stdout.
+**Called by:** bin/worker-cli.
+**Calls out:** tmux, git, `src/spawn/tmux_spawn.sh` (via `bash -c source`).
+
+---
+
+### wait.sh (278 LOC)
+
+**Purpose:** wait subcommand: poll loop, transition gate, trace log, background-task probe.
+**Reads:** tmux via spawn libs, session tasks dir (lsof).
+**Writes:** wait_trace.log, stdout.
+**Called by:** bin/worker-cli.
+**Calls out:** tmux, git, `src/spawn/tmux_spawn.sh` (via `bash -c source`).
+
+---
+
+### janitor.sh (209 LOC)
+
+**Purpose:** janitor subcommand: age-gated session sweep and orphan registry sweep.
+**Reads:** tmux sessions, registry.
+**Writes:** janitor.log, kills via `worker-cli kill`, stdout.
+**Called by:** bin/worker-cli.
+**Calls out:** tmux, git, `src/spawn/tmux_spawn.sh` (via `bash -c source`).
+
+---
+
+## State
+
+Cross-function state is held in prefixed globals (`_WAIT_*`, `_JANITOR_*`, `_MERGE_OUT`) set by the parse/poll helpers and read by later steps of the same command. Nothing persists across invocations except the registry, sidecar and log files.

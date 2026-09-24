@@ -4,7 +4,8 @@ Source modules for the iterative-dev plugin infrastructure.
 
 ## Documentation Tree
 
-- [spawn/DOCS.md](spawn/DOCS.md) — Worker spawning (tmux_spawn.sh + spawn.py)
+- [spawn/DOCS.md](spawn/DOCS.md) — Worker spawning (tmux_spawn.sh + worker_*.sh libs + spawn.py)
+- [worker_cli/DOCS.md](worker_cli/DOCS.md) — worker-cli subcommand implementations (sourced by bin/worker-cli)
 - [git/DOCS.md](git/DOCS.md) — Git automation utilities (pre-commit, commit, staging, post-commit)
 - [pipeline/DOCS.md](pipeline/DOCS.md) — Session JSONL analysis (conversion, listing, extraction)
 - [poread_cli/DOCS.md](poread_cli/DOCS.md) — poread CLI (full-content export marker minting, cross-repo half with monitor-cc's inject_poread.py)
@@ -14,7 +15,8 @@ Source modules for the iterative-dev plugin infrastructure.
 
 | Subdir | Role | LOC | Modules |
 |---|---|---:|---:|
-| spawn/ | Worker spawning and orchestration | 1124 | 3 (tmux_spawn.sh, _capture_clean.py, spawn.py) |
+| spawn/ | Worker spawning and orchestration | 1553 | 9 (tmux_spawn.sh, worker_status.sh, worker_io.sh, worker_log_sidecar.sh, worker_proxy.sh, worker_revive.sh, worker_logger.sh, _capture_clean.py, spawn.py) |
+| worker_cli/ | worker-cli subcommand implementations | 1016 | 5 (registry.sh, cmd_query.sh, cmd_lifecycle.sh, wait.sh, janitor.sh) |
 | git/ | Git automation utilities | 446 | 4 (check.py, commit.py, staged.py, post.py) |
 | pipeline/ | Session JSONL analysis | 670 | 6 (jsonl_to_md.py, jsonl_parse.py, dispatch_context.py, markdown_format.py, list_agents.py, extract_calls.py) |
 | poread_cli/ | poread CLI (marker-minting half) | 77 | 1 (__main__.py) |

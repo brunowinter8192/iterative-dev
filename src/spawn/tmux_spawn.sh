@@ -18,62 +18,12 @@ set -euo pipefail
 _WORKER_PERMISSION_FLAGS="--permission-mode bypassPermissions"
 _ORCHESTRATOR_SIGNALS_FILE="$HOME/Library/Application Support/com.brunowinter.monitor-cc-menubar/orchestrator_signals.json"
 
-# --- Helpers ---
-
-# _orchestrator_signal_update SESSION_NAME
-#   Update the orchestrator-signal file: set signals[SESSION_NAME] = now, prune entries > 1h.
-#   Atomic write via tmp + os.replace. Failures are non-fatal — signal is a hint to the menubar,
-#   not a correctness requirement for worker delivery. Menubar treats workers without signals
-#   normally (falls through to hook-state for status).
-_orchestrator_signal_update() {
-    local session_name="$1"
-    python3 - "$_ORCHESTRATOR_SIGNALS_FILE" "$session_name" <<'PYEOF' 2>/dev/null || true
-import json, os, sys, time
-path, key = sys.argv[1], sys.argv[2]
-now = time.time()
-try:
-    data = json.loads(open(path).read())
-    if not isinstance(data, dict):
-        data = {}
-except (FileNotFoundError, json.JSONDecodeError, OSError):
-    data = {}
-# prune entries > 1h old (excluding the one we're about to set)
-data = {k: float(v) for k, v in data.items()
-        if isinstance(v, (int, float)) and (now - float(v)) < 3600 and k != key}
-data[key] = now
-os.makedirs(os.path.dirname(path), exist_ok=True)
-tmp = path + ".tmp"
-with open(tmp, "w") as f:
-    json.dump(data, f)
-os.replace(tmp, path)
-PYEOF
-}
-
-# _orchestrator_signal_delete SESSION_NAME
-#   Remove the signal entry for SESSION_NAME (used on worker kill).
-_orchestrator_signal_delete() {
-    local session_name="$1"
-    python3 - "$_ORCHESTRATOR_SIGNALS_FILE" "$session_name" <<'PYEOF' 2>/dev/null || true
-import json, os, sys, time
-path, key = sys.argv[1], sys.argv[2]
-try:
-    raw = open(path).read()
-    data = json.loads(raw)
-    if not isinstance(data, dict):
-        sys.exit(0)
-except (FileNotFoundError, json.JSONDecodeError, OSError):
-    sys.exit(0)
-data.pop(key, None)
-# prune > 1h old entries while we are touching the file
-now = time.time()
-data = {k: float(v) for k, v in data.items()
-        if isinstance(v, (int, float)) and (now - float(v)) < 3600}
-tmp = path + ".tmp"
-with open(tmp, "w") as f:
-    json.dump(data, f)
-os.replace(tmp, path)
-PYEOF
-}
+_SPAWN_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_SPAWN_LIB_DIR/worker_io.sh"
+source "$_SPAWN_LIB_DIR/worker_status.sh"
+source "$_SPAWN_LIB_DIR/worker_log_sidecar.sh"
+source "$_SPAWN_LIB_DIR/worker_proxy.sh"
+source "$_SPAWN_LIB_DIR/worker_revive.sh"
 
 # _worker_project_name PROJECT_PATH
 #   Derives project name from project path.
@@ -98,531 +48,6 @@ _worker_session_name() {
     project=$(_worker_project_name "$project_path")
     echo "worker-${project}-${name}"
 }
-
-# --- Orchestration ---
-
-# _worker_detect_status SESSION
-#   Returns status: working, idle, or dead — a closed three-value vocabulary (2026-09-02).
-#   Shared logic used by worker_list and worker_status.
-#   'dead': cannot accept a message anymore — tmux session gone (caller-side, see
-#   worker_status), #{pane_dead}=1, no claude descendant under the pane pid, or the
-#   session JSONL's last assistant message is Claude Code's client-side context-limit
-#   marker (anthropics/claude-code #90113, #23377: message.model=="<synthetic>" + text
-#   "Prompt is too long" + isApiErrorMessage=true + error="invalid_request" — every later
-#   input fails the same way until /compact or /clear).
-#   'idle': hooks.json status idle (Stop hook fired), OR status working but
-#   #{window_activity} stale > 10s — the ESC-interrupt case: process alive, Stop hook
-#   never fired, pane quiet. Same 10s rule applies when there is no hook data at all
-#   (fresh spawn pre-JSONL, no hook entry, unreadable hooks file) — a quiet pane with no
-#   data is still read as idle, not as a distinct placeholder state.
-#   'working': the default — hook status working with fresh activity, or no dead signal
-#   and no idle signal (including every case that used to report "unknown").
-_worker_detect_status() {
-    local session="$1"
-
-    local dead
-    dead=$(tmux display-message -t "${session}:^" -p "#{pane_dead}" 2>/dev/null || echo "?")
-    if [ "$dead" = "1" ]; then
-        echo "dead"
-        return 0
-    fi
-    # dead != "0" means the pane query itself failed (tmux hiccup) — no positive dead
-    # signal fired, fall through to the rest of the checks (fail-open toward "working").
-
-    # Process-tree check: pane_dead is 0 in our zsh/bash-wrapped CC setup even
-    # after Claude exits (shell keeps the pane alive). The reliable signal is
-    # whether a `claude` descendant of the pane PID still exists. If none →
-    # CC has exited (context-limit death, crash, manual quit) — "dead".
-    local pane_pid
-    pane_pid=$(tmux display-message -t "${session}:^" -p "#{pane_pid}" 2>/dev/null || true)
-    if [ -n "$pane_pid" ]; then
-        local children
-        children=$(pgrep -P "$pane_pid" 2>/dev/null || true)
-        if [ -z "$children" ]; then
-            echo "dead"
-            return 0
-        fi
-        local has_claude=0
-        for cpid in $children; do
-            if ps -o command= -p "$cpid" 2>/dev/null | grep -q "claude"; then
-                has_claude=1
-                break
-            fi
-        done
-        if [ "$has_claude" = "0" ]; then
-            echo "dead"
-            return 0
-        fi
-    fi
-
-    # Resolve the session JSONL once — reused below for both the context-limit marker
-    # check and the hooks.json lookup.
-    local worktree encoded jsonl session_id
-    worktree=$(tmux display-message -t "${session}:^" -p "#{pane_current_path}" 2>/dev/null || true)
-    if [ -n "$worktree" ]; then
-        # CC encoding: replace /, _, . with - (matches Monitor_CC/src/session_finder.py:encode_project_path).
-        encoded=$(echo "$worktree" | tr '/_.' '-')
-        jsonl=$(ls -t "$HOME/.claude/projects/${encoded}"/*.jsonl 2>/dev/null | head -1 || true)
-    fi
-
-    # Context-limit marker check: the LAST assistant-type entry in the JSONL (not
-    # necessarily the last line of the file) is the synthetic rejection Claude Code
-    # writes when it blocks a turn for prompt length — the worker cannot take another
-    # message until the user runs /compact or /clear, so this counts as "dead". Bounded
-    # to the last 200 lines (tail, not a full slurp) — a multi-megabyte session JSONL
-    # must stay cheap under `wait`'s 5s poll cadence; the marker, if present, is always
-    # the newest assistant entry, well within any realistic tail window.
-    if [ -n "${jsonl:-}" ] && [ -f "$jsonl" ]; then
-        local last_assistant
-        last_assistant=$(tail -n 200 "$jsonl" 2>/dev/null \
-            | jq -c -s '[.[] | select(.type=="assistant")] | last // empty' 2>/dev/null || true)
-        if [ -n "$last_assistant" ] && [ "$last_assistant" != "null" ]; then
-            local marker_model marker_is_err marker_err marker_text
-            marker_model=$(echo "$last_assistant" | jq -r '.message.model // empty' 2>/dev/null || true)
-            marker_is_err=$(echo "$last_assistant" | jq -r '.isApiErrorMessage // false' 2>/dev/null || true)
-            marker_err=$(echo "$last_assistant" | jq -r '.error // empty' 2>/dev/null || true)
-            marker_text=$(echo "$last_assistant" | jq -r '[.message.content[]? | select(.type=="text") | .text] | join(" ")' 2>/dev/null || true)
-            if [ "$marker_model" = "<synthetic>" ] && [ "$marker_is_err" = "true" ] \
-                && [ "$marker_err" = "invalid_request" ] && [[ "$marker_text" == *"Prompt is too long"* ]]; then
-                echo "dead"
-                return 0
-            fi
-        fi
-    fi
-
-    # hooks.json status — idle is always idle; working (or no data at all: fresh spawn,
-    # no hook entry, unreadable hooks file) shares the same window_activity check below.
-    local hook_status=""
-    if [ -n "${jsonl:-}" ]; then
-        session_id=$(basename "$jsonl" .jsonl)
-        local hook_file="$HOME/Library/Application Support/com.brunowinter.monitor-cc-menubar/hooks.json"
-        hook_status=$(jq -r --arg sid "$session_id" '.[$sid].status // ""' "$hook_file" 2>/dev/null || true)
-        [ "$hook_status" = "null" ] && hook_status=""
-    fi
-    if [ "$hook_status" = "idle" ]; then
-        echo "idle"
-        return 0
-    fi
-
-    # Demote to 'idle' when the pane has been inactive > 10s — applies whether hook
-    # status is "working" or entirely absent (ESC-interrupt / crash / no-data-yet all
-    # read the same way: process alive, pane quiet). Mirrors menubar discover.py:178-181
-    # (WORKING_THRESHOLD_SECS=10, #{window_activity}). Fail-open: activity unreadable or
-    # non-positive → default "working".
-    local wa now_ts
-    wa=$(tmux display-message -t "${session}:^" -p "#{window_activity}" 2>/dev/null || true)
-    if [[ "$wa" =~ ^[0-9]+$ ]] && [ "$wa" -gt 0 ]; then
-        now_ts=$(date +%s)
-        if [ $((now_ts - wa)) -gt 10 ]; then
-            echo "idle"
-            return 0
-        fi
-    fi
-    echo "working"
-}
-
-# worker_list [PROJECT_PATH]
-#   Lists active worker sessions for the given project (default: pwd).
-#   Output: NAME  STATUS  SPAWNED  PURPOSE per line (STATUS: working/idle/dead).
-worker_list() {
-    local project_path="${1:-$(pwd)}"
-    local project
-    project=$(_worker_project_name "$project_path")
-    local prefix="worker-${project}-"
-    local sessions
-    sessions=$(tmux list-sessions -F "#{session_name}" 2>/dev/null \
-        | grep "^${prefix}" || true)
-
-    if [ -z "$sessions" ]; then
-        return 0
-    fi
-
-    while IFS= read -r session_name; do
-        local name="${session_name#$prefix}"
-        local status
-        status=$(_worker_detect_status "$session_name" 2>/dev/null || echo "working")
-        local spawned
-        spawned=$(tmux show-environment -t "$session_name" WORKER_SPAWNED 2>/dev/null | cut -d= -f2)
-        [ -z "$spawned" ] && spawned="(?)"
-        local purpose
-        purpose=$(tmux show-environment -t "$session_name" WORKER_PURPOSE 2>/dev/null | cut -d= -f2)
-        [ -z "$purpose" ] && purpose="(?)"
-        echo "$name  $status  $spawned  $purpose"
-    done <<< "$sessions"
-}
-
-# worker_status NAME [PROJECT_PATH]
-#   Returns status: working, idle, or dead.
-#   working = Claude Code is actively processing (the default; also every no-data case)
-#   idle = waiting for input — Stop hook fired, or process alive with a quiet pane (ESC)
-#   dead = cannot accept a message anymore — no session, pane dead, no claude child, or
-#   the JSONL's last assistant message is the context-limit marker
-worker_status() {
-    local name="$1"
-    local project_path="${2:-$(pwd)}"
-    local session
-    session=$(_worker_session_name "$project_path" "$name")
-
-    if ! tmux has-session -t "$session" 2>/dev/null; then
-        echo "dead"
-        return 0
-    fi
-
-    local raw
-    raw=$(_worker_detect_status "$session")
-    echo "$raw"
-}
-
-# worker_capture NAME [LINES] [PROJECT_PATH]
-#   Captures worker pane content to /tmp/worker-<name>-pane.txt.
-#   LINES: number of scrollback lines to capture (default: all).
-#   PROJECT_PATH: project the worker belongs to (default: pwd).
-#   Returns: path to the capture file.
-worker_capture() {
-    local name="$1"
-    local lines="${2:-}"
-    local project_path="${3:-$(pwd)}"
-    local session
-    session=$(_worker_session_name "$project_path" "$name")
-    local outfile="/tmp/worker-${name}-pane.txt"
-
-    if ! tmux has-session -t "$session" 2>/dev/null; then
-        echo "ERROR: No session '$session'" >&2
-        return 1
-    fi
-
-    local pane_id
-    pane_id=$(tmux list-panes -t "$session" -F "#{pane_id}" | head -1)
-
-    if [ -n "$lines" ]; then
-        tmux capture-pane -p -t "$pane_id" -S "-${lines}" > "$outfile"
-    else
-        tmux capture-pane -p -t "$pane_id" -S - > "$outfile"
-    fi
-
-    echo "$outfile"
-}
-
-# worker_capture_clean NAME [PROJECT_PATH]
-#   Captures worker pane, scopes to output since last real orchestrator prompt (❯ with content),
-#   applies clean filter (boot box, spinners, diff hunks, widget chrome), prints to stdout.
-#   Output shape: "=== capture from <name> (since last prompt, N chars) ===" + cleaned body.
-#   Fallback: if no ❯ prompt marker in scrollback → prints full cleaned buffer + warning.
-#   Uses _capture_clean.py (same dir as this script) for the scope + filter logic.
-worker_capture_clean() {
-    local name="$1"
-    local project_path="${2:-$(pwd)}"
-    local session
-    session=$(_worker_session_name "$project_path" "$name")
-
-    if ! tmux has-session -t "$session" 2>/dev/null; then
-        echo "ERROR: No session '$session'" >&2
-        return 1
-    fi
-
-    local clean_script
-    clean_script="$(dirname "${BASH_SOURCE[0]}")/_capture_clean.py"
-    if [ ! -f "$clean_script" ]; then
-        echo "ERROR: _capture_clean.py not found at $clean_script" >&2
-        return 1
-    fi
-
-    local pane_id pane_file
-    pane_id=$(tmux list-panes -t "$session" -F "#{pane_id}" | head -1)
-    pane_file=$(mktemp "/tmp/.cap_pane_${name}_XXXXXX.txt")
-
-    tmux capture-pane -p -t "$pane_id" -S - > "$pane_file"
-    python3 "$clean_script" "$pane_file" "$name"
-    local exit_code=$?
-    rm -f "$pane_file"
-    return $exit_code
-}
-
-# worker_send NAME MESSAGE [PROJECT_PATH]
-#   Sends text input to a running worker's tmux pane (followed by Enter).
-#   PROJECT_PATH: project the worker belongs to (default: pwd).
-worker_send() {
-    local name="$1"
-    local message="$2"
-    local project_path="${3:-$(pwd)}"
-    local session
-    session=$(_worker_session_name "$project_path" "$name")
-
-    if ! tmux has-session -t "$session" 2>/dev/null; then
-        echo "ERROR: No session '$session'" >&2
-        return 1
-    fi
-
-    local pane_id
-    pane_id=$(tmux list-panes -t "$session" -F "#{pane_id}" | head -1)
-
-    # Signal the orchestrator-send event BEFORE delivering the keys. The Monitor_CC menubar
-    # treats workers with a recent signal as 'working' for auto-abort, bridging the latency
-    # window between this tmux send-keys and CC's UserPromptSubmit hook firing — see
-    # Monitor_CC process-docs (menubar signal grace).
-    _orchestrator_signal_update "$session"
-
-    # Paste message via bracketed paste (-p), then send Enter as key event.
-    # Without -p, CC 2.1.280 loses the head of long/multi-line pastes and Enter
-    # doesn't submit (process-docs/worker_message_delivery/2026-09-23_paste_breaks_on_cc_280.md).
-    # Sleep prevents race condition where Enter arrives before the paste renders.
-    printf '%s' "$message" | tmux load-buffer -
-    tmux paste-buffer -d -p -t "$pane_id"
-    sleep 0.2
-    tmux send-keys -t "$pane_id" Enter
-}
-
-# --- Functions ---
-
-# open_tmux_viewer SESSION
-#   Opens a new Ghostty window and attaches to the tmux session.
-#   Ghostty 1.3+: Uses native AppleScript API (PR #11208).
-#   Ghostty 1.2.x: Falls back to open -na with isolation flags.
-open_tmux_viewer() {
-    local session="$1"
-
-    local ghostty_version
-    ghostty_version=$(ghostty +version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+' || echo "0.0")
-    local major minor
-    major=$(echo "$ghostty_version" | cut -d. -f1)
-    minor=$(echo "$ghostty_version" | cut -d. -f2)
-
-    if [ "$major" -ge 2 ] || { [ "$major" -ge 1 ] && [ "$minor" -ge 3 ]; }; then
-        # Ghostty 1.3+: native AppleScript
-        osascript -e "
-tell application \"Ghostty\"
-    activate
-    set win to new window
-    set t to terminal 1 of selected tab of win
-    input text \"tmux attach -t $session; exit\" to t
-    send key \"enter\" to t
-end tell
-"
-    else
-        # Ghostty 1.2.x: -e expects separate args, not a quoted string
-        open -na Ghostty.app --args \
-            --quit-after-last-window-closed=true \
-            --window-save-state=never \
-            -e tmux attach -t "$session"
-    fi
-
-}
-
-# sweep_stale_logs LOG_DIR [MAX_AGE_HOURS] [DRY_RUN]
-#   Deletes regular files directly under LOG_DIR whose mtime is older than MAX_AGE_HOURS
-#   (default 72, empty string also means "use the default"). This is the retention rule
-#   for the per-spawn worker_logger.sh output (`<name>_<ts>_<event>.log`,
-#   `<...>_DEATH.txt`) and janitor.log, none of which had any rotation before 2026-09-17
-#   (process-docs/worker_sweep_logs/) — the 333-file, 49MB pile this fixed lived entirely
-#   in these categories, measured live before this change.
-#
-#   wait_trace.log is explicitly excluded by name, always, regardless of age: it already
-#   self-trims by LINE COUNT (20000 -> 10000, `_wait_trace_init` in bin/worker-cli) on a
-#   different axis than age — it's a single continuously-relevant trace read for live
-#   `wait` diagnostics, not a one-shot dateable snapshot like the per-spawn files. Adding
-#   an age bound on top would either never fire (mtime refreshes on every poll while
-#   `wait` is in active use) or, during a lull, delete the one thing still worth reading
-#   for negligible space (it's capped at ~1-2MB by the line count alone). Keeping the two
-#   mechanisms on separate axes, one per file, avoids a collision rather than trying to
-#   unify them.
-#
-#   Deliberately not named/logged anywhere near "janitor" (`_janitor_log`/janitor.log,
-#   `bin/worker-cli`'s `janitor` case) — that sweep kills stale tmux WORKER SESSIONS on a
-#   12h default; this one deletes stale FILES on a 72h default. Own audit line goes to
-#   log_sweep.log in the same LOG_DIR, which is itself subject to this same rule on later
-#   runs (no special-casing needed: it gets rewritten every time this function runs, so
-#   its mtime only ever goes stale if the sweep itself stops being invoked).
-#
-#   Called automatically, real (non-dry-run) only, from _start_worker_logger below — every
-#   spawn/revive sweeps the directory it is about to add a new file to. Also exposed
-#   directly as `worker-cli sweep-logs` for manual/dry-run use and testing.
-sweep_stale_logs() {
-    local log_dir="${1:?need log dir}"
-    local max_age_hours="${2:-72}"
-    [ -z "$max_age_hours" ] && max_age_hours=72
-    local dry_run="${3:-0}"
-    mkdir -p "$log_dir" 2>/dev/null || true
-    [ -d "$log_dir" ] || return 0
-    local max_age_secs=$((max_age_hours * 3600))
-    local now_ts
-    now_ts=$(date +%s)
-    local removed=0
-    local f
-    while IFS= read -r -d '' f; do
-        local base
-        base="$(basename "$f")"
-        [ "$base" = "wait_trace.log" ] && continue
-        [ "$base" = ".gitkeep" ] && continue
-        local mtime age
-        mtime=$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null || echo "$now_ts")
-        age=$((now_ts - mtime))
-        if [ "$age" -gt "$max_age_secs" ]; then
-            removed=$((removed + 1))
-            if [ "$dry_run" = "1" ]; then
-                echo "DRY-RUN would remove: $f (age ${age}s, max ${max_age_secs}s)"
-            else
-                rm -f "$f" 2>/dev/null || true
-            fi
-        fi
-    done < <(find "$log_dir" -maxdepth 1 -type f -print0 2>/dev/null || true)
-    echo "$(date -Iseconds) event=sweep dry_run=$dry_run max_age_hours=$max_age_hours removed=$removed" \
-        >> "$log_dir/log_sweep.log" 2>/dev/null || true
-}
-
-# _start_worker_logger NAME SESSION EVENT
-#   Spawn the diagnostic logger sidecar in background. Samples every 10s; on detected
-#   pane_dead writes a forensic snapshot. Writes its own PID to /tmp/worker-logger-<name>.pid
-#   so _stop_worker_logger can clean it up.
-#
-#   EVENT is "spawn" or "revive" — only affects the log filename suffix.
-#
-#   Log dir defaults to ~/Documents/ai/Meta/iterative-dev/src/logs (this repo's own
-#   checkout — moved 2026-09-17 off a placeholder repo, Meta/blank, that held nothing but
-#   this same directory); override via WORKER_LOGGER_DIR env var. Plugin runs from cache
-#   but logs go to source-repo dir so they survive plugin-publish overwrites.
-_start_worker_logger() {
-    local name="$1"
-    local session="$2"
-    local event="${3:-spawn}"
-    local logger_script
-    logger_script="$(dirname "${BASH_SOURCE[0]}")/worker_logger.sh"
-    if [ ! -x "$logger_script" ]; then
-        # Logger missing — non-fatal, just skip
-        return 0
-    fi
-    local log_dir="${WORKER_LOGGER_DIR:-$HOME/Documents/ai/Meta/iterative-dev/src/logs}"
-    mkdir -p "$log_dir"
-    sweep_stale_logs "$log_dir" 72 0 2>/dev/null || true
-    # Start in background, fully detached so the logger survives worker_spawn returning
-    nohup "$logger_script" "$name" "$session" "$log_dir" "$event" \
-        >/dev/null 2>&1 &
-    disown
-}
-
-# _stop_worker_logger NAME
-#   Stop the diagnostic logger sidecar via PID file (best-effort).
-_stop_worker_logger() {
-    local name="$1"
-    local pid_file="/tmp/worker-logger-${name}.pid"
-    if [ -f "$pid_file" ]; then
-        local pid
-        pid=$(cat "$pid_file" 2>/dev/null || echo "")
-        [ -n "$pid" ] && kill -TERM "$pid" 2>/dev/null || true
-        rm -f "$pid_file"
-    fi
-}
-
-
-# _worker_proxy_setup NAME PROJECT_PATH
-#   Sets up a worker-specific mitmproxy if the Monitor_CC proxy marker is present.
-#   The proxy is needed so the worker's claude --resume hits the same per-project
-#   marker prefix as the main session — without it the prompt-cache prefix changes
-#   and Anthropic sees a full cache miss, forcing a complete re-upload of context.
-#
-#   Reads /tmp/.monitor_cc_proxy_<session_id> (line 1 = main_port, line 3 = MONITOR_CC_ROOT).
-#   Starts mitmdump in background on (main_port + N) with a per-worker live-copy of
-#   the addon (live-copy prevents hot-reload bashing the main proxy).
-#
-#   Writes results to global vars (consumed by both spawn and revive):
-#     WORKER_PROXY_PID            — pid of mitmdump or empty if no proxy
-#     WORKER_PROXY_ENV_PREFIX     — env-var string to prefix the claude command, or empty
-#     WORKER_PROXY_LIVE_ADDON     — path to live-copy addon file (for cleanup) or empty
-#     WORKER_PROXY_LIVE_DIR       — path to live-copy proxy dir (for cleanup) or empty
-#
-#   The live-copy paths carry a per-call unique suffix (name + epoch + pid), so a previous
-#   worker's asynchronous runner-trap cleanup can only delete its own copies (2026-09-23:
-#   kill + immediate respawn under one name lost the new worker's addon).
-#   After starting mitmdump it waits until the port listens; if the proxy does not come up
-#   it cleans up and returns 1.
-#   Returns 0 when no proxy is active or the proxy is ready; 1 when the proxy failed to start
-#   (caller must refuse to spawn).
-_worker_proxy_setup() {
-    local name="$1"
-    local project_path="$2"
-
-    # Reset globals
-    WORKER_PROXY_PID=""
-    WORKER_PROXY_ENV_PREFIX=""
-    WORKER_PROXY_LIVE_ADDON=""
-    WORKER_PROXY_LIVE_DIR=""
-
-    # Detect mitmproxy: strip worktree suffix to get original project path for hash
-    local proxy_project_path="$project_path"
-    if [[ "$project_path" == */.claude/worktrees/* ]]; then
-        proxy_project_path="${project_path%%/.claude/worktrees/*}"
-    fi
-    local proxy_session_id
-    if command -v md5 >/dev/null 2>&1; then
-        proxy_session_id=$(echo -n "$proxy_project_path" | md5 | head -c 8)
-    else
-        proxy_session_id=$(echo -n "$proxy_project_path" | md5sum | head -c 8)
-    fi
-    local proxy_marker="/tmp/.monitor_cc_proxy_${proxy_session_id}"
-    [ ! -f "$proxy_marker" ] && return 0
-
-    local main_port monitor_cc_root
-    main_port=$(sed -n '1p' "$proxy_marker")
-    monitor_cc_root=$(sed -n '3p' "$proxy_marker")
-    if [ -z "$monitor_cc_root" ] || [ ! -d "$monitor_cc_root" ]; then
-        # Marker exists but no MONITOR_CC_ROOT (old format) — skip proxy setup
-        return 0
-    fi
-
-    # Find a free port starting at main_port + 1
-    local worker_port=$((main_port + 1))
-    while lsof -iTCP:${worker_port} -sTCP:LISTEN >/dev/null 2>&1; do
-        worker_port=$((worker_port + 1))
-    done
-    # Generate human-readable log id: worker_{project_session_id}_{name}_{timestamp}
-    # project_session_id scopes this log to the active project (mirrors _proxy_session_id_for_project in parser.py)
-    local worker_log_id="worker_${proxy_session_id}_${name}_$(date +%s)"
-    # Start worker-specific mitmproxy in background (live-copy to prevent hot-reload)
-    local log_dir="${monitor_cc_root}/src/logs"
-    mkdir -p "$log_dir"
-    local worker_live_id="worker_${name}_$(date +%s)_$$"
-    local worker_live_addon_path="${log_dir}/.proxy_addon_live_${worker_live_id}.py"
-    local worker_live_dir_path="${log_dir}/.proxy_live_${worker_live_id}"
-    cp "${monitor_cc_root}/src/proxy_addon.py" "$worker_live_addon_path"
-    mkdir -p "$worker_live_dir_path"
-    cp -r "${monitor_cc_root}/src/proxy" "$worker_live_dir_path/"
-    MONITOR_CC_ROOT="$monitor_cc_root" PROXY_LOG_ID="$worker_log_id" \
-        PROXY_PROJECT_PATH="$proxy_project_path" \
-        mitmdump -p "$worker_port" -s "$worker_live_addon_path" \
-        --set flow_detail=0 -q \
-        >/dev/null 2>"${log_dir}/proxy_errors_${worker_log_id}.log" &
-    WORKER_PROXY_PID=$!
-    WORKER_PROXY_LIVE_ADDON="$worker_live_addon_path"
-    WORKER_PROXY_LIVE_DIR="$worker_live_dir_path"
-    if ! _worker_proxy_wait_ready "$WORKER_PROXY_PID" "$worker_port"; then
-        echo "ERROR: Worker proxy for '$name' did not come up on port ${worker_port}; refusing to start a worker without proxy." >&2
-        echo "  mitmdump log: ${log_dir}/proxy_errors_${worker_log_id}.log" >&2
-        kill "$WORKER_PROXY_PID" 2>/dev/null || true
-        rm -f "$worker_live_addon_path"
-        rm -rf "$worker_live_dir_path"
-        WORKER_PROXY_PID=""
-        WORKER_PROXY_ENV_PREFIX=""
-        WORKER_PROXY_LIVE_ADDON=""
-        WORKER_PROXY_LIVE_DIR=""
-        return 1
-    fi
-    WORKER_PROXY_ENV_PREFIX="HTTPS_PROXY=http://localhost:${worker_port} NODE_EXTRA_CA_CERTS=~/.mitmproxy/mitmproxy-ca-cert.pem SSL_CERT_FILE=~/.mitmproxy/combined-ca.pem REQUESTS_CA_BUNDLE=~/.mitmproxy/combined-ca.pem "
-    return 0
-}
-
-# _worker_proxy_wait_ready PID PORT
-#   Polls up to 15s until PID is alive and PORT is listening. Returns 0 when ready, 1 otherwise.
-_worker_proxy_wait_ready() {
-    local pid="$1"
-    local port="$2"
-    local deadline=$(( $(date +%s) + 15 ))
-    while [ "$(date +%s)" -lt "$deadline" ]; do
-        kill -0 "$pid" 2>/dev/null || return 1
-        lsof -iTCP:"${port}" -sTCP:LISTEN >/dev/null 2>&1 && return 0
-        sleep 0.3
-    done
-    return 1
-}
-
 
 # _resolve_worker_model
 #   Returns the worker model to use when no explicit model argument was given: the "worker"
@@ -649,7 +74,6 @@ _resolve_worker_model() {
     fi
 }
 
-
 # spawn_claude_worker SESSION_IGNORED NAME PROJECT_PATH MODEL TASK_PROMPT [EXTRA_FLAGS]
 #   Spawns Claude Code in its own tmux session ("worker-<project>-<name>").
 #   Opens a Ghostty window to view the session.
@@ -671,23 +95,50 @@ spawn_claude_worker() {
     local session
     session=$(_worker_session_name "$project_path" "$name")
 
-    # Kill existing session with same name (clean restart for THIS project + worker name)
     tmux kill-session -t "$session" 2>/dev/null || true
 
-    # Write prompt to temp file to avoid shell escaping issues
     local prompt_file="/tmp/spawn-prompt-${name}-$$.txt"
     echo "$task_prompt" > "$prompt_file"
 
-    # Set up worker-specific mitmproxy via shared helper (populates WORKER_PROXY_* globals)
     _worker_proxy_setup "$name" "$project_path" || { rm -f "$prompt_file"; return 1; }
+
+    local runner
+    runner=$(_build_spawn_runner "$name" "$project_path" "$model" "$extra_flags")
+
+    _create_worker_session "$session" "bash '${runner}'"
+
+    _orchestrator_signal_update "$session"
+
+    _store_spawn_metadata "$session" "$model" "$task_prompt"
+
+    _start_worker_logger "$name" "$session" "spawn"
+
+    open_tmux_viewer "$session" &
+
+    local pane_id
+    pane_id=$(tmux list-panes -t "$session" -F "#{pane_id}" | head -1)
+    if ! _wait_for_input_ready "$pane_id" "$session"; then
+        rm -f "$prompt_file"
+        return 1
+    fi
+
+    _inject_prompt "$pane_id" "$task_prompt"
+    rm -f "$prompt_file"
+
+    echo "$session"
+}
+
+# _build_spawn_runner NAME PROJECT_PATH MODEL EXTRA_FLAGS
+#   Writes the runner script and echoes its path. Runner script so trap fires reliably on
+#   EXIT/INT/TERM/HUP regardless of how the tmux pane shell is killed (tmux kill-session sends
+#   SIGHUP, which cuts the ; chain before cleanup commands can run). Reads the WORKER_PROXY_*
+#   globals populated by _worker_proxy_setup.
+_build_spawn_runner() {
+    local name="$1" project_path="$2" model="$3" extra_flags="$4"
     local proxy_env_prefix="$WORKER_PROXY_ENV_PREFIX"
     local worker_proxy_pid="$WORKER_PROXY_PID"
     local worker_live_addon="$WORKER_PROXY_LIVE_ADDON"
     local worker_live_dir="$WORKER_PROXY_LIVE_DIR"
-
-    # Build a runner script so trap fires reliably on EXIT/INT/TERM/HUP regardless
-    # of how the tmux pane shell is killed (tmux kill-session sends SIGHUP, which
-    # cuts the ; chain before cleanup commands can run).
     local worker_claude_bin="${CLAUDE_BIN:-$HOME/.local/bin/claude-280}"
     local runner
     runner=$(mktemp "/tmp/.worker_${name}.XXXXXX")
@@ -704,23 +155,26 @@ trap _cleanup EXIT INT TERM HUP
 cd '${project_path}'
 ${proxy_env_prefix}${worker_claude_bin} --model '${model}' ${extra_flags}
 RUNSCRIPT
-    local claude_cmd="bash '${runner}'"
+    echo "$runner"
+}
 
-    # Create session with command as direct arg (no polling needed).
-    # Atomic remain-on-exit via ; chain — set before process can exit.
-    # 50000-line history so a long worker turn never scrolls off the top of the scrollback
-    # before worker_capture_clean can find the ❯ prompt anchor.
-    tmux new-session -d -s "$session" "$claude_cmd" \; \
+# _create_worker_session SESSION COMMAND
+#   Creates the tmux session with COMMAND as direct arg (no shell-ready polling). Atomic
+#   remain-on-exit via ; chain — set before process can exit. 50000-line history so a long
+#   worker turn never scrolls off the top before worker_capture_clean can find the ❯ anchor.
+_create_worker_session() {
+    local session="$1"
+    local command="$2"
+    tmux new-session -d -s "$session" "$command" \; \
         set-option -p -t "$session" remain-on-exit on \; \
         set-option -t "$session" history-limit 50000
+}
 
-    # Write orchestrator signal for menubar grace (Fix A: spawn-case protection).
-    # Same mechanism as worker_send — covers initial thinking phase before first JSONL
-    # write. Without this, menubar's stale-JSONL demote kills Opus bg timers during
-    # the fresh-worker thinking window. See Monitor_CC process-docs (menubar signal grace).
-    _orchestrator_signal_update "$session"
-
-    # Store spawn metadata for worker_list display
+# _store_spawn_metadata SESSION MODEL TASK_PROMPT
+#   Stores spawn metadata (time, purpose from the first "# " prompt line, parent, model) in
+#   the tmux environment for worker_list display and worker_revive.
+_store_spawn_metadata() {
+    local session="$1" model="$2" task_prompt="$3"
     tmux set-environment -t "$session" WORKER_SPAWNED "$(date +%H:%M)"
     local purpose
     purpose=$(echo "$task_prompt" | grep -m1 "^# " | sed 's/^# //' || echo "")
@@ -728,43 +182,37 @@ RUNSCRIPT
     tmux set-environment -t "$session" WORKER_PURPOSE "$purpose"
     tmux set-environment -t "$session" WORKER_PARENT "${CLAUDE_SESSION_ID:-unknown}"
     tmux set-environment -t "$session" WORKER_MODEL "$model"
+}
 
-    # Start diagnostic logger sidecar (samples + death-snapshot)
-    _start_worker_logger "$name" "$session" "spawn"
-
-    # Open Ghostty window attached to this worker's session
-    open_tmux_viewer "$session" &
-
-    # Readiness gate: poll until CC shows its input prompt (❯ at col 0).
-    # CC writes no JSONL before the first prompt — the pane content is the only
-    # pre-input signal. ❯ (U+276F) at line start = input box ready; the trust-dir
-    # dialog uses " ❯ 1." (leading space) and does NOT match ^❯, so a trust dialog
-    # in an untrusted dir causes gate timeout → explicit failure rather than silent
-    # injection into a dialog. FRAGILITY: if CC changes this glyph, gate times out
-    # and spawn fails explicitly — update the grep pattern to match.
-    local _pane_id _deadline
-    _pane_id=$(tmux list-panes -t "$session" -F "#{pane_id}" | head -1)
-    _deadline=$(( $(date +%s) + 30 ))
-    while [ "$(date +%s)" -lt "$_deadline" ]; do
-        tmux capture-pane -p -t "$_pane_id" 2>/dev/null | grep -q '^❯' && break
+# _wait_for_input_ready PANE_ID SESSION
+#   Readiness gate: polls up to 30s until CC shows its input prompt (❯ at col 0). CC writes no
+#   JSONL before the first prompt — the pane content is the only pre-input signal. The trust-dir
+#   dialog uses " ❯ 1." (leading space) and does NOT match ^❯, so a trust dialog in an untrusted
+#   dir causes gate timeout -> explicit failure rather than silent injection into a dialog.
+#   FRAGILITY: if CC changes this glyph, the gate times out and spawn fails explicitly.
+_wait_for_input_ready() {
+    local pane_id="$1" session="$2"
+    local deadline=$(( $(date +%s) + 30 ))
+    while [ "$(date +%s)" -lt "$deadline" ]; do
+        tmux capture-pane -p -t "$pane_id" 2>/dev/null | grep -q '^❯' && break
         sleep 0.3
     done
-    if ! tmux capture-pane -p -t "$_pane_id" 2>/dev/null | grep -q '^❯'; then
+    if ! tmux capture-pane -p -t "$pane_id" 2>/dev/null | grep -q '^❯'; then
         echo "spawn_claude_worker: CC did not reach input-ready state within 30s (session=$session)" >&2
-        rm -f "$prompt_file"
         return 1
     fi
+    return 0
+}
 
-    # Inject prompt via bracketed paste — same mechanism as worker_send.
-    # Prompt text never touches the claude cmdline; pane content only.
+# _inject_prompt PANE_ID TASK_PROMPT
+#   Injects the prompt via bracketed paste — same mechanism as worker_send. Prompt text never
+#   touches the claude cmdline; pane content only.
+_inject_prompt() {
+    local pane_id="$1" task_prompt="$2"
     printf '%s' "$task_prompt" | tmux load-buffer -
-    tmux paste-buffer -d -p -t "$_pane_id"
+    tmux paste-buffer -d -p -t "$pane_id"
     sleep 0.2
-    tmux send-keys -t "$_pane_id" Enter
-    rm -f "$prompt_file"
-
-    # Return session name (pane_id no longer needed — use session:^ for queries)
-    echo "$session"
+    tmux send-keys -t "$pane_id" Enter
 }
 
 # spawn_claude_worker_from_file SESSION NAME PROJECT_PATH MODEL PROMPT_FILE [EXTRA_FLAGS]
@@ -787,151 +235,4 @@ spawn_claude_worker_from_file() {
     task_prompt=$(cat "$prompt_file")
 
     spawn_claude_worker "$session" "$name" "$project_path" "$model" "$task_prompt" "$extra_flags"
-}
-
-
-# worker_revive NAME PROJECT_PATH
-#   Reanimate a worker whose pane died (tmux session still exists, pane_dead=1).
-#   Uses claude --resume with the session's stored JSONL to restore full conversation
-#   context. CRITICAL: sets up the same mitmproxy as spawn (via _worker_proxy_setup),
-#   so the prompt-cache prefix matches what Anthropic saw before the death — without
-#   this the cache invalidates and the entire conversation context gets re-uploaded.
-#
-#   Gates (return 2 + message on failure):
-#     1. tmux session must exist (else: worker was killed, use spawn)
-#     2. pane must be dead (else: worker alive, use send)
-#     3. worktree dir must exist
-#     4. session JSONL must exist
-#
-#   Restores stored env vars: WORKER_MODEL, WORKER_PURPOSE, WORKER_PARENT.
-#   Re-installs pane-died hook for death-log writing.
-#   Opens viewer window.
-worker_revive() {
-    local name="$1"
-    local project_path="$2"
-    local session
-    session=$(_worker_session_name "$project_path" "$name")
-
-    # Gate 1: tmux session must exist
-    if ! tmux has-session -t "$session" 2>/dev/null; then
-        echo "worker_revive: session '$session' not found — worker was fully killed; use 'spawn'" >&2
-        return 2
-    fi
-
-    # Gate 2: pane must be dead
-    local pane_dead
-    pane_dead=$(tmux display-message -t "${session}:^" -p "#{pane_dead}" 2>/dev/null || echo "?")
-    if [ "$pane_dead" = "0" ]; then
-        echo "worker_revive: worker '$name' is still running — use 'send'" >&2
-        return 2
-    elif [ "$pane_dead" != "1" ]; then
-        echo "worker_revive: cannot determine pane state for '$session' (got: $pane_dead)" >&2
-        return 2
-    fi
-
-    # Gate 3: worktree must exist
-    local worktree
-    if [[ "$project_path" == */.claude/worktrees/* ]]; then
-        # Caller passed a worktree path directly; respect it
-        worktree="$project_path"
-    else
-        worktree="$project_path/.claude/worktrees/$name"
-    fi
-    if [ ! -d "$worktree" ]; then
-        echo "worker_revive: worktree not found at $worktree — revive not possible" >&2
-        return 2
-    fi
-
-    # Gate 4: session JSONL must exist
-    # Claude Code encoding of paths: '/' -> '-', '.' -> '-', '_' -> '-'
-    local encoded jsonl encoded_dir
-    encoded="$worktree"
-    encoded="${encoded//\//-}"
-    encoded="${encoded//\./-}"
-    encoded="${encoded//_/-}"
-    encoded_dir="$HOME/.claude/projects/$encoded"
-    jsonl=$(ls -t "$encoded_dir"/*.jsonl 2>/dev/null | head -1)
-    if [ -z "$jsonl" ]; then
-        echo "worker_revive: no session JSONL found at $encoded_dir — context lost; use 'spawn'" >&2
-        return 2
-    fi
-    local session_id
-    session_id=$(basename "$jsonl" .jsonl)
-
-    # Restore stored env vars from the dead session BEFORE killing it.
-    # The stored WORKER_MODEL always wins when present — revive's job is to restore the model
-    # the worker was ORIGINALLY spawned with, not to re-apply a possibly-since-changed config.
-    # The config (then the hardcoded fallback) only applies when WORKER_MODEL itself is absent.
-    local model purpose parent
-    model=$(tmux show-environment -t "$session" WORKER_MODEL 2>/dev/null | cut -d= -f2-)
-    [ -z "$model" ] && model="$(_resolve_worker_model)"
-    purpose=$(tmux show-environment -t "$session" WORKER_PURPOSE 2>/dev/null | cut -d= -f2-)
-    [ -z "$purpose" ] && purpose="(?)"
-    parent=$(tmux show-environment -t "$session" WORKER_PARENT 2>/dev/null | cut -d= -f2-)
-    [ -z "$parent" ] && parent="unknown"
-
-    echo "Reviving $name (session-id $session_id, model $model)"
-
-    # Kill the dead session before recreating
-    tmux kill-session -t "$session" 2>/dev/null || true
-
-    # Set up worker-specific mitmproxy — SAME helper as spawn, ensures cache prefix matches
-    _worker_proxy_setup "$name" "$project_path" || return 1
-    local proxy_env_prefix="$WORKER_PROXY_ENV_PREFIX"
-    local worker_proxy_pid="$WORKER_PROXY_PID"
-    local worker_live_addon="$WORKER_PROXY_LIVE_ADDON"
-    local worker_live_dir="$WORKER_PROXY_LIVE_DIR"
-
-    # Build a runner script — same trap pattern as spawn so the proxy is cleaned up on EXIT/INT/TERM/HUP
-    local worker_claude_bin="${CLAUDE_BIN:-$HOME/.local/bin/claude-280}"
-    local death_log="$HOME/.claude/worker-deaths.log"
-    local runner
-    runner=$(mktemp "/tmp/.worker_${name}_revive.XXXXXX")
-    cat > "$runner" <<RUNSCRIPT
-#!/usr/bin/env bash
-_cleanup() {
-    local _s=\$?
-    echo "\$(date -Iseconds) worker=${name} session=${session} status=\$_s signal=EXIT" >> '${death_log}'
-    [ -n '${worker_proxy_pid}' ] && kill '${worker_proxy_pid}' 2>/dev/null || true
-    [ -n '${worker_live_addon}' ] && rm -f '${worker_live_addon}' || true
-    [ -n '${worker_live_dir}' ]   && rm -rf '${worker_live_dir}' || true
-    touch '/tmp/worker-${name}.done'
-    rm -f '${runner}'
-}
-trap _cleanup EXIT INT TERM HUP
-cd '${worktree}'
-${proxy_env_prefix}${worker_claude_bin} --model '${model}' ${_WORKER_PERMISSION_FLAGS} --resume '${session_id}'
-RUNSCRIPT
-    chmod +x "$runner"
-
-    # Create new tmux session with the runner; remain-on-exit on for next death detection.
-    # 50000-line history mirrors spawn_claude_worker so capture_clean works after revive too.
-    tmux new-session -d -s "$session" "bash '$runner'" \; \
-        set-option -p -t "$session" remain-on-exit on \; \
-        set-option -t "$session" history-limit 50000
-
-    # Restore env vars + revive marker
-    tmux set-environment -t "$session" WORKER_SPAWNED "$(date +%H:%M)"
-    tmux set-environment -t "$session" WORKER_REVIVED "$(date +%H:%M)"
-    tmux set-environment -t "$session" WORKER_PURPOSE "$purpose"
-    tmux set-environment -t "$session" WORKER_PARENT "$parent"
-    tmux set-environment -t "$session" WORKER_MODEL "$model"
-
-    # Pane-died hook for death-log writing (single-quoted to defer #{} expansion to tmux)
-    tmux set-hook -t "$session" pane-died \
-        "run-shell 'echo \"\$(date -Iseconds) worker=${name} session=#{session_name} status=#{pane_dead_status} signal=#{pane_dead_signal}\" >> ${death_log}'" 2>/dev/null || true
-
-    # Orchestrator signal for menubar grace (mirrors spawn-case behaviour)
-    _orchestrator_signal_update "$session"
-
-    # Start diagnostic logger sidecar (samples + death-snapshot) — CRITICAL for revive
-    # path so we can catch any post-revive death with full forensics
-    _start_worker_logger "$name" "$session" "revive"
-
-    # Open viewer window
-    open_tmux_viewer "$session" &
-
-    echo "  session: $session"
-    echo "  jsonl:   $jsonl"
-    echo "$session"
 }
