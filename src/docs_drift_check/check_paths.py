@@ -44,7 +44,9 @@ def _line_candidates(spans: list[str]) -> list[str]:
     return candidates
 
 def _is_excluded_span(span: str) -> bool:
-    return span.startswith("~/") or "<" in span or bool(CROSS_PROJECT_MARKER_RE.search(span))
+    if span.startswith("~/") or "<" in span or "{" in span:
+        return True
+    return bool(CROSS_PROJECT_MARKER_RE.search(span))
 
 def _check_candidate(raw: str, root: Path, doc: Path, owners: set[str]) -> tuple[str, str] | None:
     if raw.startswith("/") or is_module_function_reference(raw, owners):

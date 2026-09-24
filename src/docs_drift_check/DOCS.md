@@ -44,7 +44,7 @@ Project root (environment variable, abort if missing) → collect DOCS.md files 
 
 ---
 
-### check_paths.py (73 LOC)
+### check_paths.py (75 LOC)
 
 **Purpose:** Report backticked paths in DOCS.md files that do not exist.
 **Reads:** DOCS.md files, project file tree.

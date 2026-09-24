@@ -43,3 +43,7 @@ monitor-cc: Path 3, LOC 4, Rule-Violation 596 (393 function, 206 constant, count
 ## Recap, 2026-09-24
 
 DOCS.md LOC headings in `src/docs_drift_check/` and `dev/docs_drift_check/` were checked against `wc -l` and all equal (the tool itself reports LOC-Drift 0 for this repo). `skills/iterative-dev-refactor/SKILL.md` shows up in `git diff integration` only because integration advanced after the branch point; this work did not edit it. What a successor should know: the rule-violation count in this repo (40) and in monitor-cc (593) is the remaining DOCS.md cleanup backlog, not tool defects; the tool has no exception mechanism by design.
+
+## Follow-up: brace-template spans, 2026-09-24
+
+Observed in rag-cli: `dev/eval_suite/DOCS.md:12` has the span `queries/pass_{a,b,c,d}_runs/`; the path check reported `queries/pass_` NOT FOUND because the path pattern stops at the brace, so the brace skip inside the per-path filter never saw it. Fix: a span containing a brace is skipped as a whole in the span-level exclusion, like spans with angle-bracket templates. Fixture `brace_template_span_skipped` pins it. Integration (05609b9) was merged into the branch first (fast-forward).

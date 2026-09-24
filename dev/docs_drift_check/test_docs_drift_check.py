@@ -128,6 +128,15 @@ CASES = {
         "contains": ["Rule-Violation: 0 findings"],
         "absent": [],
     },
+    "brace_template_span_skipped": {
+        "files": {
+            "queries/keep.txt": "x\n",
+            "dev/DOCS.md": "# dev/\n\nOutputs in `queries/pass_{a,b,c,d}_runs/`.\n",
+        },
+        "exit": 0,
+        "contains": ["Path-Drift:     0 findings"],
+        "absent": ["queries/pass_"],
+    },
     "build_artifact_docs_excluded": {
         "files": {
             "src/mod.py": "def run():\n    return 1\n",
