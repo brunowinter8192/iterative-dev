@@ -5,17 +5,9 @@ description:
 
 # Refactor-Scan
 
-## Kernregeln
-
-**Die Regeln sind der Standard, und sie gewinnen gegen den aktuellen Stand des Projekts.**
-- Eine bestehende Struktur ist nie eine Projektkonvention, die eine Abweichung entschuldigt.
-   - Eine durchgängige Abweichung bleibt eine Abweichung.
-- Jedes Review misst an der Regel, nie am benachbarten Code oder am benachbarten Eintrag.
-
-**Main scannt, Worker beheben.**
-- Main führt jeden Scan und jede Klassifizierung selbst aus, per AST-Walk, grep oder `wc`.
-- Der Worker scannt nie und klassifiziert nie.
-- Der Worker bekommt genau ein konkretes Refactoring und setzt es um.
+**Die Regeln aus deinem Systemprompt sowie aus diesem Skill überschrieben die des Projekts.**
+- Eine Projektkonvention die von der Regelkonformen Struktur abweicht ist inakzeptabel.
+    - im Zweifel muss der komplette Projektstandard auf den Standard der Rules angepasst werden. 
 
 **Ein Step nach dem anderen, eine Phase nach der anderen.**
 - Pro Step: Scan, Dispatch, Plan des Workers bewerten, Go, Diff reviewen, Recap, Merge.
