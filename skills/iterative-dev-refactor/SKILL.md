@@ -23,10 +23,10 @@ description:
 - Step N is merged before Step N+1 is scanned.
 - Phase N is closed before Phase N+1 starts.
 
-**Execution is autonomous up to Phase 4.**
-- No user stop between Steps in Phases 1 to 3.
-- One consolidated summary before Phase 4, per Step: what was found, what was refactored and merged.
-- Phase 4 is iterated with the user.
+**Execution is autonomous up to Phase 5.**
+- No user stop between Steps in Phases 1 to 4.
+- One consolidated summary before Phase 5, per Step: what was found, what was refactored and merged.
+- Phase 5 is iterated with the user.
 
 **Thresholds are fixed.**
 - No number below is softened to fit a project.
@@ -81,11 +81,41 @@ description:
    - Everything cut to reach the format goes verbatim into the same process-docs file, under one `## Salvage from <path>` heading.
 - After merge, Main re-scans the directory. Zero hits closes the Phase.
 
-## Phase 3 — Doc Structure
+## Phase 3 — Test Structure
+
+**The project's tests carry the testing rule, or the rule has no effect.**
+- A new test copies the pattern of the tests already in the project.
+- A sequential test suite in the project therefore produces the next sequential test suite.
+
+### Step 1 — Read the standard
+
+**The testing standard is read each run.**
+- Main reads `shared-rules/global/testing`, § Aufbau von Tests, and extracts the concrete standards.
+
+### Step 2 — Scan
+
+**Main scans every test file and every test runner in scope.**
+- Test runners include the runner module a test file imports and every script that launches test files, such as a `package.json` script or a shell loop.
+
+**Each of these is a hit.**
+- Independent test cases run one after another, for example a loop that awaits each case before starting the next.
+- Independent test files or suites are launched one after another, for example `for f in verify-*.mjs`.
+- Parallel strands share a port, a cache directory, or a file.
+- A strand runs on after its first failure instead of stopping.
+- A repeat count is raised inside a run instead of being fixed before the run.
+
+### Step 3 — Dispatch
+
+**The worker restructures the tests and runners to the standard.**
+- The prompt carries § Aufbau von Tests as the standard, and the hit list file by file.
+- The worker proves the restructured tests still pass, and shows wall-clock time before and after.
+- After merge, Main re-scans. Zero hits closes the Phase.
+
+## Phase 4 — Doc Structure
 
 ### Step 1 — Check
 
-**Phase 2 is merged before the check runs, and is merged now if it is not.**
+**Phase 3 is merged before the check runs, and is merged now if it is not.**
 
 **Every `DOCS.md` in scope is checked against the 400-line threshold.**
 - 400 lines or more splits its directory into unit subfolders.
@@ -125,11 +155,11 @@ description:
 
 **One drift check closes the autonomous part.**
 - After Step 3 is merged, `docs-drift-check` runs once in the cwd.
-- Residual drift goes to a worker, then the consolidated summary goes to the user and Phase 4 begins.
+- Residual drift goes to a worker, then the consolidated summary goes to the user and Phase 5 begins.
 
 **The drift findings, file by file, belong in the worker prompt.**
 
-## Phase 4 — Control-Flow Integrity
+## Phase 5 — Control-Flow Integrity
 
 ### Step 1 — Main scans
 
