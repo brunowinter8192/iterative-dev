@@ -85,58 +85,14 @@ JSONL_PATH="$(_find_jsonl || true)"
 } >> "$LOG_FILE"
 
 _sample() {
-    local now pane_dead claude_pid claude_rss_kb claude_rss_mb total_rss_kb total_rss_gb jsonl_age_s
+    local now pane_dead claude_pid claude_rss_mb total_rss_gb jsonl_age_s
 
     now=$(date -Iseconds)
     pane_dead=$(tmux display-message -t "${SESSION}:^" -p "#{pane_dead}" 2>/dev/null || echo "?")
-
-    # claude.exe PID under this tmux session — walk pane_pid descendants for claude.exe
-    local pane_pid
-    pane_pid=$(tmux display-message -t "${SESSION}:^" -p "#{pane_pid}" 2>/dev/null || echo "")
-    claude_pid=""
-    if [ -n "$pane_pid" ]; then
-        # Find descendants with comm matching claude.exe
-        # pgrep -P traverses one level; we walk up to 3 levels
-        local children
-        children=$(pgrep -P "$pane_pid" 2>/dev/null || true)
-        for c in $children; do
-            local comm
-            comm=$(ps -p "$c" -o comm= 2>/dev/null || true)
-            if [[ "$comm" == *"claude.exe" ]]; then
-                claude_pid="$c"
-                break
-            fi
-            # one level deeper
-            local gc
-            gc=$(pgrep -P "$c" 2>/dev/null || true)
-            for g in $gc; do
-                local gcomm
-                gcomm=$(ps -p "$g" -o comm= 2>/dev/null || true)
-                if [[ "$gcomm" == *"claude.exe" ]]; then
-                    claude_pid="$g"
-                    break 2
-                fi
-            done
-        done
-    fi
-
-    if [ -n "$claude_pid" ]; then
-        claude_rss_kb=$(ps -p "$claude_pid" -o rss= 2>/dev/null | tr -d ' ')
-        [ -n "$claude_rss_kb" ] && claude_rss_mb=$(awk "BEGIN{printf \"%.0f\", $claude_rss_kb/1024}")
-    fi
-    claude_rss_mb="${claude_rss_mb:-?}"
-
-    total_rss_kb=$(ps -axo rss= 2>/dev/null | awk '{s+=$1} END{print s}')
-    total_rss_gb=$(awk "BEGIN{printf \"%.2f\", $total_rss_kb/1024/1024}")
-
-    # JSONL last-mtime age
-    jsonl_age_s="?"
-    if [ -n "$JSONL_PATH" ] && [ -f "$JSONL_PATH" ]; then
-        local mtime now_epoch
-        mtime=$(stat -f %m "$JSONL_PATH" 2>/dev/null)
-        now_epoch=$(date +%s)
-        [ -n "$mtime" ] && jsonl_age_s=$((now_epoch - mtime))
-    fi
+    claude_pid=$(_find_claude_pid)
+    claude_rss_mb=$(_claude_rss_mb "$claude_pid")
+    total_rss_gb=$(_total_rss_gb)
+    jsonl_age_s=$(_jsonl_age_s)
 
     echo "$now pane_dead=$pane_dead claude_pid=${claude_pid:-?} claude_rss_mb=$claude_rss_mb total_rss_gb=$total_rss_gb jsonl_age_s=$jsonl_age_s" >> "$LOG_FILE"
 
@@ -146,6 +102,59 @@ _sample() {
         rm -f "$PID_FILE"
         exit 0
     fi
+}
+
+_find_claude_pid() {
+    local pane_pid
+    pane_pid=$(tmux display-message -t "${SESSION}:^" -p "#{pane_pid}" 2>/dev/null || echo "")
+    [ -n "$pane_pid" ] || return 0
+    # pgrep -P traverses one level; we walk up to 2 levels for descendants with comm claude.exe
+    local children c comm gc g gcomm
+    children=$(pgrep -P "$pane_pid" 2>/dev/null || true)
+    for c in $children; do
+        comm=$(ps -p "$c" -o comm= 2>/dev/null || true)
+        if [[ "$comm" == *"claude.exe" ]]; then
+            echo "$c"
+            return 0
+        fi
+        gc=$(pgrep -P "$c" 2>/dev/null || true)
+        for g in $gc; do
+            gcomm=$(ps -p "$g" -o comm= 2>/dev/null || true)
+            if [[ "$gcomm" == *"claude.exe" ]]; then
+                echo "$g"
+                return 0
+            fi
+        done
+    done
+}
+
+_claude_rss_mb() {
+    local claude_pid="$1"
+    local claude_rss_kb claude_rss_mb=""
+    if [ -n "$claude_pid" ]; then
+        claude_rss_kb=$(ps -p "$claude_pid" -o rss= 2>/dev/null | tr -d ' ')
+        [ -n "$claude_rss_kb" ] && claude_rss_mb=$(awk "BEGIN{printf \"%.0f\", $claude_rss_kb/1024}")
+    fi
+    echo "${claude_rss_mb:-?}"
+}
+
+_total_rss_gb() {
+    local total_rss_kb
+    total_rss_kb=$(ps -axo rss= 2>/dev/null | awk '{s+=$1} END{print s}')
+    awk "BEGIN{printf \"%.2f\", $total_rss_kb/1024/1024}"
+}
+
+_jsonl_age_s() {
+    local mtime now_epoch
+    if [ -n "$JSONL_PATH" ] && [ -f "$JSONL_PATH" ]; then
+        mtime=$(stat -f %m "$JSONL_PATH" 2>/dev/null)
+        now_epoch=$(date +%s)
+        if [ -n "$mtime" ]; then
+            echo $((now_epoch - mtime))
+            return 0
+        fi
+    fi
+    echo "?"
 }
 
 _capture_death() {

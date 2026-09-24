@@ -7,7 +7,7 @@ Worker spawning and orchestration — tmux sessions, git worktrees, Ghostty view
 ## Public Interface
 
 Sourced by `~/.local/bin/worker-cli` (all subcommands):
-- `tmux_spawn.sh` — bash library for worker lifecycle ops
+- `tmux_spawn.sh` — bash library entry point for worker lifecycle ops; sources the `worker_*.sh` siblings
 
 Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 - `spawn.py` — worktree setup + tmux session launch (stdlib only)
@@ -18,13 +18,73 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 
 ## Modules
 
-### tmux_spawn.sh (937 LOC)
+### tmux_spawn.sh (238 LOC)
 
-**Purpose:** Bash library — worker lifecycle: spawn, list, status, capture, send. Resolves the worker model, injects the Monitor_CC proxy, detects working/idle/dead status.
-**Reads:** tmux session list, proxy marker `/tmp/.monitor_cc_proxy_<session_id>`, project path, `~/Library/Application Support/com.brunowinter.monitor-cc-menubar/hooks.json`, `~/.claude/shared-rules/model_selection.json`.
-**Writes:** tmux sessions, Ghostty windows, worker mitmproxy processes, `/tmp/worker-<name>.done` signal file.
-**Called by:** `~/.local/bin/worker-cli` (all subcommands via `source`); `spawn.py` (via subprocess for `spawn_claude_worker_from_file`).
-**Calls out:** tmux, osascript/Ghostty, mitmdump, `~/.local/bin/claude-280`, `jq`.
+**Purpose:** Entry point sourced by callers — sources the sibling libs, owns session naming, model resolution and `spawn_claude_worker`.
+**Reads:** `~/.claude/shared-rules/model_selection.json`.
+**Writes:** tmux sessions, runner scripts, `/tmp/worker-<name>.done` signal file.
+**Called by:** `~/.local/bin/worker-cli` (via `source`); `spawn.py` (via subprocess for `spawn_claude_worker_from_file`); `dev/` suites.
+**Calls out:** tmux, `~/.local/bin/claude-280`, jq.
+
+---
+
+### worker_status.sh (203 LOC)
+
+**Purpose:** Working/idle/dead status detection plus `worker_list` and `worker_status`.
+**Reads:** tmux pane state, session JSONL, `~/Library/Application Support/com.brunowinter.monitor-cc-menubar/hooks.json`.
+**Writes:** stdout.
+**Called by:** `tmux_spawn.sh` (sourced); `bin/worker-cli` via `bash -c source`.
+**Calls out:** tmux, jq, pgrep.
+
+---
+
+### worker_io.sh (194 LOC)
+
+**Purpose:** Pane capture, message delivery, viewer window and orchestrator-signal file updates.
+**Reads:** tmux panes, `_capture_clean.py`.
+**Writes:** `/tmp/worker-<name>-pane.txt`, orchestrator signals file, Ghostty windows.
+**Called by:** `tmux_spawn.sh` (sourced); `bin/worker-cli` via `bash -c source`.
+**Calls out:** tmux, osascript/Ghostty, python3.
+
+---
+
+### worker_log_sidecar.sh (106 LOC)
+
+**Purpose:** Log-directory retention sweep and start/stop of the `worker_logger.sh` sidecar.
+**Reads:** log directory, `/tmp/worker-logger-<name>.pid`.
+**Writes:** deletes stale log files, `log_sweep.log`, starts the sidecar process.
+**Called by:** `tmux_spawn.sh` (sourced); `bin/worker-cli` via `bash -c source`.
+**Calls out:** `worker_logger.sh`.
+
+---
+
+### worker_proxy.sh (145 LOC)
+
+**Purpose:** Per-worker mitmproxy setup shared by spawn and revive; publishes the `WORKER_PROXY_*` globals.
+**Reads:** proxy marker `/tmp/.monitor_cc_proxy_<session_id>`.
+**Writes:** live addon copies, mitmdump process, `WORKER_PROXY_*` globals.
+**Called by:** `tmux_spawn.sh`, `worker_revive.sh`.
+**Calls out:** mitmdump, lsof.
+
+---
+
+### worker_revive.sh (186 LOC)
+
+**Purpose:** `worker_revive` — recreates a dead-pane worker session via `claude --resume`.
+**Reads:** tmux session environment, session JSONL, worktree dir.
+**Writes:** tmux session, runner script, death log, `_REVIVE_*` globals.
+**Called by:** `bin/worker-cli revive` via `bash -c source`.
+**Calls out:** tmux, `~/.local/bin/claude-280`.
+
+---
+
+### worker_logger.sh (205 LOC)
+
+**Purpose:** Standalone sidecar sampling a worker pane and writing a forensic snapshot on death.
+**Reads:** tmux pane state, process table, session JSONL.
+**Writes:** `<name>_<ts>_<event>.log`, `_DEATH.txt` in the log dir, `/tmp/worker-logger-<name>.pid`.
+**Called by:** `_start_worker_logger` in `worker_log_sidecar.sh`.
+**Calls out:** tmux, ps, pgrep.
 
 ---
 
@@ -33,7 +93,7 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 **Purpose:** Scope + clean worker pane output. Takes `<pane_file> <worker_name>`, prints the cleaned body to stdout.
 **Reads:** raw tmux pane file (arg); searches backward for last `❯ <non-whitespace>` prompt anchor.
 **Writes:** stdout only.
-**Called by:** `worker_capture_clean()` in `tmux_spawn.sh` (via `python3 _capture_clean.py`).
+**Called by:** `worker_capture_clean()` in `worker_io.sh` (via `python3 _capture_clean.py`).
 **Calls out:** nothing (stdlib only).
 
 ---
