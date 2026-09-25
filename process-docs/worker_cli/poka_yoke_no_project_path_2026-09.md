@@ -71,3 +71,13 @@ Files of this task (`git diff integration --name-only`, the `docs_drift_check` e
 Order after the other session is done: merge `wcli` to integration, plugin-publish, then verify with real workers. Include the hook, rule and skill follow-ups listed above (monitor-cc hooks `rewrite_worker_wait.py` and `block_worker_spawn_placement.py`, shared-rules `tool-use.md` and `workers.md`) before or together with the merge, otherwise the `cd X && worker-cli wait` rewrite by the hook produces a tripwire error.
 
 Working lessons: (1) a Python rewrite of a file with `open(p,'w')` before `open(p).read()` truncated `tests_transitions.sh` once; restore with `git checkout` and read first. (2) `sed -i` on macOS needs an empty suffix argument. (3) Run `worker_wait` and `test_spawn_flow` alone; in a 9-suite parallel run they hit their fixed timing windows.
+
+## Follow-up 2026-09-25: gcommit removed
+
+Owner decision: `bin/gcommit` and `src/git/commit.py` are removed. The rules now commit with `git -C <repo> add -A && git -C <repo> commit -m "<msg>"`. A scratch test on 2026-09-25 showed `git add -A` commits new files with umlauts, sharp s and spaces, and a rename plus edit, with nothing left over; so the skip list and the plugin-dir refusal of gcommit are gone on purpose.
+
+Removed together with them, because they existed only for gcommit: the `gcommit` entry of `bin/DOCS.md`, the `commit.py` entry and all gcommit wording of `src/git/DOCS.md`, and in `dev/git_automation/` six of the seven probe cases (they drove `src.git.commit`) plus the two timestamped reports of the old probe. The remaining case, `git-check --auto-stage` on umlaut and space paths, lives in `probe_git_check_staging.py` (renamed from `probe_umlaut_staging.py`; reports are named after the script). Kept: `bin/git-check` and `src/git/check.py` (its `stage_all` is used by `--auto-stage`), `bin/gc` (separate `git commit -am` shortcut).
+
+Not touched: the plugin cache still holds `bin/gcommit`, which stays on PATH until the next plugin-publish. Historic process-docs entries about gcommit are left as they are.
+
+Monitor-cc side of the wcli change: see area worker_cli in the monitor-cc process-docs.
