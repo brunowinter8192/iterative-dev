@@ -946,3 +946,18 @@ real-entry-point abort.
   not edited.
 - Side effect to know: running log_permission_request.sh by hand appends a line to the real
   /tmp/permission_request_log.jsonl.
+
+# Recap (2026-09-25, after integration 979a1b7)
+
+Scope covered by this file: dev/ of iterative-dev, refactor phases 1 to 4 and 6 plus the phase 5 follow-up in dev/model_selector. Phase 5 itself belonged to src/ and bin/ (worker itdevcore).
+
+Where to look, by question:
+- How do dev suites run and why in parallel: "Phase 3" section (strand runners, HOME override + `tmux -L`, fail-fast, per-strand hooks/registry/logs). Summary of the state on 2026-09-25: 10 shell suites and 4 Python suites run as strands; the whole wait suite takes about 41s wall instead of 319s; none of them touches the real hooks.json.
+- Why test_spawn_flow.sh was rebuilt: "test_spawn_flow.sh: why 3 of 7 failed, and the rebuild". The real proxy binary is still not exercised anywhere in dev/.
+- Traps that cost time: CLAUDE_PLUGIN_ROOT must point at the checkout in every suite that runs bin/worker-cli (under a fake HOME the installed-copy fallback disappears; before Phase 3 the janitor suite silently tested the installed copy); sourcing tmux_spawn.sh turns on errexit in the caller, capture failures with `x=$(cmd) || rc=$?`; a wholesale PATH replacement drops the strand's tmux wrapper; fixed sleeps race under parallel load (poll with a bound instead); a case that reads files created by an earlier case only passes vacuously when it runs as its own strand.
+- Where the removed DOCS.md prose went: the "Salvage from dev/<area>/DOCS.md" sections (they describe the pre-Phase-3 shape of wait, status and janitor).
+- Conventions applied to dev scripts (Phase 6): section markers with one `<script>_workflow` orchestrator, functions under 50 LOC, report names starting with the generating script.
+
+State check at recap time: `git diff integration --name-only` is empty for this branch after merging integration; docs-drift-check reports 0 findings for the project; every `.sh`/`.py` in dev/ is documented with its exact LOC.
+
+Open items: none for dev/. Known limit: the two older process-docs entries that still quote the pre-rename desktop_targeting report file name are intentionally unedited.
