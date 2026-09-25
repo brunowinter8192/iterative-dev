@@ -23,9 +23,12 @@ def _heading_names(doc: Path) -> list[str]:
 
 def _directories_without_docs(doc_files: list[Path], source_files: list[Path], root: Path) -> list[str]:
     documented = {doc.parent for doc in doc_files}
-    module_dirs = sorted({source.parent for source in source_files})
+    module_dirs = sorted({source.parent for source in source_files if not _is_empty_init(source)})
     return [
         f"`{relative_dir_label(directory, root)}` holds .py or .sh modules but has no DOCS.md"
         for directory in module_dirs
         if directory not in documented
     ]
+
+def _is_empty_init(source: Path) -> bool:
+    return source.name == "__init__.py" and source.stat().st_size == 0
