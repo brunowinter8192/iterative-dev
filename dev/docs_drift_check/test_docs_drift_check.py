@@ -161,11 +161,10 @@ CASES = {
 # ORCHESTRATOR
 
 def main() -> int:
-    missing_root = run_without_root_variable()
-    with ThreadPoolExecutor(max_workers=len(CASES)) as pool:
+    with ThreadPoolExecutor(max_workers=len(CASES) + 1) as pool:
         futures = {name: pool.submit(run_case, name, spec) for name, spec in CASES.items()}
+        futures["missing_root_variable_aborts"] = pool.submit(run_without_root_variable)
         results = {name: future.result() for name, future in futures.items()}
-    results["missing_root_variable_aborts"] = missing_root
     return report(results)
 
 # FUNCTIONS

@@ -2,52 +2,66 @@
 
 ## Role
 
-Smoke tests for the worker spawn flow (`src/spawn/`) — tmux session creation, env inheritance, cross-project worktree tracking, pane capture cleaning. No live Claude Code session started; dummy commands stand in.
+Smoke tests for the worker spawn flow in src/spawn: tmux session creation, environment inheritance, proxy setup, cross-project worktrees, pane capture cleaning. No live Claude Code session; mocks and stubs stand in.
 
 ## Public Interface
 
-Each script is run manually, no importable interface: `python3 dev/worker_spawn/test_capture_clean.py`, `bash dev/worker_spawn/test_direct_command.sh`, `bash dev/worker_spawn/test_spawn_flow.sh [--no-ghostty]`, `bash dev/worker_spawn/test_xproject_worktrees.sh`.
+No `__init__.py`; each script is run manually: `python3 dev/worker_spawn/test_capture_clean.py`, `bash dev/worker_spawn/test_direct_command.sh`, `bash dev/worker_spawn/test_spawn_flow.sh`, `bash dev/worker_spawn/test_xproject_worktrees.sh`, `bash dev/worker_spawn/render_runner_flags.sh`.
 
 ## Flow
 
-No shared input — each script drives `src/spawn/` (directly or via `bin/worker-cli`) against a throwaway tmux session, proxy, or git repo, then prints PASS/FAIL to stdout.
+Each suite drives src/spawn or bin/worker-cli against private throwaway tmux servers, repos and registries, with independent cases as parallel strands. Mock claude and stubbed viewer or proxy binaries replace the real ones.
 
 ## Modules
 
-### test_capture_clean.py (149 LOC)
+### test_capture_clean.py (156 LOC)
 
-**Purpose:** Fixture-based smoke for `src/spawn/_capture_clean.py`.
-**Reads:** nothing external — writes its own fixture to a temp file.
-**Writes:** stdout (pass/fail).
-**Called by:** run manually.
-**Calls out:** `src/spawn/_capture_clean.py` (via subprocess).
-
----
-
-### test_direct_command.sh (45 LOC)
-
-**Purpose:** Verifies tmux session inherits env vars (GH_TOKEN, PATH) when using direct command arg.
-**Reads:** ambient env vars (GH_TOKEN, PATH).
-**Writes:** stdout; creates and kills a throwaway tmux session.
-**Called by:** run manually.
-**Calls out:** tmux.
+**Purpose:** Fixture-based smoke for the pane-capture cleaner, one strand per check group.
+**Reads:** Nothing external; writes its fixture to a temporary file.
+**Writes:** stdout.
+**Called by:** Run manually.
+**Calls out:** `src/spawn/_capture_clean.py` (subprocess), `dev/strand_runner.py`.
 
 ---
 
-### test_spawn_flow.sh (182 LOC)
+### test_direct_command.sh (28 LOC)
 
-**Purpose:** Tests the full spawn flow without starting a real Claude Code session (dummy command instead of `claude-patched`).
-**Reads:** `src/spawn/tmux_spawn.sh` (sourced).
-**Writes:** stdout; creates and kills a throwaway tmux session + proxy + Ghostty window.
-**Called by:** run manually.
-**Calls out:** tmux, Ghostty, `src/spawn/tmux_spawn.sh`.
+**Purpose:** Verifies a tmux session started with a direct command inherits environment variables and PATH.
+**Reads:** The environment of the run.
+**Writes:** stdout; a throwaway tmux server.
+**Called by:** Run manually.
+**Calls out:** tmux, `dev/strand_runner.sh`.
 
 ---
 
-### test_xproject_worktrees.sh (173 LOC)
+### test_spawn_flow.sh (158 LOC)
 
-**Purpose:** Smoke test for cross-project worktree tracking in `worker-cli`.
-**Reads:** nothing persistent — uses `WORKER_REGISTRY_DIR` + throwaway git repos.
-**Writes:** stdout; throwaway git repos and registry files (cleaned up on exit).
-**Called by:** run manually.
-**Calls out:** `bin/worker-cli` (via subprocess), git.
+**Purpose:** Tests the spawn flow without real Claude Code: viewer launch, proxy setup with a stub proxy binary, and a full spawn with a mock.
+**Reads:** `src/spawn` shell modules (sourced).
+**Writes:** stdout; throwaway tmux servers, repos, proxy marker file, all removed.
+**Called by:** Run manually.
+**Calls out:** tmux, python3, `dev/strand_runner.sh`.
+
+---
+
+### test_xproject_worktrees.sh (159 LOC)
+
+**Purpose:** Smoke test for cross-project worktree tracking in worker-cli: create, kill cleanup, sidecar skipping in listings, orphan removal.
+**Reads:** Nothing persistent.
+**Writes:** stdout; throwaway repos and registries removed.
+**Called by:** Run manually.
+**Calls out:** `bin/worker-cli` (subprocess), git, `dev/strand_runner.sh`.
+
+---
+
+### render_runner_flags.sh (50 LOC)
+
+**Purpose:** Renders the runner-script flags produced by spawn, file-based spawn and revive with mocked tmux, and asserts the permission mode.
+**Reads:** `src/spawn` shell modules (sourced).
+**Writes:** stdout; `md/render_runner_flags.md`; a fake home directory removed on exit.
+**Called by:** Run manually.
+**Calls out:** bash only (tmux and helpers mocked).
+
+## State
+
+Each strand owns a private scratch directory (home, logs, registry, its own tmux server); nothing is shared between strands or with the real user state.

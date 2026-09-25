@@ -2,22 +2,26 @@
 
 ## Role
 
-Scripts for auditing and evaluating the session pipeline (`src/pipeline/`). All commands assume CWD = project root (iterative-dev/).
+Scripts for auditing and evaluating the session pipeline in src/pipeline. All commands assume the project root as working directory.
 
 ## Public Interface
 
-Run manually, no importable interface: `python3 dev/session_pipeline/audit_error_patterns.py [path/to/specific.jsonl]`.
+No `__init__.py`; run manually: `python3 dev/session_pipeline/audit_error_patterns.py [path/to/specific.jsonl]`.
 
 ## Flow
 
-JSONL paths in (arg, or all of `~/.claude/projects/` by default) → scans `tool_result` blocks, classifies hard/soft errors → Markdown report out (`md/error_patterns_<timestamp>.md`) + stdout summary.
+Session JSONL paths in (argument, or all of the Claude Code projects directory by default), scan of tool results and classification into hard and soft errors, Markdown report to md/ and a summary on stdout.
 
 ## Modules
 
 ### audit_error_patterns.py (222 LOC)
 
-**Purpose:** Scans Claude Code session JSONLs for error patterns in `tool_result` blocks — evidence for `is_tool_error()` design decisions.
-**Reads:** Claude Code session JSONL files (arg, or all of `~/.claude/projects/`).
-**Writes:** `dev/session_pipeline/md/error_patterns_<timestamp>.md`; stdout summary.
-**Called by:** run manually.
-**Calls out:** nothing (stdlib only).
+**Purpose:** Scans Claude Code session JSONLs for error patterns in tool results, as evidence for the tool-error classifier design.
+**Reads:** Claude Code session JSONL files.
+**Writes:** A timestamped report under md/; stdout summary.
+**Called by:** Run manually.
+**Calls out:** Nothing (standard library only).
+
+## State
+
+None.

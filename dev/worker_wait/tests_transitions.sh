@@ -46,7 +46,7 @@ test6_lsof_unresolvable() {
     SID6="${TEST_TAG}-sess-6"
     create_worker w1 "$PROJ6" "$SID6" idle 0 >/dev/null
     OUT6_FILE="/tmp/${TEST_TAG}-6.out"
-    env PATH="/opt/homebrew/bin:/usr/bin:/bin" bash "$BIN" wait "$PROJ6" --timeout 12 > "$OUT6_FILE" 2>&1
+    env PATH="$STRAND_DIR/bin:/opt/homebrew/bin:/usr/bin:/bin" bash "$BIN" wait "$PROJ6" --timeout 12 > "$OUT6_FILE" 2>&1
     RC6=$?
     OUT6=$(cat "$OUT6_FILE")
     if [ "$OUT6" = "timeout" ] && [ "$RC6" = 0 ]; then
@@ -62,7 +62,6 @@ test7_no_hook_self_heals() {
     PROJ7="/tmp/${TEST_TAG}-7"
     SID7="${TEST_TAG}-sess-7"
     create_worker_no_hook w1 "$PROJ7" "$SID7" >/dev/null
-    TRACE_SIZE_BEFORE7=$([ -f "$TRACE_FILE" ] && wc -c < "$TRACE_FILE" || echo 0)
     T0=$(date +%s)
     OUT7=$(bash "$BIN" wait "$PROJ7" --timeout 40)
     T1=$(date +%s)
@@ -73,7 +72,7 @@ test7_no_hook_self_heals() {
         fail "test7a no-hook-entry-self-heals: reason='$OUT7' elapsed=${ELAPSED7}s (expected 'workers idle', ~9-30s)"
     fi
     if [ -f "$TRACE_FILE" ]; then
-        TRACE_NEW7=$(tail -c "+$((TRACE_SIZE_BEFORE7 + 1))" "$TRACE_FILE" | grep "project=$(basename "$PROJ7")")
+        TRACE_NEW7=$(grep "project=$(basename "$PROJ7")" "$TRACE_FILE")
         if [[ "$TRACE_NEW7" == *"status=working"* ]] && [[ "$TRACE_NEW7" == *"status=idle"* ]] \
             && [[ "$TRACE_NEW7" == *"event=exit reason=workers_idle"* ]]; then
             pass "test7b trace-self-heal: shows working polls settling to idle polls, exit reason=workers_idle"

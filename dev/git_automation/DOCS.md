@@ -2,22 +2,26 @@
 
 ## Role
 
-Regression probes for `src/git/` (`gcommit`, `git-check`) staging correctness. All commands assume CWD = project root (iterative-dev/).
+Regression probes for staging correctness of gcommit and git-check. All commands assume the project root as working directory. Touch when changing the staging logic in src/git.
 
 ## Public Interface
 
-Run manually, no importable interface: `python3 dev/git_automation/probe_umlaut_staging.py`.
+No `__init__.py`; run manually: `python3 dev/git_automation/probe_umlaut_staging.py`.
 
 ## Flow
 
-No CLI input — builds throwaway git repos per case, drives `python3 -m src.git.commit` / `python3 -m src.git.check --auto-stage` against them, asserts against the repo's own git state → pass/fail table out (stdout + `md/probe_umlaut_staging_<timestamp>.md`).
+No input: builds throwaway git repositories per case, drives the commit and check modules against them, asserts on the repository's own git state, prints a pass/fail table to stdout and a report to md/.
 
 ## Modules
 
 ### probe_umlaut_staging.py (233 LOC)
 
-**Purpose:** Growing assertion suite proving `gcommit`/`git-check --auto-stage` stage/commit non-ASCII and otherwise "unusual" paths correctly.
-**Reads:** nothing external — builds its own throwaway git repos per case.
-**Writes:** stdout; `dev/git_automation/md/probe_umlaut_staging_<timestamp>.md`; throwaway git repos (cleaned up after each case).
-**Called by:** run manually.
-**Calls out:** `src.git.commit`, `src.git.check` (via subprocess), git.
+**Purpose:** Growing assertion suite proving gcommit and git-check stage and commit non-ASCII and otherwise unusual paths correctly.
+**Reads:** Nothing external; builds throwaway git repos per case.
+**Writes:** stdout; a timestamped report under md/; throwaway repos removed after each case.
+**Called by:** Run manually.
+**Calls out:** `src/git` commit and check modules (subprocess), git.
+
+## State
+
+None.

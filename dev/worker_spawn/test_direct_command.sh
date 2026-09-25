@@ -1,45 +1,28 @@
-#!/bin/bash
-set -euo pipefail
+#!/usr/bin/env bash
+set -uo pipefail
 
-SESSION="test-spawn-h1"
-RESULT=0
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SELF_DIR/../strand_runner.sh"
 
-tmux kill-session -t "$SESSION" 2>/dev/null || true
+STRANDS=(h1)
 
-echo "=== H1: Direct Command Arg ==="
+strand_h1() {
+    export STRAND_H1_TOKEN="inherit-probe-$$"
+    local session="test-spawn-h1"
 
-tmux new-session -d -s "$SESSION" -c /tmp \
-    "echo GH_TOKEN=\$GH_TOKEN && echo PATH=\$PATH && sleep 10" \; \
-    set-option -p -t "$SESSION" remain-on-exit on
+    tmux new-session -d -s "$session" -c /tmp \
+        "echo TOKEN=\$STRAND_H1_TOKEN && echo PATH=\$PATH && sleep 10" \; \
+        set-option -p -t "$session" remain-on-exit on
+    sleep 1
 
-sleep 1
+    local output
+    output=$(tmux capture-pane -p -t "$session")
+    echo "--- Captured output ---"
+    echo "$output"
+    echo "--- End ---"
 
-OUTPUT=$(tmux capture-pane -p -t "$SESSION")
+    echo "$output" | grep -q "TOKEN=inherit-probe-$$" && pass "env var inherited" || fail "env var not found or empty"
+    echo "$output" | grep -q "PATH=/" && pass "PATH inherited" || fail "PATH not found"
+}
 
-echo "--- Captured output ---"
-echo "$OUTPUT"
-echo "--- End ---"
-
-if echo "$OUTPUT" | grep -q "GH_TOKEN=ghp_"; then
-    echo "PASS: GH_TOKEN inherited"
-else
-    echo "FAIL: GH_TOKEN not found or empty"
-    RESULT=1
-fi
-
-if echo "$OUTPUT" | grep -q "PATH=/"; then
-    echo "PASS: PATH inherited"
-else
-    echo "FAIL: PATH not found"
-    RESULT=1
-fi
-
-tmux kill-session -t "$SESSION" 2>/dev/null || true
-
-if [ $RESULT -eq 0 ]; then
-    echo "=== H1 CONFIRMED ==="
-else
-    echo "=== H1 FAILED ==="
-fi
-
-exit $RESULT
+strand_main "$@"

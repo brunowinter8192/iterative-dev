@@ -2,20 +2,36 @@
 
 ## Role
 
-Development scripts for testing, debugging, and experimentation related to the iterative-dev plugin. Organized by area, mirroring `process-docs/<area>/` where the two align. Touch when adding probes or smoke tests; do NOT touch for production code (`src/`).
+Development scripts for tests, probes and experiments, one directory per area. Touch when adding or changing a test suite or probe. Do not touch for production code in src or bin.
 
-## Areas
+## Public Interface
 
-- [session_pipeline/DOCS.md](session_pipeline/DOCS.md) — session-pipeline audit scripts (reports in `session_pipeline/md/`)
-- [worker_spawn/DOCS.md](worker_spawn/DOCS.md) — spawn-flow smoke tests
-- [worker_message_delivery/DOCS.md](worker_message_delivery/DOCS.md) — bracketed-paste delivery probe (reports in `worker_message_delivery/md/`)
-- [worker_status/DOCS.md](worker_status/DOCS.md) — status-detection smoke tests
-- [worker_wait/DOCS.md](worker_wait/DOCS.md) — `worker-cli wait` integration tests
-- [worker_janitor/DOCS.md](worker_janitor/DOCS.md) — `worker-cli janitor` stale-worker cleanup smoke test
-- [worker_sweep_logs/DOCS.md](worker_sweep_logs/DOCS.md) — `worker-cli sweep-logs` log-directory retention smoke test
-- [worker_merge/DOCS.md](worker_merge/DOCS.md) — `worker-cli merge` outcome-verification test
-- [desktop_targeting/DOCS.md](desktop_targeting/DOCS.md) — space-move probe + report (`desktop_targeting/md/`)
-- [cc_hooks/DOCS.md](cc_hooks/DOCS.md) — CC hook-input inspection helpers
-- [git_automation/DOCS.md](git_automation/DOCS.md) — gcommit/git-check staging regression probes
-- [poread_cli/DOCS.md](poread_cli/DOCS.md) — poread CLI boundary-case regression suite
-- [docs_drift_check/DOCS.md](docs_drift_check/DOCS.md) — docs-drift-check fixture regression suite
+No `__init__.py`; every script is run directly. Areas with their own DOCS.md: [cc_hooks](cc_hooks/DOCS.md), [desktop_targeting](desktop_targeting/DOCS.md), [docs_drift_check](docs_drift_check/DOCS.md), [git_automation](git_automation/DOCS.md), [model_selector](model_selector/DOCS.md), [poread_cli](poread_cli/DOCS.md), [session_pipeline](session_pipeline/DOCS.md), [worker_janitor](worker_janitor/DOCS.md), [worker_merge](worker_merge/DOCS.md), [worker_message_delivery](worker_message_delivery/DOCS.md), [worker_spawn](worker_spawn/DOCS.md), [worker_status](worker_status/DOCS.md), [worker_sweep_logs](worker_sweep_logs/DOCS.md), [worker_wait](worker_wait/DOCS.md).
+
+## Flow
+
+A suite lists its independent cases as strands and hands them to the shared runner. Each strand runs in parallel with private state and stops at its first failure. The runner prints every strand block, then a summary. Probes and reports live in the area directories.
+
+## Modules
+
+### strand_runner.sh (105 LOC)
+
+**Purpose:** Shared runner for shell suites: runs each case as a parallel, isolated, fail-fast strand and aggregates the results.
+**Reads:** The suite's strand list and strand functions.
+**Writes:** stdout; a private scratch directory per strand, removed on exit.
+**Called by:** Every shell suite in the area directories, sourced.
+**Calls out:** tmux, mktemp.
+
+---
+
+### strand_runner.py (43 LOC)
+
+**Purpose:** Shared runner for Python suites: runs each case in its own process, prints per-case output and returns the exit code with all outputs.
+**Reads:** Case callables handed over by the suite.
+**Writes:** stdout only.
+**Called by:** The Python suites of poread_cli, worker_spawn, model_selector.
+**Calls out:** Python standard library only.
+
+## State
+
+Owned by the runners per run: one temporary root with one scratch directory per strand. Nothing persists after a run.

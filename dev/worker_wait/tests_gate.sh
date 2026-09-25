@@ -2,7 +2,6 @@ test1_idle_from_start() {
     PROJ1="/tmp/${TEST_TAG}-1"
     SID1="${TEST_TAG}-sess-1"
     create_worker w1 "$PROJ1" "$SID1" idle 0 >/dev/null
-    TRACE_SIZE_BEFORE1=$([ -f "$TRACE_FILE" ] && wc -c < "$TRACE_FILE" || echo 0)
     T0=$(date +%s)
     OUT1=$(bash "$BIN" wait "$PROJ1" --timeout 25)
     T1=$(date +%s)
@@ -16,7 +15,7 @@ test1_idle_from_start() {
 
 test1c_trace_observability() {
     if [ -f "$TRACE_FILE" ]; then
-        TRACE_NEW1=$(tail -c "+$((TRACE_SIZE_BEFORE1 + 1))" "$TRACE_FILE" | grep "project=$(basename "$PROJ1")")
+        TRACE_NEW1=$(grep "project=$(basename "$PROJ1")" "$TRACE_FILE")
         if [[ "$TRACE_NEW1" == *"event=start"* ]] && [[ "$TRACE_NEW1" == *"event=exit reason=timeout"* ]] \
             && [[ "$TRACE_NEW1" != *"saw_working=1"* ]]; then
             pass "test1c trace-observability: event=start + event=exit reason=timeout, saw_working never 1"

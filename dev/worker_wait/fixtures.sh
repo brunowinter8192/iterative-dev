@@ -1,26 +1,17 @@
-HOOKS_FILE="$HOME/Library/Application Support/com.brunowinter.monitor-cc-menubar/hooks.json"
-HOOKS_BACKUP="/tmp/wait-test-hooks-backup-$$.json"
-TRACE_FILE="${WORKER_LOGGER_DIR:-$HOME/Documents/ai/Meta/iterative-dev/src/logs}/wait_trace.log"
-
-pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1"; RESULT=1; }
-
-backup_hooks() {
-    if [ -f "$HOOKS_FILE" ]; then
-        cp "$HOOKS_FILE" "$HOOKS_BACKUP"
-    else
-        : > "$HOOKS_BACKUP.missing"
-        mkdir -p "$(dirname "$HOOKS_FILE")"
-        echo '{}' > "$HOOKS_FILE"
-    fi
+strand_init() {
+    HOOKS_FILE="$HOME/Library/Application Support/com.brunowinter.monitor-cc-menubar/hooks.json"
+    mkdir -p "$(dirname "$HOOKS_FILE")"
+    echo '{}' > "$HOOKS_FILE"
+    TEST_TAG="waittest$$${STRAND_NAME}"
+    TRACE_FILE="$WORKER_LOGGER_DIR/wait_trace.log"
 }
 
-restore_hooks() {
-    if [ -f "$HOOKS_BACKUP" ]; then
-        mv "$HOOKS_BACKUP" "$HOOKS_FILE"
-    elif [ -f "$HOOKS_BACKUP.missing" ]; then
-        rm -f "$HOOKS_FILE" "$HOOKS_BACKUP.missing"
-    fi
+strand_cleanup() {
+    local pidfile
+    for pidfile in /tmp/${TEST_TAG}-fakebg-*.pid; do
+        [ -f "$pidfile" ] && kill "$(cat "$pidfile")" 2>/dev/null
+    done
+    rm -rf /tmp/${TEST_TAG}-* /tmp/${TEST_TAG}task*
 }
 
 set_hook_status() {
