@@ -21,3 +21,8 @@ spawn (`tmux_spawn.sh`) and revive (`worker_revive.sh`) start `open_tmux_viewer 
 
 ## Not done
 The 9 windows present during the run were not touched. The plugin cache copy of worker-cli was not touched; the guard takes effect for the real cache only after a publish by the user.
+
+## Merge with integration (2026-09-25)
+Integration moved by 9 commits while this work ran (single worker-model resolution, plugin-sync.sh dropped, list_agents fix). It rewrote `dev/model_selector/verify_worker_model_precedence.sh` (strands now: explicit_model, missing_model, e2e_no_model, e2e_explicit, e2e_malformed, structural). Merge `34215d7` had one conflict, the LOC heading in `dev/model_selector/DOCS.md` (227 vs 211); resolved to 212 = their 211 plus the one-line `WORKER_NO_VIEWER=1` export, which git merged into their rewrite without a conflict.
+Re-run after the merge: `verify_no_viewer.sh` 3/3 strands; `verify_worker_model_precedence.sh` 6/6 strands with the real osascript; Ghostty windows 3 before, 2 after (the drop came from a window closed elsewhere, no increase).
+Pitfall: piping the precedence script through `grep -v` loses its exit code (`${PIPESTATUS[0]}` was empty in a non-interactive eval); judge by the strand lines and the summary line.
