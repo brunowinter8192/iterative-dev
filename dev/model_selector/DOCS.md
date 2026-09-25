@@ -14,7 +14,7 @@ The Python script drives the real resolver against temporary config files. The s
 
 ## Modules
 
-### verify_worker_model_precedence.sh (211 LOC)
+### verify_worker_model_precedence.sh (212 LOC)
 
 **Purpose:** Verifies explicit-model use and the abort on a missing model in the shell spawn functions, static wiring, and real worker-cli spawns against a mock claude.
 **Reads:** Only temporary config files; the real model-selection config is never touched.

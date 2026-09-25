@@ -131,6 +131,10 @@ worker_send() {
 open_tmux_viewer() {
     local session="$1"
 
+    if [ -n "${WORKER_NO_VIEWER:-}" ]; then
+        return 0
+    fi
+
     local ghostty_version
     ghostty_version=$(ghostty +version | head -1 | grep -oE '[0-9]+\.[0-9]+') || {
         echo "ERROR: cannot read the ghostty version" >&2

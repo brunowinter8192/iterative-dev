@@ -48,10 +48,10 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 
 ---
 
-### worker_io.sh (159 LOC)
+### worker_io.sh (163 LOC)
 
 **Purpose:** Pane capture, message delivery, viewer window and orchestrator-signal file updates.
-**Reads:** tmux panes, `_capture_clean.py`.
+**Reads:** tmux panes, `_capture_clean.py`, a viewer-suppression env var for test spawns (see `process-docs/worker_spawn/`).
 **Writes:** `/tmp/worker-<name>-pane.txt`, orchestrator signals file, Ghostty windows.
 **Called by:** `tmux_spawn.sh` (sourced); `bin/worker-cli` via `bash -c source`.
 **Calls out:** tmux, osascript/Ghostty, python3.

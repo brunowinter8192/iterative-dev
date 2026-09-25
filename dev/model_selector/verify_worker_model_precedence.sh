@@ -46,6 +46,7 @@ _spawn_via_cli() {
     ( unset PROXY_PROJECT_PATH
       export MODEL_SELECTION_FILE="$config_path"
       export CLAUDE_BIN="$mock_claude"
+      export WORKER_NO_VIEWER=1
       export CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT"
       "$WORKER_CLI" spawn "$e2e_name" "$e2e_prompt" "$e2e_project" "$model_arg" --no-worktree \
           > "$STRAND_DIR/e2e_output_${e2e_name}.log" 2>&1
