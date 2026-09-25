@@ -14,7 +14,7 @@ Fixture definitions become one temporary project per case. All cases run in para
 
 ## Modules
 
-### test_docs_drift_check.py (223 LOC)
+### test_docs_drift_check.py (     225 LOC)
 
 **Purpose:** Fixture-based regression cases for path, LOC and rule checks, scope exclusions and working-directory independence.
 **Reads:** Nothing external; builds its own temporary projects.

@@ -84,7 +84,7 @@ Project root (environment variable, abort if missing) → collect DOCS.md files 
 
 ---
 
-### report.py (32 LOC)
+### report.py (      27 LOC)
 
 **Purpose:** Print the markdown report and compute the exit code.
 **Reads:** findings passed in.
