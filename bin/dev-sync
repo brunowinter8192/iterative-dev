@@ -25,12 +25,9 @@ if [ "$CURRENT" != "dev" ]; then
     exit 1
 fi
 
-if git -C "$PROJECT" rev-parse --verify main >/dev/null 2>&1; then
-    MAIN_BRANCH="main"
-elif git -C "$PROJECT" rev-parse --verify master >/dev/null 2>&1; then
-    MAIN_BRANCH="master"
-else
-    echo "ERROR: Neither 'main' nor 'master' branch found." >&2
+MAIN_BRANCH="main"
+if ! git -C "$PROJECT" rev-parse --verify "$MAIN_BRANCH" >/dev/null 2>&1; then
+    echo "ERROR: '$MAIN_BRANCH' branch not found." >&2
     exit 1
 fi
 

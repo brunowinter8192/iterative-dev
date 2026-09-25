@@ -57,7 +57,7 @@ _status_all() {
 _status_all_in_project() {
     local project names wname status
     project=$(resolve_project_path "$1")
-    names=$(bash -c "source \"$SPAWN\" && worker_list \"\$1\"" _ "$project" 2>/dev/null \
+    names=$(bash -c "source \"$SPAWN\" && worker_list \"\$1\"" _ "$project" \
         | awk '{print $1}')
     if [ -z "$names" ]; then
         echo "(no active workers)"
@@ -140,5 +140,5 @@ _response_find_jsonl() {
 
 _response_extract_text() {
     local jsonl="$1" count="$2"
-    jq -rs --argjson n "$count" '[.[] | select(.type == "assistant" and (.message.content // [] | map(select(.type == "text")) | length > 0))] | if length == 0 then "" else (.[-($n):] | length as $L | to_entries | map("=== msg \(.key + 1)/\($L) ===\n" + (.value.message.content | map(select(.type == "text")) | map(.text) | join("\n\n"))) | join("\n\n")) end' "$jsonl" 2>/dev/null || true
+    jq -rs --argjson n "$count" '[.[] | select(.type == "assistant" and (.message.content // [] | map(select(.type == "text")) | length > 0))] | if length == 0 then "" else (.[-($n):] | length as $L | to_entries | map("=== msg \(.key + 1)/\($L) ===\n" + (.value.message.content | map(select(.type == "text")) | map(.text) | join("\n\n"))) | join("\n\n")) end' "$jsonl"
 }

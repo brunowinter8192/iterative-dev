@@ -52,11 +52,11 @@ cmd_kill() {
     project=$(resolve_worker_project "$name" "$override")
     session="worker-$(basename "$project")-$name"
     echo "Killing worker: $session"
-    bash -c "source \"$SPAWN\" && _stop_worker_logger \"\$1\"" _ "$name" 2>/dev/null || true
+    bash -c "source \"$SPAWN\" && _stop_worker_logger \"\$1\"" _ "$name"
     tmux kill-session -t "$session" 2>/dev/null && echo "  tmux session: killed" || echo "  tmux session: not found"
     git -C "$project" worktree remove --force ".claude/worktrees/$name" 2>/dev/null && echo "  worktree: removed" || echo "  worktree: not found"
     git -C "$project" branch -D "$name" 2>/dev/null && echo "  branch: deleted" || echo "  branch: not found"
-    bash -c "source \"$SPAWN\" && _orchestrator_signal_delete \"$session\"" 2>/dev/null || true
+    bash -c "source \"$SPAWN\" && _orchestrator_signal_delete \"$session\""
     _kill_cross_project_worktrees "$name"
     registry_delete "$name"
     echo "  registry: removed"
@@ -125,7 +125,7 @@ _spawn_install_death_hook() {
     local death_log="$HOME/.claude/worker-deaths.log"
     local session="worker-$(basename "$project")-$name"
     tmux set-hook -t "$session" pane-died \
-        "run-shell 'echo \"\$(date -Iseconds) worker=$name session=#{session_name} status=#{pane_dead_status} signal=#{pane_dead_signal}\" >> $death_log'" 2>/dev/null || true
+        "run-shell 'echo \"\$(date -Iseconds) worker=$name session=#{session_name} status=#{pane_dead_status} signal=#{pane_dead_signal}\" >> $death_log'"
 }
 
 cmd_revive() {

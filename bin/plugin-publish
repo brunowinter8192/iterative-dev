@@ -161,15 +161,11 @@ fi
 
 if [ "$DO_PUSH" = "1" ]; then
     echo "→ git push"
-    PUSH_OUT=$(git -C "$REPO_PATH" push 2>&1) || {
-        BRANCH=$(git -C "$REPO_PATH" branch --show-current)
-        echo "  initial push, retrying with -u origin $BRANCH"
-        if ! git -C "$REPO_PATH" push -u origin "$BRANCH" 2>&1; then
-            echo "ERROR: git push failed. Cache NOT modified." >&2
-            echo "$PUSH_OUT" >&2
-            exit 1
-        fi
-    }
+    if ! PUSH_OUT=$(git -C "$REPO_PATH" push 2>&1); then
+        echo "ERROR: git push failed. Cache NOT modified." >&2
+        echo "$PUSH_OUT" >&2
+        exit 1
+    fi
     [ -n "$PUSH_OUT" ] && echo "  $PUSH_OUT" | sed 's/^/  /'
 fi
 

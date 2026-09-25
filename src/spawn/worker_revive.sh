@@ -17,7 +17,7 @@ worker_revive() {
     local session_id
     session_id=$(basename "$jsonl" .jsonl)
 
-    _revive_load_env "$session"
+    _revive_load_env "$session" || return 1
     local model="$_REVIVE_MODEL" purpose="$_REVIVE_PURPOSE" parent="$_REVIVE_PARENT"
 
     echo "Reviving $name (session-id $session_id, model $model)"
@@ -35,7 +35,7 @@ worker_revive() {
     _revive_restore_env "$session" "$purpose" "$parent" "$model"
 
     tmux set-hook -t "$session" pane-died \
-        "run-shell 'echo \"\$(date -Iseconds) worker=${name} session=#{session_name} status=#{pane_dead_status} signal=#{pane_dead_signal}\" >> ${death_log}'" 2>/dev/null || true
+        "run-shell 'echo \"\$(date -Iseconds) worker=${name} session=#{session_name} status=#{pane_dead_status} signal=#{pane_dead_signal}\" >> ${death_log}'"
 
     _orchestrator_signal_update "$session"
 
@@ -102,12 +102,9 @@ _revive_find_jsonl() {
 
 _revive_load_env() {
     local session="$1"
-    _REVIVE_MODEL=$(tmux show-environment -t "$session" WORKER_MODEL 2>/dev/null | cut -d= -f2-)
-    [ -z "$_REVIVE_MODEL" ] && _REVIVE_MODEL="$(_resolve_worker_model)"
-    _REVIVE_PURPOSE=$(tmux show-environment -t "$session" WORKER_PURPOSE 2>/dev/null | cut -d= -f2-)
-    [ -z "$_REVIVE_PURPOSE" ] && _REVIVE_PURPOSE="(?)"
-    _REVIVE_PARENT=$(tmux show-environment -t "$session" WORKER_PARENT 2>/dev/null | cut -d= -f2-)
-    [ -z "$_REVIVE_PARENT" ] && _REVIVE_PARENT="unknown"
+    _REVIVE_MODEL=$(_tmux_env_value "$session" WORKER_MODEL) || return 1
+    _REVIVE_PURPOSE=$(_tmux_env_value "$session" WORKER_PURPOSE) || return 1
+    _REVIVE_PARENT=$(_tmux_env_value "$session" WORKER_PARENT) || return 1
 }
 
 _build_revive_runner() {

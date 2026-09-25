@@ -103,14 +103,17 @@ def _run_git(args: list, cwd: str) -> str:
 
 
 def _resolve_worker_model() -> str:
-    worker = ""
     try:
         with open(_MODEL_SELECTION_FILE, encoding="utf-8") as f:
             data = json.load(f)
-        worker = data.get("worker") or ""
-    except Exception:
-        worker = ""
-    return worker or _DEFAULT_WORKER_MODEL
+    except FileNotFoundError:
+        print(f"spawn: {_MODEL_SELECTION_FILE} not found, using default worker model {_DEFAULT_WORKER_MODEL}", file=sys.stderr)
+        return _DEFAULT_WORKER_MODEL
+    worker = data.get("worker")
+    if not worker:
+        print(f"spawn: no worker model in {_MODEL_SELECTION_FILE}, using default worker model {_DEFAULT_WORKER_MODEL}", file=sys.stderr)
+        return _DEFAULT_WORKER_MODEL
+    return worker
 
 
 if __name__ == "__main__":

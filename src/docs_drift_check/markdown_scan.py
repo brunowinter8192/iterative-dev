@@ -9,7 +9,7 @@ BACKTICK_RE = re.compile(r"`([^`]+)`")
 def iter_backtick_lines(doc: Path) -> list[tuple[int, list[str]]]:
     result: list[tuple[int, list[str]]] = []
     in_fence = False
-    for lineno, line in enumerate(doc.read_text(errors="replace").splitlines(), 1):
+    for lineno, line in enumerate(doc.read_text().splitlines(), 1):
         in_fence = _toggle_fence(line, in_fence)
         if in_fence:
             continue

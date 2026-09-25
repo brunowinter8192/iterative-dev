@@ -52,8 +52,8 @@ def find_task_tool_use(messages: list[dict], anchor_idx: int) -> tuple[str, str]
             continue
         for block in content:
             if isinstance(block, dict) and block.get('type') == 'tool_use' and block.get('name') == 'Agent':
-                tool_use_id = block.get('id', '')
-                prompt = str(block.get('input', {}).get('prompt', ''))
+                tool_use_id = block['id']
+                prompt = str(block['input']['prompt'])
                 return tool_use_id, prompt
     return '', ''
 

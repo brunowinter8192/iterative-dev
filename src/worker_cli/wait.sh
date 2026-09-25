@@ -10,19 +10,19 @@ _WAIT_TRACE_KEEP_LINES=10000
 
 _wait_trace() {
     [ "$_WAIT_TRACE_ENABLED" = "1" ] || return 0
-    echo "$(date -Iseconds) $1" >> "$_WAIT_TRACE_FILE" 2>/dev/null || true
+    echo "$(date -Iseconds) $1" >> "$_WAIT_TRACE_FILE"
 }
 
 _wait_trace_init() {
     [ "$_WAIT_TRACE_ENABLED" = "1" ] || return 0
-    mkdir -p "$(dirname "$_WAIT_TRACE_FILE")" 2>/dev/null || return 0
+    mkdir -p "$(dirname "$_WAIT_TRACE_FILE")"
     if [ -f "$_WAIT_TRACE_FILE" ]; then
         local lines
-        lines=$(wc -l < "$_WAIT_TRACE_FILE" 2>/dev/null || echo 0)
+        lines=$(wc -l < "$_WAIT_TRACE_FILE")
         lines="${lines// /}"
-        if [ -n "$lines" ] && [ "$lines" -gt "$_WAIT_TRACE_MAX_LINES" ] 2>/dev/null; then
-            tail -n "$_WAIT_TRACE_KEEP_LINES" "$_WAIT_TRACE_FILE" > "${_WAIT_TRACE_FILE}.tmp" 2>/dev/null \
-                && mv "${_WAIT_TRACE_FILE}.tmp" "$_WAIT_TRACE_FILE" 2>/dev/null || true
+        if [ "$lines" -gt "$_WAIT_TRACE_MAX_LINES" ]; then
+            tail -n "$_WAIT_TRACE_KEEP_LINES" "$_WAIT_TRACE_FILE" > "${_WAIT_TRACE_FILE}.tmp.$$"
+            mv "${_WAIT_TRACE_FILE}.tmp.$$" "$_WAIT_TRACE_FILE"
         fi
     fi
 }
@@ -39,7 +39,7 @@ _wait_has_live_bg_task() {
         [ -z "$jsonl" ] && { echo error; exit 0; }
         session_id=$(basename "$jsonl" .jsonl)
         command -v lsof >/dev/null 2>&1 || { echo error; exit 0; }
-        real_tmp=$(cd /tmp 2>/dev/null && pwd -P) || real_tmp="/tmp"
+        real_tmp=$(cd /tmp && pwd -P)
         tasks_dir="${real_tmp}/claude-$(id -u)/${encoded}/${session_id}/tasks"
         [ -d "$tasks_dir" ] || { echo no; exit 0; }
         out=$(lsof +D "$tasks_dir" -Fn 2>/dev/null) || true

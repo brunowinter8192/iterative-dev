@@ -37,6 +37,8 @@ def check_workflow(repo_path: str, auto_stage: bool = False) -> None:
 
 def run(cmd: list, cwd: str) -> str:
     result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
+    if result.returncode != 0:
+        raise RuntimeError(f"{' '.join(cmd)} failed ({result.returncode}): {result.stderr.strip()}")
     return result.stdout.rstrip()
 
 
@@ -82,8 +84,8 @@ def classify_files(lines: list[tuple[str, str]]) -> tuple[list, list, list, list
 def find_import_warnings(repo_path: str, unstaged: list) -> list[str]:
     if not unstaged:
         return []
-    paths = [p for _, p in unstaged]
-    diff = run(["git", "diff"] + paths, repo_path)
+    paths = [_extract_stage_path(p) for _, p in unstaged]
+    diff = run(["git", "diff", "--"] + paths, repo_path)
     warnings = []
     for line in diff.splitlines():
         if line.startswith("+") and not line.startswith("+++"):

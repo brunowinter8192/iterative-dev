@@ -14,7 +14,7 @@ No `__init__.py`. The `.sh` files are sourced by `bin/worker-cli` (resolved thro
 
 ## Modules
 
-### registry.sh (120 LOC)
+### registry.sh (123 LOC)
 
 **Purpose:** Project/worker path resolution, registry and sidecar file helpers, status probe wrapper.
 **Reads:** worker registry dir, tmux session list.
@@ -54,7 +54,7 @@ No `__init__.py`. The `.sh` files are sourced by `bin/worker-cli` (resolved thro
 
 ---
 
-### janitor.sh (176 LOC)
+### janitor.sh (181 LOC)
 
 **Purpose:** janitor subcommand: age-gated session sweep and orphan registry sweep.
 **Reads:** tmux sessions, registry.

@@ -31,22 +31,42 @@ _worker_session_name() {
 
 _resolve_worker_model() {
     local file="${MODEL_SELECTION_FILE:-$HOME/.claude/shared-rules/model_selection.json}"
-    local worker=""
-    if command -v jq >/dev/null 2>&1 && [ -f "$file" ]; then
-        worker=$(jq -r '.worker // empty' "$file" 2>/dev/null || true)
+    local default_model="claude-sonnet-5"
+    if [ ! -f "$file" ]; then
+        echo "spawn: $file not found, using default worker model $default_model" >&2
+        echo "$default_model"
+        return 0
     fi
-    if [ -n "$worker" ]; then
-        echo "$worker"
-    else
-        echo "claude-sonnet-5"
+    local worker
+    worker=$(jq -r '.worker // empty' "$file") || return 1
+    if [ -z "$worker" ]; then
+        echo "spawn: no worker model in $file, using default worker model $default_model" >&2
+        echo "$default_model"
+        return 0
     fi
+    echo "$worker"
+}
+
+_tmux_env_value() {
+    local session="$1" var="$2"
+    local line
+    line=$(tmux show-environment -t "$session" "$var") || {
+        echo "ERROR: tmux variable $var is not set on session $session" >&2
+        return 1
+    }
+    if [ -z "${line#*=}" ]; then
+        echo "ERROR: tmux variable $var is empty on session $session" >&2
+        return 1
+    fi
+    echo "${line#*=}"
 }
 
 spawn_claude_worker() {
     local _session_ignored="${1:-}"
     local name="$2"
     local project_path="$3"
-    local model="${4:-$(_resolve_worker_model)}"
+    local model="${4:-}"
+    [ -n "$model" ] || model=$(_resolve_worker_model) || return 1
     local task_prompt="$5"
     local extra_flags="${6:-$_WORKER_PERMISSION_FLAGS}"
 
@@ -156,7 +176,8 @@ spawn_claude_worker_from_file() {
     local session="${1:-}"
     local name="$2"
     local project_path="$3"
-    local model="${4:-$(_resolve_worker_model)}"
+    local model="${4:-}"
+    [ -n "$model" ] || model=$(_resolve_worker_model) || return 1
     local prompt_file="$5"
     local extra_flags="${6:-$_WORKER_PERMISSION_FLAGS}"
 

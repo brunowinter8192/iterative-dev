@@ -13,14 +13,14 @@ def load_jsonl(jsonl_path: str) -> list[dict]:
 
     messages = []
     with open(path, 'r', encoding='utf-8') as f:
-        for line in f:
+        for lineno, line in enumerate(f, 1):
             line = line.strip()
             if not line:
                 continue
             try:
                 messages.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue
+            except json.JSONDecodeError as e:
+                raise ValueError(f"{jsonl_path}:{lineno}: invalid JSON: {e}") from e
     return messages
 
 
@@ -55,7 +55,7 @@ def extract_text_content(msg: dict) -> str:
         texts = []
         for block in content:
             if isinstance(block, dict) and block.get('type') == 'text':
-                texts.append(block.get('text', ''))
+                texts.append(block['text'])
             elif isinstance(block, str):
                 texts.append(block)
         return '\n'.join(texts)
@@ -63,15 +63,7 @@ def extract_text_content(msg: dict) -> str:
 
 
 def is_tool_error(block: dict) -> bool:
-    if block.get('is_error'):
-        return True
-    content = block.get('content', '')
-    if isinstance(content, list) and len(content) > 0:
-        first = content[0]
-        text = first.get('text', '') if isinstance(first, dict) else str(first)
-    else:
-        text = str(content)
-    return '<tool_use_error>' in text or 'No such tool available' in text
+    return bool(block.get('is_error'))
 
 
 def extract_tool_calls(messages: list[dict]) -> list[dict]:
@@ -86,10 +78,10 @@ def extract_tool_calls(messages: list[dict]) -> list[dict]:
         for block in content_blocks:
             if block.get('type') == 'tool_use':
                 tool_data = {
-                    'tool_name': block.get('name', 'Unknown'),
-                    'input': block.get('input', {}),
+                    'tool_name': block['name'],
+                    'input': block['input'],
                     'output': None,
-                    'tool_use_id': block.get('id', ''),
+                    'tool_use_id': block['id'],
                     'timestamp': message.get('timestamp', '')
                 }
                 tool_use_cache[tool_data['tool_use_id']] = tool_data

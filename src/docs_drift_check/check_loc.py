@@ -16,7 +16,7 @@ def _check_doc_headings(doc: Path, root: Path) -> list[str]:
     findings: list[str] = []
     rel_doc = doc.relative_to(root).as_posix()
     in_fence = False
-    for lineno, line in enumerate(doc.read_text(errors="replace").splitlines(), 1):
+    for lineno, line in enumerate(doc.read_text().splitlines(), 1):
         if line.strip().startswith(("```", "~~~")):
             in_fence = not in_fence
             continue

@@ -23,7 +23,7 @@ _worker_detect_status() {
 
     local hook_status=""
     if [ -n "$jsonl" ]; then
-        hook_status=$(_worker_hook_status "$jsonl")
+        hook_status=$(_worker_hook_status "$jsonl") || return 1
     fi
     if [ "$hook_status" = "idle" ]; then
         echo "idle"
@@ -93,7 +93,14 @@ _worker_hook_status() {
     local session_id hook_status
     session_id=$(basename "$jsonl" .jsonl)
     local hook_file="$HOME/Library/Application Support/com.brunowinter.monitor-cc-menubar/hooks.json"
-    hook_status=$(jq -r --arg sid "$session_id" '.[$sid].status // ""' "$hook_file" 2>/dev/null || true)
+    if [ ! -f "$hook_file" ]; then
+        echo "ERROR: hooks file not found: $hook_file" >&2
+        return 1
+    fi
+    hook_status=$(jq -r --arg sid "$session_id" '.[$sid].status // ""' "$hook_file") || {
+        echo "ERROR: cannot read hook status from $hook_file" >&2
+        return 1
+    }
     [ "$hook_status" = "null" ] && hook_status=""
     echo "$hook_status"
 }
@@ -126,13 +133,14 @@ worker_list() {
     while IFS= read -r session_name; do
         local name="${session_name#$prefix}"
         local status
-        status=$(_worker_detect_status "$session_name" 2>/dev/null || echo "working")
+        if ! status=$(_worker_detect_status "$session_name"); then
+            echo "worker_list: status probe failed for $session_name, showing working" >&2
+            status="working"
+        fi
         local spawned
-        spawned=$(tmux show-environment -t "$session_name" WORKER_SPAWNED 2>/dev/null | cut -d= -f2)
-        [ -z "$spawned" ] && spawned="(?)"
+        spawned=$(_tmux_env_value "$session_name" WORKER_SPAWNED) || return 1
         local purpose
-        purpose=$(tmux show-environment -t "$session_name" WORKER_PURPOSE 2>/dev/null | cut -d= -f2)
-        [ -z "$purpose" ] && purpose="(?)"
+        purpose=$(_tmux_env_value "$session_name" WORKER_PURPOSE) || return 1
         echo "$name  $status  $spawned  $purpose"
     done <<< "$sessions"
 }
@@ -149,6 +157,6 @@ worker_status() {
     fi
 
     local raw
-    raw=$(_worker_detect_status "$session")
+    raw=$(_worker_detect_status "$session") || return 1
     echo "$raw"
 }
