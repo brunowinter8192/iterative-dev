@@ -12,11 +12,6 @@ def print_report(
 ) -> None:
     print(f"# Docs Drift Check - {datetime.datetime.now().isoformat(timespec='seconds')}")
     print(f"\nProject root: {root}")
-    print("\n## Summary\n")
-    print(f"- Path-Drift:     {len(path_findings)} findings")
-    print(f"- LOC-Drift:      {len(loc_findings)} findings")
-    print(f"- Rule-Violation: {len(rule_findings)} findings")
-    print(f"- Total:          {len(path_findings) + len(loc_findings) + len(rule_findings)}")
     _print_section("Path-Drift", path_findings, "None - all paths exist.")
     _print_section("LOC-Drift", loc_findings, "None - all LOC counts equal wc -l.")
     _print_section("Rule-Violation", rule_findings, "None - no function-level or constant references.")

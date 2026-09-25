@@ -22,8 +22,8 @@ CASES = {
             "src/DOCS.md": "# src/\n\n### mod.py (3 LOC)\n\n**Purpose:** demo.\n",
         },
         "exit": 0,
-        "contains": ["Total:          0"],
-        "absent": [],
+        "contains": ["## Path-Drift (0 findings)", "## LOC-Drift (0 findings)", "## Rule-Violation (0 findings)"],
+        "absent": ["## Summary"],
     },
     "module_function_reference": {
         "files": {
@@ -33,9 +33,10 @@ CASES = {
         "exit": 1,
         "contains": [
             "function-level reference `src/panes/cache_turns.build_cache_turns`",
-            "Path-Drift:     0 findings",
+            "## Path-Drift (0 findings)",
+            "## Rule-Violation (1 findings)",
         ],
-        "absent": ["NOT FOUND"],
+        "absent": ["## Summary", "NOT FOUND"],
     },
     "loc_off_by_one": {
         "files": {
@@ -43,14 +44,14 @@ CASES = {
             "dev/proxy/DOCS.md": "# proxy\n\n### tool.py (4 LOC)\n",
         },
         "exit": 1,
-        "contains": ["claims `tool.py` = 4 LOC, actual 3 (-1)"],
-        "absent": [],
+        "contains": ["claims `tool.py` = 4 LOC, actual 3 (-1)", "## LOC-Drift (1 findings)"],
+        "absent": ["## Summary"],
     },
     "loc_heading_without_module_file": {
         "files": {"src/DOCS.md": "# src/\n\n### ghost.py (10 LOC)\n"},
         "exit": 1,
-        "contains": ["documents `ghost.py` but the module file does not exist"],
-        "absent": [],
+        "contains": ["documents `ghost.py` but the module file does not exist", "## LOC-Drift (1 findings)"],
+        "absent": ["## Summary"],
     },
     "loc_shell_module": {
         "files": {
@@ -58,8 +59,8 @@ CASES = {
             "bin/DOCS.md": "# bin/\n\n### run.sh (9 LOC)\n",
         },
         "exit": 1,
-        "contains": ["claims `run.sh` = 9 LOC, actual 2 (-7)"],
-        "absent": [],
+        "contains": ["claims `run.sh` = 9 LOC, actual 2 (-7)", "## LOC-Drift (1 findings)"],
+        "absent": ["## Summary"],
     },
     "bash_constant_and_function": {
         "files": {
@@ -70,8 +71,9 @@ CASES = {
         "contains": [
             "constant reference `WORKER_REGISTRY_DIR`",
             "function-level reference `go_quiet()`",
+            "## Rule-Violation (2 findings)",
         ],
-        "absent": [],
+        "absent": ["## Summary"],
     },
     "undefined_symbols_not_flagged": {
         "files": {
@@ -79,8 +81,8 @@ CASES = {
             "src/DOCS.md": "# src/\n\nTrap on `EXIT`, git prints `CONFLICT`, uses `os.path`.\n",
         },
         "exit": 0,
-        "contains": ["Rule-Violation: 0 findings"],
-        "absent": [],
+        "contains": ["## Rule-Violation (0 findings)"],
+        "absent": ["## Summary"],
     },
     "python_constant_and_function": {
         "files": {
@@ -88,8 +90,8 @@ CASES = {
             "src/DOCS.md": "# src/\n\nCeiling `MAX_BYTES`, entry `load()`.\n",
         },
         "exit": 1,
-        "contains": ["constant reference `MAX_BYTES`", "function-level reference `load()`"],
-        "absent": [],
+        "contains": ["constant reference `MAX_BYTES`", "function-level reference `load()`", "## Rule-Violation (2 findings)"],
+        "absent": ["## Summary"],
     },
     "obsolete_doc_locations_ignored": {
         "files": {
@@ -98,8 +100,8 @@ CASES = {
             "src/mod.py": "x = 1\n",
         },
         "exit": 0,
-        "contains": ["Total:          0"],
-        "absent": ["missing.py"],
+        "contains": ["## Path-Drift (0 findings)", "## LOC-Drift (0 findings)", "## Rule-Violation (0 findings)"],
+        "absent": ["## Summary", "missing.py"],
     },
     "missing_path_reported": {
         "files": {
@@ -107,8 +109,8 @@ CASES = {
             "src/DOCS.md": "# src/\n\nSee `src/gone.py`.\n",
         },
         "exit": 1,
-        "contains": ["references `src/gone.py` - NOT FOUND"],
-        "absent": [],
+        "contains": ["references `src/gone.py` - NOT FOUND", "## Path-Drift (1 findings)"],
+        "absent": ["## Summary"],
     },
     "worktree_docs_excluded": {
         "files": {
@@ -116,8 +118,8 @@ CASES = {
             ".claude/worktrees/w/DOCS.md": "### mod.py (99 LOC)\n",
         },
         "exit": 0,
-        "contains": ["Total:          0"],
-        "absent": [],
+        "contains": ["## Path-Drift (0 findings)", "## LOC-Drift (0 findings)", "## Rule-Violation (0 findings)"],
+        "absent": ["## Summary"],
     },
     "argparse_metavar_not_constant": {
         "files": {
@@ -125,8 +127,8 @@ CASES = {
             "dev/DOCS.md": "# dev/\n\nRun with `--baseline PATH` or `--out=PATH`.\n",
         },
         "exit": 0,
-        "contains": ["Rule-Violation: 0 findings"],
-        "absent": [],
+        "contains": ["## Rule-Violation (0 findings)"],
+        "absent": ["## Summary"],
     },
     "brace_template_span_skipped": {
         "files": {
@@ -134,8 +136,8 @@ CASES = {
             "dev/DOCS.md": "# dev/\n\nOutputs in `queries/pass_{a,b,c,d}_runs/`.\n",
         },
         "exit": 0,
-        "contains": ["Path-Drift:     0 findings"],
-        "absent": ["queries/pass_"],
+        "contains": ["## Path-Drift (0 findings)"],
+        "absent": ["## Summary", "queries/pass_"],
     },
     "build_artifact_docs_excluded": {
         "files": {
@@ -143,8 +145,8 @@ CASES = {
             "dist/app/src/DOCS.md": "Calls `run()` and ### mod.py (99 LOC)\n",
         },
         "exit": 0,
-        "contains": ["Total:          0"],
-        "absent": [],
+        "contains": ["## Path-Drift (0 findings)", "## LOC-Drift (0 findings)", "## Rule-Violation (0 findings)"],
+        "absent": ["## Summary"],
     },
     "shadowing_project_src_package": {
         "files": {
@@ -153,8 +155,8 @@ CASES = {
             "src/DOCS.md": "# src/\n\n### mod.py (3 LOC)\n",
         },
         "exit": 0,
-        "contains": ["Total:          0"],
-        "absent": [],
+        "contains": ["## Path-Drift (0 findings)", "## LOC-Drift (0 findings)", "## Rule-Violation (0 findings)"],
+        "absent": ["## Summary"],
     },
 }
 
