@@ -16,6 +16,26 @@ strand_cleanup() {
     rm -rf /tmp/${TEST_TAG}-* /tmp/${TEST_TAG}task*
 }
 
+wait_for_file() {
+    local path="$1" tries=0
+    while [ ! -e "$path" ]; do
+        [ "$tries" -ge $((TRACE_WAIT_BOUND * 5)) ] && fail "file $path did not appear within ${TRACE_WAIT_BOUND}s"
+        sleep 0.2
+        tries=$((tries + 1))
+    done
+}
+
+require_trace() {
+    local label="$1" pattern="$2" want="${3:-1}" tries=0 seen
+    while [ "$tries" -lt "$TRACE_WAIT_BOUND" ]; do
+        seen=$(grep -cE -- "$pattern" "$TRACE_FILE" 2>/dev/null)
+        [ "${seen:-0}" -ge "$want" ] && return 0
+        sleep 1
+        tries=$((tries + 1))
+    done
+    fail "$label: trace never showed $want x '$pattern' within ${TRACE_WAIT_BOUND}s"
+}
+
 set_hook_status() {
     local session_id="$1" status="$2" cwd="$3"
     local tmp="$HOOKS_FILE.tmp.$$"
@@ -51,7 +71,7 @@ write_wrap_bg() {
     local wrap="$1"
     cat > "$wrap" <<'INNER'
 #!/bin/bash
-( exec -a claude-dummy bash -c '(exec -a pyright-langserver-dummy sleep 100000) & wait' ) &
+( exec -a claude-dummy bash -c '(exec -a pyright-langserver-dummy sleep 100000) & while true; do echo tick; sleep 1; done' ) &
 CLAUDE_PID=$!
 echo "$CLAUDE_PID" > "$(dirname "$0")/.claude.pid"
 wait $CLAUDE_PID
@@ -59,8 +79,8 @@ INNER
     chmod +x "$wrap"
 }
 
-write_wrap_chatty() {
-    local proj_dir="$1" wrap="$2"
+write_chatty_script() {
+    local proj_dir="$1"
     cat > "$proj_dir/.chatty.sh" <<'INNER'
 #!/bin/bash
 QUIET_FILE="$1"
@@ -71,6 +91,11 @@ done
 sleep 100000
 INNER
     chmod +x "$proj_dir/.chatty.sh"
+}
+
+write_wrap_chatty() {
+    local proj_dir="$1" wrap="$2"
+    write_chatty_script "$proj_dir"
     cat > "$wrap" <<'INNER'
 #!/bin/bash
 ( exec -a claude-dummy bash "$(dirname "$0")/.chatty.sh" "$(dirname "$0")/.chatty-quiet" ) &
@@ -94,10 +119,11 @@ INNER
 }
 
 write_wrap_no_pid() {
-    local wrap="$1"
+    local proj_dir="$1" wrap="$2"
+    write_chatty_script "$proj_dir"
     cat > "$wrap" <<'INNER'
 #!/bin/bash
-( exec -a claude-dummy sleep 100000 ) &
+( exec -a claude-dummy bash "$(dirname "$0")/.chatty.sh" "$(dirname "$0")/.chatty-quiet" ) &
 CLAUDE_PID=$!
 wait $CLAUDE_PID
 INNER
@@ -153,7 +179,8 @@ create_worker_no_hook() {
     local session="worker-$(basename "$proj_dir")-$name"
     tmux kill-session -t "$session" 2>/dev/null || true
     local wrap="$proj_dir/.wrap.sh"
-    write_wrap_no_pid "$wrap"
+    rm -f "$proj_dir/.chatty-quiet"
+    write_wrap_no_pid "$proj_dir" "$wrap"
     start_tmux_session "$session" "$proj_dir" "bash $wrap"
     register_jsonl "$proj_dir" "$session_id"
     echo "$session"
@@ -202,6 +229,7 @@ start_fake_bg_task() {
     ( exec sleep 100000 > "$tdir/$task_id.output" ) &
     disown
     echo $! > "/tmp/${TEST_TAG}-fakebg-${task_id}.pid"
+    wait_for_file "$tdir/$task_id.output"
 }
 
 kill_fake_bg_task() {

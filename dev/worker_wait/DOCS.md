@@ -14,7 +14,7 @@ Each test is a parallel strand (wait runs with the fixture project as cwd, it ta
 
 ## Modules
 
-### test_worker_wait.sh (44 LOC)
+### test_worker_wait.sh (47 LOC)
 
 **Purpose:** Entry point: sources the runner, fixtures and test files, declares the strands and starts them.
 **Reads:** Nothing persistent.
@@ -24,7 +24,7 @@ Each test is a parallel strand (wait runs with the fixture project as cwd, it ta
 
 ---
 
-### fixtures.sh (214 LOC)
+### fixtures.sh (242 LOC)
 
 **Purpose:** Fixture library: fake-worker builders, hook-entry helpers, fake background-task handles and per-strand setup and cleanup.
 **Reads:** The strand's private home directory.
@@ -34,7 +34,7 @@ Each test is a parallel strand (wait runs with the fixture project as cwd, it ta
 
 ---
 
-### tests_gate.sh (156 LOC)
+### tests_gate.sh (157 LOC)
 
 **Purpose:** Test functions for the transition-gate proofs: idle from start, no worker, working then idle, concurrent waits, vanished session.
 **Reads:** Fixtures from `fixtures.sh`.
@@ -44,7 +44,7 @@ Each test is a parallel strand (wait runs with the fixture project as cwd, it ta
 
 ---
 
-### tests_transitions.sh (216 LOC)
+### tests_transitions.sh (221 LOC)
 
 **Purpose:** Test functions for background-task handles, probe errors, no-hook self-heal, dead paths, mixed projects and the second transition.
 **Reads:** Fixtures from `fixtures.sh`.
