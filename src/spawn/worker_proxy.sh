@@ -31,7 +31,7 @@ _worker_proxy_setup() {
     log_dir="${monitor_cc_root}/src/logs"
     mkdir -p "$log_dir"
 
-    _proxy_launch "$name" "$monitor_cc_root" "$worker_port" "$worker_log_id" "$proxy_project_path"
+    _proxy_launch "$name" "$monitor_cc_root" "$worker_port" "$worker_log_id" "$proxy_project_path" || return 1
     if ! _worker_proxy_wait_ready "$WORKER_PROXY_PID" "$worker_port"; then
         _proxy_fail_cleanup "$name" "$worker_port" "$log_dir" "$worker_log_id"
         return 1
@@ -72,9 +72,16 @@ _proxy_launch() {
     local worker_live_id="worker_${name}_$(date +%s)_$$"
     local worker_live_addon_path="${log_dir}/.proxy_addon_live_${worker_live_id}.py"
     local worker_live_dir_path="${log_dir}/.proxy_live_${worker_live_id}"
-    cp "${monitor_cc_root}/src/proxy_addon.py" "$worker_live_addon_path"
-    mkdir -p "$worker_live_dir_path"
-    cp -r "${monitor_cc_root}/src/proxy" "$worker_live_dir_path/"
+    local copy_script="${monitor_cc_root}/src/copy_proxy_live.sh"
+    if [ ! -x "$copy_script" ]; then
+        echo "ERROR: ${copy_script} missing or not executable; monitor-cc checkout too old for worker proxies." >&2
+        return 1
+    fi
+    if ! "$copy_script" "$worker_live_addon_path" "$worker_live_dir_path"; then
+        rm -f "$worker_live_addon_path"
+        rm -rf "$worker_live_dir_path"
+        return 1
+    fi
     MONITOR_CC_ROOT="$monitor_cc_root" PROXY_LOG_ID="$worker_log_id" \
         PROXY_PROJECT_PATH="$proxy_project_path" \
         mitmdump -p "$worker_port" -s "$worker_live_addon_path" \
