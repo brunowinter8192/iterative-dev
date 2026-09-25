@@ -14,7 +14,7 @@ The script generates test messages, boots throwaway claude sessions in scratch g
 
 ## Modules
 
-### probe_bracketed_paste.sh (322 LOC)
+### probe_bracketed_paste.sh (351 LOC)
 
 **Purpose:** Verifies bracketed-paste delivery across four message sizes, contrasts the pre-fix method, and measures paste-to-render latency.
 **Reads:** `src/spawn` shell modules (sourced), the claude-280 binary.
@@ -24,7 +24,7 @@ The script generates test messages, boots throwaway claude sessions in scratch g
 
 ---
 
-### _verify_user_message.py (58 LOC)
+### _verify_user_message.py (80 LOC)
 
 **Purpose:** Reads a worker session JSONL, extracts the last user entry, strips the pasted-content wrapper and compares it with the expected message.
 **Reads:** JSONL path and expected-message file path (arguments).

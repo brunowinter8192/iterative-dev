@@ -24,6 +24,19 @@ _PINNED_NOTICE = (
     "this file again until then."
 )
 
+# ORCHESTRATOR
+
+def test_poread_cli_workflow() -> int:
+    cases = {
+        "valid_file": test_valid_file_prints_marker,
+        "oversize_file": test_oversize_file_refused_without_reading,
+        "missing_file": test_missing_file_refused,
+        "directory": test_directory_refused_not_treated_as_file,
+        "bad_argv": test_bad_argv_exits_2,
+    }
+    code, _ = run_strands(cases, sys.argv[1:])
+    return code
+
 # FUNCTIONS
 
 def check(name: str, condition: bool, detail: str = "") -> None:
@@ -102,20 +115,6 @@ def test_bad_argv_exits_2():
     check("no-args prints usage, no marker", out0 == "" and "usage" in err0, (out0, err0))
     check("two-args exits 2", code2 == 2, code2)
     check("two-args prints usage, no marker", out2 == "" and "usage" in err2, (out2, err2))
-
-
-# ORCHESTRATOR
-
-def test_poread_cli_workflow() -> int:
-    cases = {
-        "valid_file": test_valid_file_prints_marker,
-        "oversize_file": test_oversize_file_refused_without_reading,
-        "missing_file": test_missing_file_refused,
-        "directory": test_directory_refused_not_treated_as_file,
-        "bad_argv": test_bad_argv_exits_2,
-    }
-    code, _ = run_strands(cases, sys.argv[1:])
-    return code
 
 
 if __name__ == "__main__":

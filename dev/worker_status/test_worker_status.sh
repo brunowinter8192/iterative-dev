@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+# INFRASTRUCTURE
+
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -6,6 +9,16 @@ PLUGIN_ROOT="$(cd "$SELF_DIR/../.." && pwd)"
 SPAWN="$PLUGIN_ROOT/src/spawn/tmux_spawn.sh"
 
 source "$SELF_DIR/../strand_runner.sh"
+
+STRANDS=(t1 t2 t3 t4 t5 t6 t7 t8 t9 t10 t11 greps)
+
+# ORCHESTRATOR
+
+test_worker_status_workflow() {
+    strand_main "$@"
+}
+
+# FUNCTIONS
 
 set_hook_status() {
     local session_id="$1" status="$2" cwd="$3"
@@ -350,6 +363,4 @@ strand_greps() {
     fi
 }
 
-STRANDS=(t1 t2 t3 t4 t5 t6 t7 t8 t9 t10 t11 greps)
-
-strand_main "$@"
+test_worker_status_workflow "$@"

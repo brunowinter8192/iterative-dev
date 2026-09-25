@@ -1,10 +1,21 @@
 #!/usr/bin/env bash
+
+# INFRASTRUCTURE
+
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SELF_DIR/../strand_runner.sh"
 
 STRANDS=(h1)
+
+# ORCHESTRATOR
+
+test_direct_command_workflow() {
+    strand_main "$@"
+}
+
+# FUNCTIONS
 
 strand_h1() {
     export STRAND_H1_TOKEN="inherit-probe-$$"
@@ -25,4 +36,4 @@ strand_h1() {
     echo "$output" | grep -q "PATH=/" && pass "PATH inherited" || fail "PATH not found"
 }
 
-strand_main "$@"
+test_direct_command_workflow "$@"

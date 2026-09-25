@@ -14,7 +14,7 @@ Each status case is a parallel strand with its own home directory (hence its own
 
 ## Modules
 
-### test_worker_status.sh (355 LOC)
+### test_worker_status.sh (366 LOC)
 
 **Purpose:** Integration coverage for the working, idle and dead vocabulary including hook, quiet-pane, killed-child, killed-session and context-limit cases.
 **Reads:** `src/spawn` shell modules (sourced).
@@ -24,7 +24,7 @@ Each status case is a parallel strand with its own home directory (hence its own
 
 ---
 
-### test_status_detection.sh (31 LOC)
+### test_status_detection.sh (42 LOC)
 
 **Purpose:** Verifies tmux marks a pane dead after its process exits under remain-on-exit.
 **Reads:** Nothing persistent.

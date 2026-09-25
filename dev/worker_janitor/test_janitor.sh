@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+# INFRASTRUCTURE
+
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -8,6 +11,14 @@ export CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT"
 source "$SELF_DIR/../strand_runner.sh"
 
 STRANDS=(dry_run real_kill fresh_spared orphan)
+
+# ORCHESTRATOR
+
+test_janitor_workflow() {
+    strand_main "$@"
+}
+
+# FUNCTIONS
 
 init_project() {
     PROJ="$STRAND_DIR/janitorproj"
@@ -124,4 +135,4 @@ strand_orphan() {
     fi
 }
 
-strand_main "$@"
+test_janitor_workflow "$@"

@@ -1,3 +1,5 @@
+# FUNCTIONS
+
 test5_open_handle() {
     PROJ5="/tmp/${TEST_TAG}-5"
     SID5="${TEST_TAG}-sess-5"

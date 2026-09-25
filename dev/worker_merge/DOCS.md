@@ -14,7 +14,7 @@ Two strands against throwaway repos: a real merge followed by a repeat merge (no
 
 ## Modules
 
-### test_merge_verify.sh (126 LOC)
+### test_merge_verify.sh (143 LOC)
 
 **Purpose:** Exercises the real merge command against throwaway git repos: real merge, no-op re-merge, and conflict.
 **Reads:** Nothing persistent.

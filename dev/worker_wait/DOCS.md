@@ -14,7 +14,7 @@ Each test is a parallel strand with its own home directory (own hooks file), tra
 
 ## Modules
 
-### test_worker_wait.sh (33 LOC)
+### test_worker_wait.sh (44 LOC)
 
 **Purpose:** Entry point: sources the runner, fixtures and test files, declares the strands and starts them.
 **Reads:** Nothing persistent.
@@ -24,7 +24,7 @@ Each test is a parallel strand with its own home directory (own hooks file), tra
 
 ---
 
-### fixtures.sh (212 LOC)
+### fixtures.sh (214 LOC)
 
 **Purpose:** Fixture library: fake-worker builders, hook-entry helpers, fake background-task handles and per-strand setup and cleanup.
 **Reads:** The strand's private home directory.
@@ -34,7 +34,7 @@ Each test is a parallel strand with its own home directory (own hooks file), tra
 
 ---
 
-### tests_gate.sh (152 LOC)
+### tests_gate.sh (154 LOC)
 
 **Purpose:** Test functions for the transition-gate proofs: idle from start, no worker, working then idle, concurrent waits, vanished session.
 **Reads:** Fixtures from `fixtures.sh`.
@@ -44,7 +44,7 @@ Each test is a parallel strand with its own home directory (own hooks file), tra
 
 ---
 
-### tests_transitions.sh (214 LOC)
+### tests_transitions.sh (216 LOC)
 
 **Purpose:** Test functions for background-task handles, probe errors, no-hook self-heal, dead paths, mixed projects and the second transition.
 **Reads:** Fixtures from `fixtures.sh`.

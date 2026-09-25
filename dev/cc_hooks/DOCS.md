@@ -14,7 +14,7 @@ Hook payload on stdin, appended with a timestamp to a log file, then passed thro
 
 ## Modules
 
-### log_permission_request.sh (8 LOC)
+### log_permission_request.sh (29 LOC)
 
 **Purpose:** Logs the PermissionRequest hook input to a JSON-lines file for inspection and passes the payload through.
 **Reads:** stdin (hook payload).

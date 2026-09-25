@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+# INFRASTRUCTURE
+
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -8,6 +11,14 @@ export CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT"
 source "$SELF_DIR/../strand_runner.sh"
 
 STRANDS=(viewer proxy spawn)
+
+# ORCHESTRATOR
+
+test_spawn_flow_workflow() {
+    strand_main "$@"
+}
+
+# FUNCTIONS
 
 strand_cleanup() {
     [ -n "${MARKER:-}" ] && rm -f "$MARKER"
@@ -155,4 +166,4 @@ strand_spawn() {
     _stop_worker_logger "$SPAWN_NAME"
 }
 
-strand_main "$@"
+test_spawn_flow_workflow "$@"

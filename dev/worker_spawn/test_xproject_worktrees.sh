@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+# INFRASTRUCTURE
+
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -9,6 +12,14 @@ source "$SELF_DIR/../strand_runner.sh"
 
 STRANDS=(worktree_then_kill list_skips_sidecars worktree_rm)
 
+# ORCHESTRATOR
+
+test_xproject_worktrees_workflow() {
+    strand_main "$@"
+}
+
+# FUNCTIONS
+
 commit_init() {
     echo "init" > "$1/init.txt"
     git -C "$1" add init.txt
@@ -16,6 +27,12 @@ commit_init() {
 }
 
 strand_worktree_then_kill() {
+    _init_target_and_spawn_repos
+    _case_worktree_created
+    _case_kill_cleans_both
+}
+
+_init_target_and_spawn_repos() {
     TMPTARGET="$STRAND_DIR/target"
     TMPSPAWN="$STRAND_DIR/spawn"
     mkdir -p "$TMPTARGET" "$TMPSPAWN"
@@ -23,7 +40,9 @@ strand_worktree_then_kill() {
     commit_init "$TMPTARGET"
     git init "$TMPSPAWN" -b main -q
     commit_init "$TMPSPAWN"
+}
 
+_case_worktree_created() {
     echo "=== Case 1: worker-cli worktree tw1 <target> ==="
 
     OUTPUT=$("$WCLI" worktree tw1 "$TMPTARGET" 2>&1)
@@ -51,7 +70,9 @@ strand_worktree_then_kill() {
     else
         check "sidecar file exists" "not found at $WORKER_REGISTRY_DIR/tw1.worktrees"
     fi
+}
 
+_case_kill_cleans_both() {
     echo "=== Case 2: worker-cli kill tw1 cleans both spawn + cross-project ==="
 
     git -C "$TMPSPAWN" worktree add "$TMPSPAWN/.claude/worktrees/tw1" -b tw1 -q
@@ -156,4 +177,4 @@ strand_worktree_rm() {
     fi
 }
 
-strand_main "$@"
+test_xproject_worktrees_workflow "$@"
