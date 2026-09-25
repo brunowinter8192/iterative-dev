@@ -71,3 +71,17 @@ Findings seen (not fixed, outside the scope of this change):
 - iterative-dev: `dev/worker_spawn/DOCS.md:37` claims `test_spawn_flow.sh` = 169, actual 171 (came in with the integration merge); `src/DOCS.md` names no module (it is an index of subdirectories).
 - monitor-cc: five DOCS.md without a module heading (`dev/`, `dev/cc_internals`, `dev/pipeline`, `dev/rag_helpfulness`, `dev/tool_injection/ToolsSystemPrompts`); four module directories without DOCS.md, all under a `repo/` directory; root title `# ./ (project root)`; five Purpose texts of 27 to 38 words; Called by entries naming files that no longer exist (`worker_proxy.sh` under the old name, `_cases.py`, `_report.py`, `workers/worker_search.py`) and `./venv/bin/python`.
 - Hypothesis, not judged: `./venv/bin/python` is a runtime path inside an excluded venv directory, so the Called by check can never resolve it; whether such entries should be exempt is an owner decision.
+
+# Two false positives from the first monitor-cc run, 2026-09-25
+
+Observed in monitor-cc: (1) `repo/`, `repo/.github/travis`, `repo/regress`, `repo/tools` reported as module directories without DOCS.md. `repo/` is a gitignored clone of the tmux sources (`.gitignore:48`). (2) `dev/refactoring/DOCS.md:69` Called by names `src.proxy`; the entry pattern read `.proxy` as a file extension and looked for a file `src.proxy`.
+
+## Fixes
+
+- **Gitignored paths are not part of the project.** `collect.py` asks git for the untracked ignored paths (`git ls-files --others --ignored --exclude-standard --directory -z` in the root) and prunes ignored directories and files from the one walk that feeds DOCS.md files, sources and the path index. Tracked files that match an ignore pattern stay in. The hand-written scan exclusions (worktrees, logs, dist, build, venvs) stay.
+- **Tripwire, no fallback.** A root outside a git repository aborts with exit 2 and `is not inside a git repository` (`require_git_repo`, called right after the root is resolved). Owner decision: a plain temp dir as fixture is not a production condition, so every test fixture is a `git init` repo (one case, `root_outside_git_repository_aborts`, deliberately is not). The tests set `GIT_CONFIG_GLOBAL=/dev/null` so the user's global excludes cannot leak in.
+- **Dotted package names in Called by.** A token is an entry when it contains `/` or ends in a dotted identifier (no more one-to-five-letter extension limit). It resolves when the entry, the entry with dots turned into slashes (`src.proxy` -> `src/proxy`), or that with `.py` appended exists in the path index. External dotted names such as `mitmproxy.http` get no special handling (never observed; they would be reported as missing).
+
+## Tests
+
+30 of 30 cases pass (with `CLAUDE_PLUGIN_ROOT` at the worktree). New: `gitignored_directory_not_a_module_directory`, `called_by_dotted_package_resolves`, `called_by_dotted_package_missing`, `root_outside_git_repository_aborts`.

@@ -10,11 +10,11 @@ No `__init__.py`; run manually from the project root: `python3 dev/docs_drift_ch
 
 ## Flow
 
-Fixture definitions become one temporary project per case. All cases run in parallel, including the missing-root case. The wrapper runs with the fixture as working directory. Exit code and output are asserted per case.
+Fixture definitions become one temporary git repository per case (one case deliberately without git). All cases run in parallel, including the missing-root case. The wrapper runs with the fixture as working directory. Exit code and output are asserted per case.
 
 ## Modules
 
-### test_docs_drift_check.py (285 LOC)
+### test_docs_drift_check.py (323 LOC)
 
 **Purpose:** Fixture-based regression cases, at least one per rule check, plus scope exclusions, the argument rejection and working-directory independence.
 **Reads:** Nothing external; builds its own temporary projects.

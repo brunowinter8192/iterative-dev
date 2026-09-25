@@ -14,7 +14,7 @@ Project root (environment variable, abort if missing) → collect DOCS.md files,
 
 ## Modules
 
-### __main__.py (47 LOC)
+### __main__.py (48 LOC)
 
 **Purpose:** Orchestrator wiring collection, symbol index, the rule checks and the report; owns the rule names used as section titles.
 **Reads:** nothing directly.
@@ -24,10 +24,10 @@ Project root (environment variable, abort if missing) → collect DOCS.md files,
 
 ---
 
-### collect.py (45 LOC)
+### collect.py (60 LOC)
 
-**Purpose:** Walk the project and return DOCS.md files, source files and the path index, skipping excluded directories.
-**Reads:** project file tree.
+**Purpose:** Walk the project and return DOCS.md files, source files and the path index, skipping excluded and gitignored paths.
+**Reads:** project file tree, the git ignore state of the project.
 **Writes:** nothing.
 **Called by:** `__main__.py`, `check_directories.py`, `check_template.py`.
 **Calls out:** none.
@@ -84,9 +84,9 @@ Project root (environment variable, abort if missing) → collect DOCS.md files,
 
 ---
 
-### check_called_by.py (51 LOC)
+### check_called_by.py (56 LOC)
 
-**Purpose:** Report empty Called by fields and Called by entries that name no existing file or package.
+**Purpose:** Report empty Called by fields and Called by entries that name no existing file or package, dotted package names included.
 **Reads:** DOCS.md files, the project path index.
 **Writes:** nothing.
 **Called by:** `__main__.py`.
@@ -124,10 +124,10 @@ Project root (environment variable, abort if missing) → collect DOCS.md files,
 
 ---
 
-### project_root.py (23 LOC)
+### project_root.py (32 LOC)
 
-**Purpose:** Resolve the project root from the environment variable and reject command-line arguments; abort with exit 2 on either problem.
-**Reads:** environment, command-line arguments.
+**Purpose:** Resolve the project root from the environment variable, reject command-line arguments and require a git repository; abort with exit 2 otherwise.
+**Reads:** environment, command-line arguments, git.
 **Writes:** stderr and exit code 2.
 **Called by:** `__main__.py`.
 **Calls out:** none.

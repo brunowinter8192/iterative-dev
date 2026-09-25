@@ -1,5 +1,6 @@
 # INFRASTRUCTURE
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -20,4 +21,12 @@ def reject_arguments(args: list[str]) -> None:
             f"docs-drift-check: takes no arguments, the project root is the working directory; got: {' '.join(args)}",
             file=sys.stderr,
         )
+        sys.exit(2)
+
+def require_git_repo(root: Path) -> None:
+    result = subprocess.run(
+        ["git", "rev-parse", "--is-inside-work-tree"], cwd=root, capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        print(f"docs-drift-check: {root} is not inside a git repository", file=sys.stderr)
         sys.exit(2)

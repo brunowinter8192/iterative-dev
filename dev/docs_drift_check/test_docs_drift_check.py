@@ -209,6 +209,36 @@ CASES = {
         "contains": CLEAN,
         "absent": [],
     },
+    "gitignored_directory_not_a_module_directory": {
+        "files": clean_with({
+            ".gitignore": "repo/\n",
+            "repo/tools/build.sh": "echo hi\n",
+            "repo/.github/travis/run.py": "x = 1\n",
+            "src/mod.py": LOC_MODULE,
+        }),
+        "exit": 0,
+        "contains": CLEAN,
+        "absent": ["repo"],
+    },
+    "called_by_dotted_package_resolves": {
+        "files": clean_with({"src/mod.py": LOC_MODULE, "pkg/proxy/core.txt": "x\n"}, called="`pkg.proxy`."),
+        "exit": 0,
+        "contains": CLEAN,
+        "absent": [],
+    },
+    "called_by_dotted_package_missing": {
+        "files": clean_with({"src/mod.py": LOC_MODULE}, called="`pkg.gone`."),
+        "exit": 1,
+        "contains": [one(T_CALLED_BY), "Called by names `pkg.gone` which does not exist in the project"],
+        "absent": [],
+    },
+    "root_outside_git_repository_aborts": {
+        "files": {"src/mod.py": LOC_MODULE, "src/DOCS.md": doc("src")},
+        "git": False,
+        "exit": 2,
+        "contains": ["is not inside a git repository"],
+        "absent": [],
+    },
     "unknown_argument_rejected": {
         "files": {"src/mod.py": LOC_MODULE, "src/DOCS.md": doc("src")},
         "args": ["src"],
@@ -233,6 +263,8 @@ def run_case(name: str, spec: dict) -> str | None:
     with tempfile.TemporaryDirectory(prefix=f"ddc_{name}_") as tmp:
         project = Path(tmp)
         build_fixture(project, spec["files"])
+        if spec.get("git", True):
+            init_git_repo(project)
         completed = run_wrapper(project, spec.get("args", []))
         return verify(completed, spec)
 
@@ -246,6 +278,12 @@ def run_without_root_variable() -> str | None:
         return f"exit {completed.returncode}\n{completed.stdout}{completed.stderr}"
     return None
 
+def init_git_repo(project: Path) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=project, check=True, env=git_env())
+
+def git_env() -> dict:
+    return dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_NOSYSTEM="1")
+
 def build_fixture(project: Path, files: dict) -> None:
     for rel, content in files.items():
         target = project / rel
@@ -253,7 +291,7 @@ def build_fixture(project: Path, files: dict) -> None:
         target.write_text(content)
 
 def run_wrapper(project: Path, args: list) -> subprocess.CompletedProcess:
-    env = dict(os.environ, CLAUDE_PLUGIN_ROOT=str(REPO_ROOT))
+    env = dict(git_env(), CLAUDE_PLUGIN_ROOT=str(REPO_ROOT))
     return subprocess.run(
         [str(WRAPPER), *args], cwd=project, env=env, capture_output=True, text=True, timeout=60
     )
