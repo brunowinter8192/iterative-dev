@@ -64,7 +64,7 @@ Command line in → thin wrapper resolves the project path or plugin root → de
 
 ---
 
-### plugin-publish (231 LOC)
+### plugin-publish (228 LOC)
 
 **Purpose:** Push a plugin source repo, bump the cached version and rsync it into the plugin cache, updating the installed-plugins registry atomically.
 **Reads:** plugin source repo, `installed_plugins.json`.

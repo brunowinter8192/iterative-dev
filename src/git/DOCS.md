@@ -24,7 +24,7 @@ Git workflow utilities: pre-commit classification and staging, and one-call comm
 
 ---
 
-### commit.py (64 LOC)
+### commit.py (77 LOC)
 
 **Purpose:** One-call stage-all plus commit, worktree-correct. Reuses the status parsing, classification and staging of `check.py`, keeping one source for the skip list.
 **Reads:** git status output (via `check.py`).

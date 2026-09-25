@@ -3,7 +3,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-from .dispatch_context import format_dispatch_context
+from src.pipeline.dispatch_context import format_dispatch_context
 
 CONTENT_PARAM_KEYS = {'content', 'file_content', 'new_string'}
 

@@ -25,16 +25,23 @@ _GLYPHS = {'⏺', '⎿'}
 # ORCHESTRATOR
 
 def capture_clean_workflow():
-    pane_file = sys.argv[1]
-    worker_name = sys.argv[2]
-    raw = open(pane_file).read()
-    lines = raw.split('\n')
+    pane_file, worker_name = parse_args()
+    lines = read_pane_lines(pane_file)
     body_lines, fallback = _scope_to_last_prompt(lines)
     cleaned = _clean(body_lines)
     _print_output(worker_name, cleaned, fallback)
 
 
 # FUNCTIONS
+
+def parse_args():
+    return sys.argv[1], sys.argv[2]
+
+
+def read_pane_lines(pane_file):
+    with open(pane_file) as f:
+        return f.read().split('\n')
+
 
 def _scope_to_last_prompt(lines):
     trimmed = lines[:_trim_bottom_widget(lines)]

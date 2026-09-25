@@ -14,7 +14,7 @@ JSONL path in → `jsonl_parse` loads + extracts tool calls → `dispatch_contex
 
 ## Modules
 
-### jsonl_to_md.py (43 LOC)
+### jsonl_to_md.py (56 LOC)
 
 **Purpose:** Orchestrates JSONL-to-Markdown conversion — tool call table, task prompt, final response, optional dispatch context via `--dispatch`.
 **Reads:** Claude Code session JSONL files.
@@ -54,7 +54,7 @@ JSONL path in → `jsonl_parse` loads + extracts tool calls → `dispatch_contex
 
 ---
 
-### list_agents.py (181 LOC)
+### list_agents.py (197 LOC)
 
 **Purpose:** Lists subagent sessions for a project with agent type, timestamp, and size. Resolves agent type from main session (sync and async dispatch patterns).
 **Reads:** `~/.claude/projects/<encoded_path>/*.jsonl` directory.
@@ -64,7 +64,7 @@ JSONL path in → `jsonl_parse` loads + extracts tool calls → `dispatch_contex
 
 ---
 
-### extract_calls.py (56 LOC)
+### extract_calls.py (60 LOC)
 
 **Purpose:** Extracts specific tool calls by number from a session JSONL. Supports listing all calls or extracting full input/output for selected calls.
 **Reads:** Session JSONL path.

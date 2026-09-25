@@ -2,43 +2,66 @@
 import argparse
 import logging
 import re
+from datetime import datetime
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
+from src.pipeline.jsonl_parse import load_jsonl
+from src.pipeline.dispatch_context import derive_main_session, find_task_anchor
 
-from .jsonl_parse import load_jsonl
-from .dispatch_context import derive_main_session, find_task_anchor
+logger = logging.getLogger(__name__)
 
 CC_PROJECTS_DIR = Path.home() / '.claude' / 'projects'
 
 
 # ORCHESTRATOR
-def list_agents_workflow(project_path: str, session: str | None = None) -> list[dict]:
-    logger.info("list_agents project=%s session=%s", project_path, session)
-    cc_project_dir = derive_cc_project_dir(project_path)
+
+def list_agents_workflow() -> None:
+    args = parse_args()
+    logger.info("list_agents project=%s session=%s", args.project, args.session)
+    cc_project_dir = derive_cc_project_dir(args.project)
     jsonl_paths = find_subagent_jsonls(cc_project_dir)
+    agents = collect_agents(jsonl_paths)
+    agents = sort_newest_first(agents)
+    if args.session == 'latest':
+        agents = filter_latest_session(agents)
+    print(format_table(agents))
+
+
+# FUNCTIONS
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="List subagents with types for a CC project")
+    parser.add_argument("--project", required=True, help="Absolute path to project directory")
+    parser.add_argument("--session", choices=["latest"], help="Filter by session (latest = most recent)")
+    return parser.parse_args()
+
+
+def collect_agents(jsonl_paths: list[Path]) -> list[dict]:
     agents = []
     for p in jsonl_paths:
         try:
             agents.append(build_agent_info(p))
         except (RuntimeError, FileNotFoundError) as e:
             logger.warning("Skipping agent %s: %s", p.stem, e)
-            stat = p.stat()
-            agents.append({
-                'agent_id': p.stem.replace('agent-', ''),
-                'agent_type': 'UNKNOWN (parse error)',
-                'session_id': p.parent.parent.name,
-                'timestamp': stat.st_mtime,
-                'size_kb': stat.st_size / 1024,
-                'path': str(p),
-            })
-    agents.sort(key=lambda a: a['timestamp'], reverse=True)
-    if session == 'latest':
-        agents = filter_latest_session(agents)
+            agents.append(unknown_agent_info(p))
     return agents
 
 
-# FUNCTIONS
+def unknown_agent_info(jsonl_path: Path) -> dict:
+    stat = jsonl_path.stat()
+    return {
+        'agent_id': jsonl_path.stem.replace('agent-', ''),
+        'agent_type': 'UNKNOWN (parse error)',
+        'session_id': jsonl_path.parent.parent.name,
+        'timestamp': stat.st_mtime,
+        'size_kb': stat.st_size / 1024,
+        'path': str(jsonl_path),
+    }
+
+
+def sort_newest_first(agents: list[dict]) -> list[dict]:
+    return sorted(agents, key=lambda a: a['timestamp'], reverse=True)
+
 
 def derive_cc_project_dir(project_path: str) -> Path:
     absolute = str(Path(project_path).expanduser().resolve())
@@ -158,7 +181,6 @@ def filter_latest_session(agents: list[dict]) -> list[dict]:
 
 
 def format_table(agents: list[dict]) -> str:
-    from datetime import datetime
     header = f"{'agent_id':<22} {'agent_type':<40} {'timestamp':<20} {'size':>8}"
     separator = '-' * len(header)
     lines = [header, separator]
@@ -172,10 +194,4 @@ def format_table(agents: list[dict]) -> str:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="List subagents with types for a CC project")
-    parser.add_argument("--project", required=True, help="Absolute path to project directory")
-    parser.add_argument("--session", choices=["latest"], help="Filter by session (latest = most recent)")
-    args = parser.parse_args()
-
-    agents = list_agents_workflow(args.project, session=args.session)
-    print(format_table(agents))
+    list_agents_workflow()

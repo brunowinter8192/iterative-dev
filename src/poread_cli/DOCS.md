@@ -20,7 +20,7 @@ One positional path argument → real-path resolution → file size checked agai
 
 ## Modules
 
-### __main__.py (70 LOC)
+### __main__.py (73 LOC)
 
 **Purpose:** The whole CLI: argument parsing, size-ceiling tripwire, file read, marker and notice emission.
 **Reads:** The named file's bytes and size from disk; argv.

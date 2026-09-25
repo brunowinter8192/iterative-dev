@@ -88,7 +88,7 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 
 ---
 
-### _capture_clean.py (150 LOC)
+### _capture_clean.py (157 LOC)
 
 **Purpose:** Scope + clean worker pane output. Takes `<pane_file> <worker_name>`, prints the cleaned body to stdout.
 **Reads:** raw tmux pane file (arg).
@@ -98,7 +98,7 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 
 ---
 
-### spawn.py (129 LOC)
+### spawn.py (146 LOC)
 
 **Purpose:** Set up the git worktree and launch the worker session, resolving the model (CLI argument wins over the config file) before handing off.
 **Reads:** prompt file, project directory, `~/.claude/shared-rules/model_selection.json`.
