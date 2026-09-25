@@ -9,7 +9,7 @@ WORKER_CLI="$PLUGIN_ROOT/bin/worker-cli"
 export CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT"
 source "$SCRIPT_DIR/../strand_runner.sh"
 
-STRANDS=(resolver e2e_no_model e2e_explicit structural)
+STRANDS=(resolver e2e_no_model e2e_explicit e2e_malformed structural)
 
 _assert_eq() {
     local desc="$1" expected="$2" got="$3"
@@ -94,7 +94,7 @@ _write_e2e_config() {
 
 strand_resolver() {
     source "$SPAWN_SH"
-    echo "=== _resolve_worker_model() directly — this IS the shared logic all 3 bash sites use ==="
+    echo "=== _resolve_worker_model() directly — this IS the shared logic both spawn call sites use ==="
 
     MODEL_SELECTION_FILE="$STRAND_DIR/does_not_exist.json"
     _assert_eq "missing config file -> hardcoded fallback" \
@@ -109,8 +109,14 @@ strand_resolver() {
     MALFORMED_CONFIG="$STRAND_DIR/malformed.json"
     echo '{not valid json' > "$MALFORMED_CONFIG"
     MODEL_SELECTION_FILE="$MALFORMED_CONFIG"
-    _assert_eq "malformed JSON config -> hardcoded fallback, no crash" \
-        "claude-sonnet-5" "$(_resolve_worker_model)"
+    local malformed_out malformed_rc
+    malformed_rc=0
+    malformed_out=$(_resolve_worker_model 2>"$STRAND_DIR/malformed.err") || malformed_rc=$?
+    _assert_eq "malformed JSON config -> resolver aborts with a non-zero exit" \
+        "nonzero" "$([ "$malformed_rc" -ne 0 ] && echo nonzero || echo "rc=$malformed_rc")"
+    _assert_eq "malformed JSON config -> no model printed" "" "$malformed_out"
+    _assert_eq "malformed JSON config -> jq's parse error reaches stderr" \
+        "parse error" "$(grep -o 'parse error' "$STRAND_DIR/malformed.err" | head -1)"
 
     MISSING_KEY_CONFIG="$STRAND_DIR/missing_key.json"
     echo '{"main": "claude-opus-5"}' > "$MISSING_KEY_CONFIG"
@@ -125,11 +131,11 @@ strand_resolver() {
         "claude-sonnet-5" "$(_resolve_worker_model)"
 
     echo ""
-    echo "=== spawn_claude_worker / spawn_claude_worker_from_file's real \${4:-\$(_resolve_worker_model)} pattern ==="
-    echo "    (the identical expansion literally used at both call sites, not a reimplementation)"
+    echo "=== spawn_claude_worker / spawn_claude_worker_from_file's real 'explicit wins, else _resolve_worker_model, else abort' pattern ==="
+    echo "    (the identical two lines literally used at both call sites, not a reimplementation)"
 
     MODEL_SELECTION_FILE="$VALID_CONFIG"
-    _site_expand() { local model="${4:-$(_resolve_worker_model)}"; echo "$model"; }
+    _site_expand() { local model="${4:-}"; [ -n "$model" ] || model=$(_resolve_worker_model) || return 1; echo "$model"; }
 
     _assert_eq "explicit 4th arg present -> explicit wins, config never even consulted" \
         "claude-explicit-arg" "$(_site_expand a b c claude-explicit-arg e)"
@@ -140,27 +146,42 @@ strand_resolver() {
     _assert_eq "4th arg entirely absent -> falls to config (via _resolve_worker_model)" \
         "claude-fable-5" "$(_site_expand a b c)"
 
-    echo ""
-    echo "=== worker_revive's real 'stored value wins, else _resolve_worker_model' pattern ==="
-
-    MODEL_SELECTION_FILE="$VALID_CONFIG"
-    _revive_expand() { local model="$1"; [ -z "$model" ] && model="$(_resolve_worker_model)"; echo "$model"; }
-
-    _assert_eq "WORKER_MODEL present in tmux env -> stored value wins over config" \
-        "claude-originally-spawned-with" "$(_revive_expand "claude-originally-spawned-with")"
-
-    _assert_eq "WORKER_MODEL absent from tmux env -> config applies" \
-        "claude-fable-5" "$(_revive_expand "")"
-
-    MODEL_SELECTION_FILE="$STRAND_DIR/does_not_exist.json"
-    _assert_eq "WORKER_MODEL absent AND config absent -> hardcoded fallback" \
-        "claude-sonnet-5" "$(_revive_expand "")"
+    MODEL_SELECTION_FILE="$MALFORMED_CONFIG"
+    local site_out site_rc
+    site_rc=0
+    site_out=$(_site_expand a b c 2>/dev/null) || site_rc=$?
+    _assert_eq "malformed config at the call site -> the site aborts (non-zero exit, no model)" \
+        "nonzero:" "$([ "$site_rc" -ne 0 ] && echo nonzero || echo "rc=$site_rc"):$site_out"
 }
 
 strand_e2e_no_model() {
     source "$SPAWN_SH"
     _write_e2e_config
     _run_e2e_spawn "mstestnomodel$$" "" "$E2E_CONFIG" "claude-e2e-verify-9999"
+}
+
+strand_e2e_malformed() {
+    source "$SPAWN_SH"
+    local malformed_config="$STRAND_DIR/malformed.json" e2e_name="mstestmalformed$$"
+    echo '{not valid json' > "$malformed_config"
+    _write_mock_claude "$STRAND_DIR/mock_claude.sh"
+    local e2e_project="$STRAND_DIR/e2e_project" e2e_prompt="$STRAND_DIR/e2e_prompt.txt"
+    mkdir -p "$e2e_project"
+    echo "# e2e test prompt" > "$e2e_prompt"
+    rm -f /tmp/.worker_"${e2e_name}".* 2>/dev/null
+
+    local spawn_rc=0
+    _spawn_via_cli "$e2e_name" "" "$malformed_config" "$e2e_project" "$e2e_prompt" "$STRAND_DIR/mock_claude.sh" || spawn_rc=$?
+    local log="$STRAND_DIR/e2e_output_${e2e_name}.log"
+
+    _assert_eq "real worker-cli spawn with a malformed config -> non-zero exit" \
+        "nonzero" "$([ "$spawn_rc" -ne 0 ] && echo nonzero || echo "rc=$spawn_rc")"
+    _assert_eq "real worker-cli spawn with a malformed config -> the parse error is reported" \
+        "JSONDecodeError" "$(grep -o 'JSONDecodeError' "$log" | head -1)"
+    _assert_eq "real worker-cli spawn with a malformed config -> no worker session was created" \
+        "0" "$(tmux list-sessions 2>/dev/null | grep -c "$e2e_name")"
+    _assert_eq "real worker-cli spawn with a malformed config -> no runner script was written" \
+        "0" "$(ls /tmp/.worker_"${e2e_name}".* 2>/dev/null | wc -l | tr -d ' ')"
 }
 
 strand_e2e_explicit() {
@@ -171,13 +192,15 @@ strand_e2e_explicit() {
 
 strand_structural() {
     echo ""
-    echo "=== structural check: _resolve_worker_model defined once, called from all 3 sites ==="
+    echo "=== structural check: _resolve_worker_model defined once, called by the two spawn entry points, not by revive ==="
     DEFINITION_HITS=$(grep -c '^_resolve_worker_model()' "$SPAWN_SH")
-    CALL_SITE_HITS=$(cat "$SPAWN_SH" "$REVIVE_SH" | grep -c '\$(_resolve_worker_model)')
-    if [ "$DEFINITION_HITS" -eq 1 ] && [ "$CALL_SITE_HITS" -eq 3 ]; then
-        echo "  PASS: _resolve_worker_model defined $DEFINITION_HITS time, called at $CALL_SITE_HITS sites (tmux_spawn.sh, worker_revive.sh)"
+    SPAWN_CALL_HITS=$(grep -c 'model=\$(_resolve_worker_model)' "$SPAWN_SH")
+    REVIVE_CALL_HITS=$(grep -c '_resolve_worker_model' "$REVIVE_SH")
+    REVIVE_STORED_HITS=$(grep -c '_tmux_env_value "\$session" WORKER_MODEL' "$REVIVE_SH")
+    if [ "$DEFINITION_HITS" -eq 1 ] && [ "$SPAWN_CALL_HITS" -eq 2 ] && [ "$REVIVE_CALL_HITS" -eq 0 ] && [ "$REVIVE_STORED_HITS" -eq 1 ]; then
+        echo "  PASS: definition=$DEFINITION_HITS, tmux_spawn.sh call sites=$SPAWN_CALL_HITS, worker_revive.sh resolver calls=$REVIVE_CALL_HITS (reads the stored WORKER_MODEL instead)"
     else
-        echo "  FAIL: _resolve_worker_model definitions=$DEFINITION_HITS call sites=$CALL_SITE_HITS — expected 1 definition + 3 call sites"
+        echo "  FAIL: definition=$DEFINITION_HITS (want 1), tmux_spawn.sh call sites=$SPAWN_CALL_HITS (want 2), worker_revive.sh resolver calls=$REVIVE_CALL_HITS (want 0), stored-model read=$REVIVE_STORED_HITS (want 1)"
         exit 1
     fi
 }

@@ -897,3 +897,25 @@ Claude Code hook-input inspection helpers — install as a CC hook to log raw ho
 **Purpose:** Log Claude Code PermissionRequest hook input to file for inspection.
 **Usage:** install as hook in `~/.claude/settings.json` under `hooks.PermissionRequest`; output `/tmp/permission_request_log.jsonl`
 ````
+
+# Phase 5 follow-up in dev/model_selector (2026-09-25, base integration d7d3607)
+
+Two deliberate Phase 5 decisions in src/ changed what the model tests must assert:
+1. A malformed model-selection config now aborts instead of falling back to the default model.
+   Shell resolver: jq's parse error reaches stderr, the resolver returns non-zero and prints no
+   model, and both spawn call sites abort through their `|| return 1`. Python resolver: the
+   JSONDecodeError ("Expecting property name enclosed in double quotes") propagates. Observed at
+   the real entry point: `worker-cli spawn` with a malformed config exits 1 with the traceback,
+   creates no tmux session and writes no runner file. A missing file or a missing/empty worker key
+   still falls back to the default (with a message on stderr); only the malformed case aborts.
+2. worker_revive no longer calls the resolver; it reads the stored WORKER_MODEL from the tmux
+   environment through the shared env helper and fails if it is absent. The resolver therefore has
+   1 definition and 2 call sites (spawn and spawn-from-file in tmux_spawn.sh). The structural
+   strand asserts exactly that, plus 0 resolver references in worker_revive.sh and 1 stored-model
+   read there. The old "revive fallback pattern" assertions were removed with the behavior; the
+   call-site pattern in the test is now the two-line form used in src ("explicit wins, else
+   resolver, else abort").
+Gotcha: sourcing tmux_spawn.sh turns on errexit in the sourcing shell, so a strand that captures
+a failing command must use `x=$(cmd) || rc=$?`; a bare `x=$(cmd); rc=$?` kills the strand silently
+(observed: the strand exited rc=1 with no FAIL line). A new strand, e2e_malformed, covers the
+real-entry-point abort.
