@@ -85,3 +85,7 @@ Observed in monitor-cc: (1) `repo/`, `repo/.github/travis`, `repo/regress`, `rep
 ## Tests
 
 30 of 30 cases pass (with `CLAUDE_PLUGIN_ROOT` at the worktree). New: `gitignored_directory_not_a_module_directory`, `called_by_dotted_package_resolves`, `called_by_dotted_package_missing`, `root_outside_git_repository_aborts`.
+
+# Empty __init__.py is not a module (2026-09-25)
+
+Observed in this repo after `src/DOCS.md` (an index page without modules) was deleted: the tool reported "`src` holds .py or .sh modules but has no DOCS.md"; the only file there is an empty `src/__init__.py`. Owner decision: an empty `__init__.py` is not a module, so a directory whose only source files are empty `__init__.py` files is not a module directory. "Empty" means size 0 bytes. `check_directories.py` skips such files when collecting module directories; a non-empty `__init__.py` still makes its directory a module directory. Cases `empty_init_is_not_a_module` and `nonempty_init_is_a_module` pin both sides (32 of 32 pass).

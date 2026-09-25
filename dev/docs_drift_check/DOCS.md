@@ -14,7 +14,7 @@ Fixture definitions become one temporary git repository per case (one case delib
 
 ## Modules
 
-### test_docs_drift_check.py (323 LOC)
+### test_docs_drift_check.py (335 LOC)
 
 **Purpose:** Fixture-based regression cases, at least one per rule check, plus scope exclusions, the argument rejection and working-directory independence.
 **Reads:** Nothing external; builds its own temporary projects.

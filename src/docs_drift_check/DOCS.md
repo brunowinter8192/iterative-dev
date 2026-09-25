@@ -64,9 +64,9 @@ Project root (environment variable, abort if missing) → collect DOCS.md files,
 
 ---
 
-### check_directories.py (31 LOC)
+### check_directories.py (34 LOC)
 
-**Purpose:** Report DOCS.md files without a module of their own directory and module directories without a DOCS.md.
+**Purpose:** Report DOCS.md files without a module of their own directory and module directories without a DOCS.md; an empty `__init__.py` is no module.
 **Reads:** DOCS.md files, source files.
 **Writes:** nothing.
 **Called by:** `__main__.py`.

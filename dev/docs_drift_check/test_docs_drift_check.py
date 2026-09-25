@@ -220,6 +220,18 @@ CASES = {
         "contains": CLEAN,
         "absent": ["repo"],
     },
+    "empty_init_is_not_a_module": {
+        "files": clean_with({"src/mod.py": LOC_MODULE, "pkg/__init__.py": ""}),
+        "exit": 0,
+        "contains": CLEAN,
+        "absent": ["pkg"],
+    },
+    "nonempty_init_is_a_module": {
+        "files": clean_with({"src/mod.py": LOC_MODULE, "pkg/__init__.py": "x = 1\n"}),
+        "exit": 1,
+        "contains": [one(T_DIRECTORIES), "`pkg` holds .py or .sh modules but has no DOCS.md"],
+        "absent": [],
+    },
     "called_by_dotted_package_resolves": {
         "files": clean_with({"src/mod.py": LOC_MODULE, "pkg/proxy/core.txt": "x\n"}, called="`pkg.proxy`."),
         "exit": 0,
