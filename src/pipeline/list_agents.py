@@ -65,11 +65,14 @@ def sort_newest_first(agents: list[dict]) -> list[dict]:
 
 def derive_cc_project_dir(project_path: str) -> Path:
     absolute = str(Path(project_path).expanduser().resolve())
-    escaped = absolute.replace('/', '-')
-    cc_dir = CC_PROJECTS_DIR / escaped
+    cc_dir = CC_PROJECTS_DIR / encode_project_path(absolute)
     if not cc_dir.exists():
         raise FileNotFoundError(f"CC project directory not found: {cc_dir}")
     return cc_dir
+
+
+def encode_project_path(path: str) -> str:
+    return path.replace('/', '-').replace('.', '-').replace('_', '-')
 
 
 def find_subagent_jsonls(cc_project_dir: Path) -> list[Path]:

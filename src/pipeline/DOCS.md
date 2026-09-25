@@ -54,10 +54,10 @@ JSONL path in → `jsonl_parse` loads + extracts tool calls → `dispatch_contex
 
 ---
 
-### list_agents.py (197 LOC)
+### list_agents.py (200 LOC)
 
 **Purpose:** Lists subagent sessions for a project with agent type, timestamp, and size. Resolves agent type from main session (sync and async dispatch patterns).
-**Reads:** `~/.claude/projects/<encoded_path>/*.jsonl` directory.
+**Reads:** `~/.claude/projects/<encoded_path>/`, where the project path has `/`, `.` and `_` replaced by `-`.
 **Writes:** stdout (aligned table).
 **Called by:** No active external caller.
 **Calls out:** `jsonl_parse` (JSONL loading), `dispatch_context` (main session derivation).
