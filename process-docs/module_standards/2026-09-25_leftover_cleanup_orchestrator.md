@@ -42,3 +42,12 @@ Deferred until a second Claude Code session active on the same machine (merging 
 4. Remove `bin/gcommit` and `src/git/commit.py` from iterative-dev (`git-check` shares `src/git/check.py` and stays).
 
 Observed, not yet handled: `dev/worker_wait` and `dev/worker_spawn/test_spawn_flow.sh` fail partly when all suites run in parallel and pass alone (suspected fixed sleeps, unconfirmed).
+
+## Evening of 2026-09-25: deferred items executed after the other session finished
+
+- Order used: merge `wcli` into iterative-dev integration, fast-forward main, `plugin-publish` (f141ebd), then rules. Between merge and publish the live `worker-cli` passes no model while the cached old `spawn.py` still accepted an optional one, so no spawn broke in the window.
+- Verification of the new worker-cli, all live on 2026-09-25: `worker-cli status wcli ~/x` aborted with "A project_path argument was removed ... Correct form: worker-cli status <name>"; `worker-cli merge wcli` without any path merged monitor-cc (hooks) and iterative-dev (gcommit removal) in one call; `worker-cli merge itdevspawn` reported monitor-cc as "skipped: branch itdevspawn carries no commits" and merged iterative-dev; `worker-cli kill` removed the cross-project worktrees and branches in reddit-cli and iterative-dev.
+- Verification of the monitor-cc hooks: `cd ~/Documents/ai/monitor-cc && worker-cli wait --timeout 5` is blocked with "wait takes no path and uses the current project, so run it from the project directory."
+- Model verification: a plain `worker-cli spawn` got `WORKER_MODEL=claude-sonnet-5` and runner `--model 'claude-sonnet-5'`, equal to the `worker` key of `model_selection.json`.
+- docs-drift-check production run in monitor-cc found two false positives, both fixed: the gitignored tmux clone `repo/` was treated as project code, and `src.proxy` in Called by was read as a file with extension `.proxy`. After deleting `src/DOCS.md` in iterative-dev the tool reported `src/` (only an empty `__init__.py`) as a module directory without DOCS.md; decision: a 0-byte `__init__.py` is not a module.
+- Hook false positive observed: `block_git_add_deps` blocked a worker's `git add -A && git commit` because a heredoc earlier in the same Bash call contained `./venv/bin/python`. The hook matches `venv` anywhere in the command text outside quotes; heredoc bodies are not stripped. `git add -A` itself is safe here: monitor-cc gitignores `venv` (pattern matches the worktree symlink too). Workaround until fixed: commit in its own Bash call.
