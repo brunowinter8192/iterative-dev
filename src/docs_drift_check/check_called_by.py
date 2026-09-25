@@ -6,7 +6,7 @@ from src.docs_drift_check.markdown_scan import BACKTICK_RE, iter_fields
 
 CROSS_PROJECT_MARKER_RE = re.compile(r"\s\([A-Z][A-Za-z_]+\)\s*$")
 ENTRY_TOKEN_RE = re.compile(r"^[\w./-]+$")
-FILE_EXTENSION_RE = re.compile(r"\.[A-Za-z]{1,5}$")
+DOTTED_NAME_RE = re.compile(r"\.[A-Za-z_]\w*$")
 
 # FUNCTIONS
 
@@ -24,7 +24,7 @@ def _check_field(rel_doc: str, lineno: int, text: str, path_suffixes: set[str]) 
     return [
         f"`{rel_doc}:{lineno}` Called by names `{entry}` which does not exist in the project"
         for entry in _entries(text)
-        if _normalize(entry) not in path_suffixes
+        if not _resolves(entry, path_suffixes)
     ]
 
 def _entries(text: str) -> list[str]:
@@ -41,9 +41,14 @@ def _span_token(span: str) -> str | None:
     token = span.split()[0]
     if not ENTRY_TOKEN_RE.match(token):
         return None
-    if "/" in token or FILE_EXTENSION_RE.search(token):
+    if "/" in token or DOTTED_NAME_RE.search(token):
         return token
     return None
+
+def _resolves(entry: str, path_suffixes: set[str]) -> bool:
+    normalized = _normalize(entry)
+    as_path = normalized.replace(".", "/")
+    return any(candidate in path_suffixes for candidate in (normalized, as_path, as_path + ".py"))
 
 def _normalize(entry: str) -> str:
     while entry.startswith(("./", "../")):

@@ -8,7 +8,7 @@ from src.docs_drift_check.check_modules import check_module_headings
 from src.docs_drift_check.check_rules import check_constant_references, check_function_references
 from src.docs_drift_check.check_template import check_titles, check_word_limits
 from src.docs_drift_check.collect import collect_doc_files, collect_path_suffixes, collect_source_files
-from src.docs_drift_check.project_root import reject_arguments, resolve_root
+from src.docs_drift_check.project_root import reject_arguments, require_git_repo, resolve_root
 from src.docs_drift_check.report import exit_code, print_report
 from src.docs_drift_check.symbols import build_symbol_index
 
@@ -26,6 +26,7 @@ RULE_ISSUES = "Rule: no references to issues"
 def main() -> int:
     reject_arguments(sys.argv[1:])
     root = resolve_root()
+    require_git_repo(root)
     doc_files = collect_doc_files(root)
     source_files = collect_source_files(root)
     path_suffixes = collect_path_suffixes(root)
