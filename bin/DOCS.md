@@ -44,16 +44,6 @@ Command line in → thin wrapper resolves the project path or plugin root → de
 
 ---
 
-### gcommit (55 LOC)
-
-**Purpose:** Stage everything except the skip list and commit, worktree-correct; refuses to commit into the plugin directory.
-**Reads:** plugin root environment variable, target repository path.
-**Writes:** git index, git commit, stdout.
-**Called by:** agents and users on PATH.
-**Calls out:** python3, `src/git/commit.py`.
-
----
-
 ### git-check (26 LOC)
 
 **Purpose:** Pre-commit report with auto-staging for a repository, resolving worktree paths to the project root.
