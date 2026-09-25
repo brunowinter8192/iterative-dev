@@ -14,7 +14,7 @@ Git workflow utilities: pre-commit classification and staging, staging verificat
 
 ## Modules
 
-### check.py (223 LOC)
+### check.py (225 LOC)
 
 **Purpose:** Pre-commit analysis + optional auto-staging. Classifies files into staged/unstaged/untracked/skipped, detects new imports in unstaged `.py` files, checks hook health.
 **Reads:** Repository files, git status/diff output, the target repo's pre-commit hook file (.git/hooks/pre-commit) if present.

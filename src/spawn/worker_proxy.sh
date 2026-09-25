@@ -19,7 +19,8 @@ _worker_proxy_setup() {
     main_port=$(sed -n '1p' "$proxy_marker")
     monitor_cc_root=$(sed -n '3p' "$proxy_marker")
     if [ -z "$monitor_cc_root" ] || [ ! -d "$monitor_cc_root" ]; then
-        return 0
+        echo "ERROR: proxy marker $proxy_marker has no valid MONITOR_CC_ROOT (line 3); refusing to start a worker without proxy." >&2
+        return 1
     fi
 
     local worker_port worker_log_id log_dir

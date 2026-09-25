@@ -24,7 +24,7 @@ def build_symbol_index(source_files: list[Path]) -> tuple[set[str], set[str], se
     constants: set[str] = set()
     owners: set[str] = set()
     for source in source_files:
-        text = source.read_text(errors="replace")
+        text = source.read_text()
         owners.add(source.stem)
         if source.suffix == ".py":
             functions.update(PY_FUNCTION_RE.findall(text))

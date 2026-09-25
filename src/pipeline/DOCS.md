@@ -24,7 +24,7 @@ JSONL path in → `jsonl_parse` loads + extracts tool calls → `dispatch_contex
 
 ---
 
-### jsonl_parse.py (135 LOC)
+### jsonl_parse.py (127 LOC)
 
 **Purpose:** JSONL loading and message/tool-call parsing primitives (text extraction, error detection, tool_use/tool_result pairing).
 **Reads:** nothing directly — pure functions over parsed JSONL data.
@@ -44,7 +44,7 @@ JSONL path in → `jsonl_parse` loads + extracts tool calls → `dispatch_contex
 
 ---
 
-### markdown_format.py (128 LOC)
+### markdown_format.py (125 LOC)
 
 **Purpose:** Renders tool calls, dispatch context, and session metadata into the final Markdown summary/detail output.
 **Reads:** nothing directly.

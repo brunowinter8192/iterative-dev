@@ -14,7 +14,7 @@ Command line in → thin wrapper resolves the project path or plugin root → de
 
 ## Modules
 
-### dev-sync (55 LOC)
+### dev-sync (52 LOC)
 
 **Purpose:** Fast-forward main or master to the dev branch HEAD via a ref update, without checkout.
 **Reads:** git repository at the given or current project path (worktree-aware).
@@ -64,7 +64,7 @@ Command line in → thin wrapper resolves the project path or plugin root → de
 
 ---
 
-### plugin-publish (235 LOC)
+### plugin-publish (231 LOC)
 
 **Purpose:** Push a plugin source repo, bump the cached version and rsync it into the plugin cache, updating the installed-plugins registry atomically.
 **Reads:** plugin source repo, `installed_plugins.json`.

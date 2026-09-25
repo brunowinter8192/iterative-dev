@@ -2,21 +2,21 @@
 
 _orchestrator_signal_update() {
     local session_name="$1"
-    python3 - "$_ORCHESTRATOR_SIGNALS_FILE" "$session_name" <<'PYEOF' 2>/dev/null || true
+    python3 - "$_ORCHESTRATOR_SIGNALS_FILE" "$session_name" <<'PYEOF'
 import json, os, sys, time
 path, key = sys.argv[1], sys.argv[2]
 now = time.time()
 try:
     data = json.loads(open(path).read())
-    if not isinstance(data, dict):
-        data = {}
-except (FileNotFoundError, json.JSONDecodeError, OSError):
+except FileNotFoundError:
     data = {}
+if not isinstance(data, dict):
+    raise ValueError(f"{path} is not a JSON object")
 data = {k: float(v) for k, v in data.items()
         if isinstance(v, (int, float)) and (now - float(v)) < 3600 and k != key}
 data[key] = now
 os.makedirs(os.path.dirname(path), exist_ok=True)
-tmp = path + ".tmp"
+tmp = f"{path}.tmp.{os.getpid()}"
 with open(tmp, "w") as f:
     json.dump(data, f)
 os.replace(tmp, path)
@@ -25,21 +25,20 @@ PYEOF
 
 _orchestrator_signal_delete() {
     local session_name="$1"
-    python3 - "$_ORCHESTRATOR_SIGNALS_FILE" "$session_name" <<'PYEOF' 2>/dev/null || true
+    python3 - "$_ORCHESTRATOR_SIGNALS_FILE" "$session_name" <<'PYEOF'
 import json, os, sys, time
 path, key = sys.argv[1], sys.argv[2]
 try:
-    raw = open(path).read()
-    data = json.loads(raw)
-    if not isinstance(data, dict):
-        sys.exit(0)
-except (FileNotFoundError, json.JSONDecodeError, OSError):
+    data = json.loads(open(path).read())
+except FileNotFoundError:
     sys.exit(0)
+if not isinstance(data, dict):
+    raise ValueError(f"{path} is not a JSON object")
 data.pop(key, None)
 now = time.time()
 data = {k: float(v) for k, v in data.items()
         if isinstance(v, (int, float)) and (now - float(v)) < 3600}
-tmp = path + ".tmp"
+tmp = f"{path}.tmp.{os.getpid()}"
 with open(tmp, "w") as f:
     json.dump(data, f)
 os.replace(tmp, path)
@@ -127,7 +126,10 @@ open_tmux_viewer() {
     local session="$1"
 
     local ghostty_version
-    ghostty_version=$(ghostty +version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+' || echo "0.0")
+    ghostty_version=$(ghostty +version | head -1 | grep -oE '[0-9]+\.[0-9]+') || {
+        echo "ERROR: cannot read the ghostty version" >&2
+        return 1
+    }
     local major minor
     major=$(echo "$ghostty_version" | cut -d. -f1)
     minor=$(echo "$ghostty_version" | cut -d. -f2)

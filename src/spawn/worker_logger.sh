@@ -23,12 +23,6 @@ _self_cleanup() {
 }
 trap _self_cleanup TERM INT HUP
 
-ENCODED_DIR=""
-WORKTREE_PATH=""
-if PANE_PID=$(tmux display-message -t "${SESSION}:^" -p "#{pane_pid}" 2>/dev/null); then
-    WORKTREE_PATH=$(tmux show-environment -t "$SESSION" 2>/dev/null | grep -E '^WORKER_CWD=' | cut -d= -f2- || true)
-fi
-
 _find_jsonl() {
     local proj_pattern="*${NAME}*"
     local p

@@ -46,7 +46,7 @@ sidecar_delete() {
 tmux_scan_project() {
     local name="$1"
     local count
-    count=$(tmux ls 2>/dev/null | grep -cE "^worker-[^:]+-${name}:" || echo 0)
+    count=$(tmux ls 2>/dev/null | grep -cE "^worker-[^:]+-${name}:" || true)
     if [ "$count" -eq 0 ]; then
         return 1
     fi
@@ -107,14 +107,17 @@ encode_worktree_path() {
 _status_or_probe_error() {
     local name="$1" project="$2"
     local status
-    if status=$(bash -c "source \"$SPAWN\" && worker_status \"\$1\" \"\$2\"" _ "$name" "$project" 2>/dev/null); then
+    if status=$(bash -c "source \"$SPAWN\" && worker_status \"\$1\" \"\$2\"" _ "$name" "$project"); then
         echo "$status"
         return 0
     fi
     local session="worker-$(basename "$project")-$name"
+    local fallback
     if tmux has-session -t "$session" 2>/dev/null; then
-        echo "working"
+        fallback="working"
     else
-        echo "dead"
+        fallback="dead"
     fi
+    echo "worker-cli: status probe failed for $name, reporting $fallback" >&2
+    echo "$fallback"
 }

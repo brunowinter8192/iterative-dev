@@ -96,7 +96,7 @@ def extract_agent_type(main_messages: list[dict], anchor_idx: int, agent_id: str
                 continue
             if block.get('name') not in ('Agent', 'Task'):
                 continue
-            agent_type = block.get('input', {}).get('subagent_type', '')
+            agent_type = block['input'].get('subagent_type', '')
             if agent_type:
                 return agent_type
 
@@ -125,7 +125,7 @@ def extract_agent_type_by_result(main_messages: list[dict], agent_id: str) -> st
             if not agent_id_pattern.search(result_text):
                 continue
 
-            tool_use_id = block.get('tool_use_id', '')
+            tool_use_id = block['tool_use_id']
             return find_type_by_tool_use_id(main_messages, tool_use_id, agent_id)
 
     raise RuntimeError(f"Agent {agent_id}: no progress anchor and no async result found in main session")
@@ -143,7 +143,7 @@ def find_type_by_tool_use_id(main_messages: list[dict], tool_use_id: str, agent_
                 continue
             if block.get('id') != tool_use_id:
                 continue
-            agent_type = block.get('input', {}).get('subagent_type', '')
+            agent_type = block['input'].get('subagent_type', '')
             if agent_type:
                 return agent_type
 

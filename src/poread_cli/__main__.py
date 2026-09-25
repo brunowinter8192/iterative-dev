@@ -67,11 +67,4 @@ def _emit_marker(path: str) -> int:
     return 0
 
 if __name__ == "__main__":
-    exit_code = 0
-    try:
-        exit_code = main(sys.argv[1:])
-        sys.stdout.flush()
-    except BrokenPipeError:
-        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
-        exit_code = 0
-    sys.exit(exit_code)
+    sys.exit(main(sys.argv[1:]))

@@ -4,8 +4,8 @@ _JANITOR_LOG_FILE="${WORKER_LOGGER_DIR:-$HOME/Documents/ai/Meta/iterative-dev/sr
 _JANITOR_ORPHAN_GRACE_SECS=30
 
 _janitor_log() {
-    mkdir -p "$(dirname "$_JANITOR_LOG_FILE")" 2>/dev/null || true
-    echo "$(date -Iseconds) $1" >> "$_JANITOR_LOG_FILE" 2>/dev/null || true
+    mkdir -p "$(dirname "$_JANITOR_LOG_FILE")"
+    echo "$(date -Iseconds) $1" >> "$_JANITOR_LOG_FILE"
 }
 
 _janitor_resolve_worker() {
@@ -62,7 +62,9 @@ _janitor_has_uncommitted() {
     local project="$1" name="$2"
     local wt="$project/.claude/worktrees/$name"
     [ -d "$wt" ] || { echo "n/a"; return 0; }
-    if [ -n "$(git -C "$wt" status --porcelain 2>/dev/null)" ]; then
+    local porcelain
+    porcelain=$(git -C "$wt" status --porcelain) || { echo "unknown"; return 0; }
+    if [ -n "$porcelain" ]; then
         echo "yes"
     else
         echo "no"
@@ -108,8 +110,11 @@ _janitor_process_session() {
     [ "$age" -lt "$_JANITOR_THRESHOLD_SECS" ] && return 0
 
     local status
-    status=$(bash -c "source \"$SPAWN\" && _worker_detect_status \"\$1\"" _ "$sess" 2>/dev/null) \
-        || status=$(tmux has-session -t "$sess" 2>/dev/null && echo "working" || echo "dead")
+    if ! status=$(bash -c "source \"$SPAWN\" && _worker_detect_status \"\$1\"" _ "$sess"); then
+        status=$(tmux has-session -t "$sess" 2>/dev/null && echo "working" || echo "dead")
+        echo "janitor: status probe failed for $sess, assuming $status" >&2
+        _janitor_log "action=probe-fallback session=$sess status=$status"
+    fi
     if [ "$status" = "working" ]; then
         echo "SKIP (working): $sess  age=${age}s"
         _janitor_log "action=skip-working session=$sess age_s=$age"
@@ -156,7 +161,7 @@ _janitor_process_orphan() {
     osession=$(bash -c "source \"$SPAWN\" && _worker_session_name \"\$1\" \"\$2\"" _ "$oproj" "$oname" 2>/dev/null) || return 0
     tmux has-session -t "$osession" 2>/dev/null && return 0
 
-    mtime=$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null || echo 0)
+    mtime=$(stat -f %m "$f")
     fage=$((_JANITOR_NOW_TS - mtime))
     if [ "$fage" -lt "$_JANITOR_ORPHAN_GRACE_SECS" ]; then
         echo "SKIP (spawn-race grace): $oname  registry_age=${fage}s"

@@ -57,12 +57,9 @@ def format_summary_table(tool_calls: list[dict]) -> str:
 def format_timestamp(ts: str) -> str:
     if not ts:
         return '??:??:??'
-    try:
-        dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
-        local_dt = dt.astimezone()
-        return local_dt.strftime('%H:%M:%S')
-    except (ValueError, TypeError):
-        return '??:??:??'
+    dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+    local_dt = dt.astimezone()
+    return local_dt.strftime('%H:%M:%S')
 
 
 def is_file_content_param(key: str, value: str) -> bool:
