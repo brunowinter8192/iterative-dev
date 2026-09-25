@@ -6,7 +6,7 @@ Development scripts for tests, probes and experiments, one directory per area. T
 
 ## Public Interface
 
-No `__init__.py`; every script is run directly. Areas with their own DOCS.md: [cc_hooks](cc_hooks/DOCS.md), [desktop_targeting](desktop_targeting/DOCS.md), [docs_drift_check](docs_drift_check/DOCS.md), [git_automation](git_automation/DOCS.md), [model_selector](model_selector/DOCS.md), [poread_cli](poread_cli/DOCS.md), [session_pipeline](session_pipeline/DOCS.md), [worker_janitor](worker_janitor/DOCS.md), [worker_merge](worker_merge/DOCS.md), [worker_message_delivery](worker_message_delivery/DOCS.md), [worker_spawn](worker_spawn/DOCS.md), [worker_status](worker_status/DOCS.md), [worker_sweep_logs](worker_sweep_logs/DOCS.md), [worker_wait](worker_wait/DOCS.md).
+No `__init__.py`; every script is run directly. Areas with their own DOCS.md: [cc_hooks](cc_hooks/DOCS.md), [desktop_targeting](desktop_targeting/DOCS.md), [docs_drift_check](docs_drift_check/DOCS.md), [git_automation](git_automation/DOCS.md), [model_selector](model_selector/DOCS.md), [poread_cli](poread_cli/DOCS.md), [worker_cli](worker_cli/DOCS.md), [session_pipeline](session_pipeline/DOCS.md), [worker_janitor](worker_janitor/DOCS.md), [worker_merge](worker_merge/DOCS.md), [worker_message_delivery](worker_message_delivery/DOCS.md), [worker_spawn](worker_spawn/DOCS.md), [worker_status](worker_status/DOCS.md), [worker_sweep_logs](worker_sweep_logs/DOCS.md), [worker_wait](worker_wait/DOCS.md).
 
 ## Flow
 

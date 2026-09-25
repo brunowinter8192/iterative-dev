@@ -5,7 +5,7 @@ test1_idle_from_start() {
     SID1="${TEST_TAG}-sess-1"
     create_worker w1 "$PROJ1" "$SID1" idle 0 >/dev/null
     T0=$(date +%s)
-    OUT1=$(bash "$BIN" wait "$PROJ1" --timeout 25)
+    OUT1=$(cd "$PROJ1" && bash "$BIN" wait --timeout 25)
     T1=$(date +%s)
     ELAPSED1=$((T1 - T0))
     if [ "$OUT1" = "timeout" ] && [ "$ELAPSED1" -ge 25 ] && [ "$ELAPSED1" -le 32 ]; then
@@ -35,7 +35,7 @@ test1b_tooling_child_incident() {
     SID1B="${TEST_TAG}-sess-1b"
     create_worker w1 "$PROJ1B" "$SID1B" working 1 >/dev/null
     OUT1B_FILE="/tmp/${TEST_TAG}-1b.out"
-    bash "$BIN" wait "$PROJ1B" --timeout 40 > "$OUT1B_FILE" 2>&1 &
+    ( cd "$PROJ1B" && exec bash "$BIN" wait --timeout 40 > "$OUT1B_FILE" 2>&1 ) &
     P1B=$!
     sleep 2
     set_hook_status "$SID1B" idle "$PROJ1B"
@@ -55,7 +55,8 @@ test1b_tooling_child_incident() {
 
 test2_no_worker_never_exits() {
     T0=$(date +%s)
-    OUT2=$(bash "$BIN" wait "/tmp/${TEST_TAG}-nonexistent" --timeout 25)
+    mkdir -p "/tmp/${TEST_TAG}-nonexistent"
+    OUT2=$(cd "/tmp/${TEST_TAG}-nonexistent" && bash "$BIN" wait --timeout 25)
     T1=$(date +%s)
     ELAPSED2=$((T1 - T0))
     if [ "$OUT2" = "timeout" ] && [ "$ELAPSED2" -ge 25 ] && [ "$ELAPSED2" -le 32 ]; then
@@ -67,7 +68,8 @@ test2_no_worker_never_exits() {
 
 test2b_timeout_short() {
     T0=$(date +%s)
-    OUT2B=$(bash "$BIN" wait "/tmp/${TEST_TAG}-nonexistent-2b" --timeout 3)
+    mkdir -p "/tmp/${TEST_TAG}-nonexistent-2b"
+    OUT2B=$(cd "/tmp/${TEST_TAG}-nonexistent-2b" && bash "$BIN" wait --timeout 3)
     T1=$(date +%s)
     ELAPSED2B=$((T1 - T0))
     if [ "$OUT2B" = "timeout" ] && [ "$ELAPSED2B" -ge 3 ] && [ "$ELAPSED2B" -le 10 ]; then
@@ -82,7 +84,7 @@ test3_working_then_idle_edge() {
     SID3="${TEST_TAG}-sess-3"
     create_worker w1 "$PROJ3" "$SID3" working 0 1 >/dev/null
     OUT3_FILE="/tmp/${TEST_TAG}-3.out"
-    bash "$BIN" wait "$PROJ3" --timeout 40 > "$OUT3_FILE" 2>&1 &
+    ( cd "$PROJ3" && exec bash "$BIN" wait --timeout 40 > "$OUT3_FILE" 2>&1 ) &
     P3=$!
     sleep 10
     go_quiet "$PROJ3"
@@ -107,9 +109,9 @@ test3b_concurrent_wait() {
     create_worker w1 "$PROJ3B" "$SID3B" working 0 1 >/dev/null
     OUT3BA_FILE="/tmp/${TEST_TAG}-3ba.out"
     OUT3BB_FILE="/tmp/${TEST_TAG}-3bb.out"
-    bash "$BIN" wait "$PROJ3B" --timeout 40 > "$OUT3BA_FILE" 2>&1 &
+    ( cd "$PROJ3B" && exec bash "$BIN" wait --timeout 40 > "$OUT3BA_FILE" 2>&1 ) &
     P3BA=$!
-    bash "$BIN" wait "$PROJ3B" --timeout 40 > "$OUT3BB_FILE" 2>&1 &
+    ( cd "$PROJ3B" && exec bash "$BIN" wait --timeout 40 > "$OUT3BB_FILE" 2>&1 ) &
     P3BB=$!
     sleep 8
     go_quiet "$PROJ3B"
@@ -131,7 +133,7 @@ test4_probe_vanishes() {
     SID4="${TEST_TAG}-sess-4"
     create_worker w1 "$PROJ4" "$SID4" working 0 >/dev/null
     OUT4_FILE="/tmp/${TEST_TAG}-4.out"
-    bash "$BIN" wait "$PROJ4" --timeout 12 > "$OUT4_FILE" 2>&1 &
+    ( cd "$PROJ4" && exec bash "$BIN" wait --timeout 12 > "$OUT4_FILE" 2>&1 ) &
     P4=$!
     sleep 3
     SESSION4="worker-$(basename "$PROJ4")-w1"

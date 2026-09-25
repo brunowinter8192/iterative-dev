@@ -32,11 +32,6 @@ sidecar_delete() {
 
 resolve_worker_project() {
     local name="$1"
-    local override="${2:-}"
-    if [ -n "$override" ]; then
-        resolve_project_path "$override"
-        return 0
-    fi
     local from_registry
     from_registry=$(registry_read "$name")
     if [ -n "$from_registry" ]; then

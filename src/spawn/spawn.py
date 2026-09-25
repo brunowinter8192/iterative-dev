@@ -18,7 +18,7 @@ _MODEL_SELECTION_FILE = os.environ.get(
 
 def spawn_workflow() -> None:
     args = parse_args()
-    model = args.model or _resolve_worker_model()
+    model = _resolve_worker_model()
     require_prompt_file(args.prompt_file)
     actual_path = prepare_workdir(args.name, args.project_path, not args.no_worktree)
     session = tmux_spawn(args.name, actual_path, model, args.prompt_file)
@@ -33,8 +33,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("name", help="Worker name (branch + tmux session suffix)")
     parser.add_argument("prompt_file", help="Absolute path to prompt file")
     parser.add_argument("project_path", help="Absolute path to project directory")
-    parser.add_argument("model", nargs="?", default=None,
-                         help="Model ID; explicit argument wins over the config file")
     parser.add_argument("--no-worktree", action="store_true", help="Skip worktree creation, spawn in project dir directly")
     return parser.parse_args()
 

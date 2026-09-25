@@ -3,13 +3,8 @@
 # FUNCTIONS
 
 cmd_list() {
-    if [ $# -eq 0 ]; then
-        _print_registry_workers "(no known workers in registry)" 1
-    else
-        local project
-        project=$(resolve_project_path "$1")
-        bash -c "source \"$SPAWN\" && worker_list \"\$1\"" _ "$project"
-    fi
+    require_arity list "list" 0 0 "" "$@"
+    _print_registry_workers "(no known workers in registry)" 1
 }
 
 _print_registry_workers() {
@@ -36,54 +31,30 @@ _print_registry_workers() {
 cmd_status() {
     if [ "${1:-}" = "--all" ]; then
         shift
-        _status_all "$@"
-    else
-        [ $# -lt 1 ] && { echo "worker-cli status: need <name> [project_path]" >&2; exit 2; }
-        local name="$1"
-        local override="${2:-}"
-        local project status
-        project=$(resolve_worker_project "$name" "$override")
-        status=$(_status_or_probe_error "$name" "$project")
-        echo "${status}"
-    fi
-}
-
-_status_all() {
-    if [ $# -ge 1 ]; then
-        _status_all_in_project "$1"
-    else
+        require_arity status "status --all" 0 0 "" "$@"
         _print_registry_workers "(no active workers)" 0
-    fi
-}
-
-_status_all_in_project() {
-    local project names wname status
-    project=$(resolve_project_path "$1")
-    names=$(bash -c "source \"$SPAWN\" && worker_list \"\$1\"" _ "$project" \
-        | awk '{print $1}')
-    if [ -z "$names" ]; then
-        echo "(no active workers)"
         return 0
     fi
-    while IFS= read -r wname; do
-        status=$(_status_or_probe_error "$wname" "$project")
-        echo "${wname}: ${status}"
-    done <<< "$names"
+    require_arity status "status <name> | worker-cli status --all" 1 1 "" "$@"
+    local name="$1"
+    local project status
+    project=$(resolve_worker_project "$name")
+    status=$(_status_or_probe_error "$name" "$project")
+    echo "${status}"
 }
 
 cmd_capture() {
-    [ $# -lt 1 ] && { echo "worker-cli capture: need <name> [--raw] [project_path]" >&2; exit 2; }
-    local name="$1"; shift
-    local raw=0 override=""
-    while [ $# -gt 0 ]; do
-        case "$1" in
+    local raw=0 positional=() arg
+    for arg in "$@"; do
+        case "$arg" in
             --raw) raw=1 ;;
-            *)     override="$1" ;;
+            *)     positional+=("$arg") ;;
         esac
-        shift
     done
+    require_arity capture "capture <name> [--raw]" 1 1 "" "${positional[@]}"
+    local name="${positional[0]}"
     local project
-    project=$(resolve_worker_project "$name" "$override")
+    project=$(resolve_worker_project "$name")
     if [ "$raw" = "1" ]; then
         bash -c "source \"$SPAWN\" && worker_capture \"\$1\" \"\" \"\$2\"" \
             _ "$name" "$project"
@@ -94,20 +65,16 @@ cmd_capture() {
 }
 
 cmd_response() {
-    [ $# -lt 1 ] && { echo "worker-cli response: need <name> [count] [project_path]" >&2; exit 2; }
+    local form="response <name> [count]"
+    require_arity response "$form" 1 2 "" "$@"
     local name="$1"
     local count=1
-    local override=""
     if [ -n "${2:-}" ]; then
-        if [[ "$2" =~ ^[0-9]+$ ]]; then
-            count="$2"
-            override="${3:-}"
-        else
-            override="$2"
-        fi
+        [[ "$2" =~ ^[0-9]+$ ]] || arg_unexpected response "$form" "" "$2"
+        count="$2"
     fi
     local project jsonl text
-    project=$(resolve_worker_project "$name" "$override")
+    project=$(resolve_worker_project "$name")
     jsonl=$(_response_find_jsonl "$name" "$project")
     text=$(_response_extract_text "$jsonl" "$count")
     if [ -z "$text" ]; then

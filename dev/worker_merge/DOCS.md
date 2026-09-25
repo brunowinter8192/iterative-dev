@@ -10,13 +10,13 @@ No `__init__.py`; run manually: `bash dev/worker_merge/test_merge_verify.sh`.
 
 ## Flow
 
-Two strands against throwaway repos: a real merge followed by a repeat merge (no-op), and a genuine conflict. Output, error text and exit codes are asserted.
+Four strands against throwaway repos: a real merge followed by a repeat merge (no-op), a genuine conflict, a cross-project worker merged without any path (spawn repo plus target repo with a registered sidecar worktree), and a conflict in the cross-project target. Output, error text and exit codes are asserted.
 
 ## Modules
 
-### test_merge_verify.sh (143 LOC)
+### test_merge_verify.sh (209 LOC)
 
-**Purpose:** Exercises the real merge command against throwaway git repos: real merge, no-op re-merge, and conflict.
+**Purpose:** Exercises the real merge command against throwaway git repos: real merge, no-op re-merge, conflict, and cross-project merge without a path.
 **Reads:** Nothing persistent.
 **Writes:** stdout; throwaway repos removed on exit.
 **Called by:** Run manually.

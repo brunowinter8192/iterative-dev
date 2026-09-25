@@ -19,8 +19,8 @@ def verify_spawn_model_resolution_workflow() -> int:
         "valid_config": case_valid_config,
         "malformed_config": case_malformed_config,
         "missing_key_config": case_missing_key_config,
-        "explicit_cli_arg": case_explicit_cli_arg,
-        "omitted_cli_arg": case_omitted_cli_arg,
+        "model_arg_rejected": case_model_arg_rejected,
+        "model_from_config": case_model_from_config,
     }
     code, outputs = run_strands(cases, sys.argv[1:])
     if code == 0 and len(outputs) == len(cases):
@@ -57,15 +57,15 @@ def case_missing_key_config() -> None:
         print(_verify_missing_key_config_file(_load_spawn_module(), tmp))
 
 
-def case_explicit_cli_arg() -> None:
-    print(_verify_explicit_cli_arg(_load_spawn_module()))
+def case_model_arg_rejected() -> None:
+    print(_verify_model_arg_rejected(_load_spawn_module()))
 
 
-def case_omitted_cli_arg() -> None:
+def case_model_from_config() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         spawn = _load_spawn_module()
         _, valid_path = _verify_valid_config_file(spawn, tmp)
-        print("\n".join(_verify_omitted_cli_arg(spawn, valid_path)))
+        print("\n".join(_verify_model_from_config(spawn, valid_path)))
 
 
 def _report_lines(outputs: dict) -> list[str]:
@@ -73,13 +73,13 @@ def _report_lines(outputs: dict) -> list[str]:
     for name in ("missing_config", "valid_config", "malformed_config", "missing_key_config"):
         lines.append(outputs[name].strip())
     lines.append("")
-    lines.append("## argparse resolution (real parser, default=None)")
-    lines.append(outputs["explicit_cli_arg"].strip())
-    lines.append(outputs["omitted_cli_arg"].strip())
+    lines.append("## argparse (real parser)")
+    lines.append(outputs["model_arg_rejected"].strip())
+    lines.append(outputs["model_from_config"].strip())
     lines.append("")
     lines.append("RESULT: PASS — _resolve_worker_model correct for valid/missing/missing-key config, aborts "
-                 "on a malformed config; args.model is real None (never the string 'None') when omitted; the "
-                 "resolved model passed onward is always a concrete non-empty string.")
+                 "on a malformed config; the real parser accepts no model argument, so the model always comes from "
+                 "the config and is a concrete non-empty string.")
     return lines
 
 
@@ -124,28 +124,25 @@ def _verify_missing_key_config_file(spawn, tmp) -> str:
     return line
 
 
-def _verify_explicit_cli_arg(spawn) -> str:
-    parser_explicit = spawn.argparse.ArgumentParser()
-    parser_explicit.add_argument("model", nargs="?", default=None)
-    args_explicit = parser_explicit.parse_args(["claude-explicit-cli-arg"])
-    resolved_model = args_explicit.model or spawn._resolve_worker_model()
-    line = f"Explicit CLI arg given -> resolved_model={resolved_model!r} (expected explicit arg, config never consulted)"
-    assert resolved_model == "claude-explicit-cli-arg"
-    return line
+def _verify_model_arg_rejected(spawn) -> str:
+    sys.argv = ["spawn.py", "name", "/prompt", "/project", "claude-explicit-cli-arg"]
+    try:
+        spawn.parse_args()
+    except SystemExit as exit_signal:
+        assert exit_signal.code == 2
+        return "Fourth positional (model) given to the real parser -> exit 2 (expected rejection, no model argument exists)"
+    raise AssertionError("parser must reject a model argument")
 
 
-def _verify_omitted_cli_arg(spawn, valid_path) -> list[str]:
-    parser_omitted = spawn.argparse.ArgumentParser()
-    parser_omitted.add_argument("model", nargs="?", default=None)
-    args_omitted = parser_omitted.parse_args([])
-    lines = [f"CLI arg omitted -> args.model={args_omitted.model!r} (expected None, not the string 'None')"]
-    assert args_omitted.model is None
-    assert args_omitted.model != "None"
+def _verify_model_from_config(spawn, valid_path) -> list[str]:
+    sys.argv = ["spawn.py", "name", "/prompt", "/project"]
+    args = spawn.parse_args()
+    lines = [f"Real parser without model -> hasattr(args, 'model')={hasattr(args, 'model')} (expected False)"]
+    assert not hasattr(args, "model")
     spawn._MODEL_SELECTION_FILE = str(valid_path)
-    resolved_model = args_omitted.model or spawn._resolve_worker_model()
-    lines.append(f"CLI arg omitted -> resolved_model={resolved_model!r} (expected config's worker model, never the literal 'None')")
+    resolved_model = spawn._resolve_worker_model()
+    lines.append(f"Resolved model -> {resolved_model!r} (expected config's worker model)")
     assert resolved_model == "claude-fable-5"
-    assert resolved_model != "None"
     assert isinstance(resolved_model, str) and resolved_model
     return lines
 

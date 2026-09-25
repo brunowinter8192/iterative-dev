@@ -18,7 +18,7 @@ test5_open_handle() {
     start_fake_bg_task "$TDIR_RAW" "$TASK_ID"
     sleep 0.5
     OUT5_FILE="/tmp/${TEST_TAG}-5.out"
-    bash "$BIN" wait "$PROJ5" --timeout 40 > "$OUT5_FILE" 2>&1 &
+    ( cd "$PROJ5" && exec bash "$BIN" wait --timeout 40 > "$OUT5_FILE" 2>&1 ) &
     P5=$!
     sleep 2
     set_hook_status "$SID5" idle "$PROJ5"
@@ -48,7 +48,7 @@ test6_lsof_unresolvable() {
     SID6="${TEST_TAG}-sess-6"
     create_worker w1 "$PROJ6" "$SID6" idle 0 >/dev/null
     OUT6_FILE="/tmp/${TEST_TAG}-6.out"
-    env PATH="$STRAND_DIR/bin:/opt/homebrew/bin:/usr/bin:/bin" bash "$BIN" wait "$PROJ6" --timeout 12 > "$OUT6_FILE" 2>&1
+    ( cd "$PROJ6" && exec env PATH="$STRAND_DIR/bin:/opt/homebrew/bin:/usr/bin:/bin" bash "$BIN" wait --timeout 12 > "$OUT6_FILE" 2>&1 )
     RC6=$?
     OUT6=$(cat "$OUT6_FILE")
     if [ "$OUT6" = "timeout" ] && [ "$RC6" = 0 ]; then
@@ -65,7 +65,7 @@ test7_no_hook_self_heals() {
     SID7="${TEST_TAG}-sess-7"
     create_worker_no_hook w1 "$PROJ7" "$SID7" >/dev/null
     T0=$(date +%s)
-    OUT7=$(bash "$BIN" wait "$PROJ7" --timeout 40)
+    OUT7=$(cd "$PROJ7" && bash "$BIN" wait --timeout 40)
     T1=$(date +%s)
     ELAPSED7=$((T1 - T0))
     if [ "$OUT7" = "workers idle" ] && [ "$ELAPSED7" -ge 9 ] && [ "$ELAPSED7" -le 30 ]; then
@@ -91,7 +91,7 @@ test8_stuck_dead_from_start() {
     PROJ8="/tmp/${TEST_TAG}-8"
     create_worker_dead w1 "$PROJ8" >/dev/null
     T0=$(date +%s)
-    OUT8=$(bash "$BIN" wait "$PROJ8" --timeout 25)
+    OUT8=$(cd "$PROJ8" && bash "$BIN" wait --timeout 25)
     T1=$(date +%s)
     ELAPSED8=$((T1 - T0))
     if [ "$OUT8" = "timeout" ] && [ "$ELAPSED8" -ge 25 ] && [ "$ELAPSED8" -le 32 ]; then
@@ -107,7 +107,7 @@ test8b_working_then_child_killed() {
     SID8B="${TEST_TAG}-sess-8b"
     create_worker w1 "$PROJ8B" "$SID8B" working 0 1 >/dev/null
     OUT8B_FILE="/tmp/${TEST_TAG}-8b.out"
-    bash "$BIN" wait "$PROJ8B" --timeout 40 > "$OUT8B_FILE" 2>&1 &
+    ( cd "$PROJ8B" && exec bash "$BIN" wait --timeout 40 > "$OUT8B_FILE" 2>&1 ) &
     P8B=$!
     sleep 8
     T0=$(date +%s)
@@ -131,7 +131,7 @@ test9_mixed_dead_and_working() {
     create_worker_dead wA "$PROJ9" >/dev/null
     create_worker wB "$PROJ9" "$SID9B" working 0 >/dev/null
     OUT9_FILE="/tmp/${TEST_TAG}-9.out"
-    bash "$BIN" wait "$PROJ9" --timeout 40 > "$OUT9_FILE" 2>&1 &
+    ( cd "$PROJ9" && exec bash "$BIN" wait --timeout 40 > "$OUT9_FILE" 2>&1 ) &
     P9=$!
     sleep 5
     if kill -0 "$P9" 2>/dev/null; then
@@ -164,7 +164,7 @@ test10_dead_with_open_bg_handle() {
     start_fake_bg_task "$TDIR_RAW10" "$TASK_ID10"
     sleep 0.5
     OUT10_FILE="/tmp/${TEST_TAG}-10.out"
-    bash "$BIN" wait "$PROJ10" --timeout 40 > "$OUT10_FILE" 2>&1 &
+    ( cd "$PROJ10" && exec bash "$BIN" wait --timeout 40 > "$OUT10_FILE" 2>&1 ) &
     P10=$!
     sleep 2
     delete_hook_entry "$SID10"
@@ -189,7 +189,7 @@ test11_second_transition_exits() {
     SID11="${TEST_TAG}-sess-11"
     create_worker w1 "$PROJ11" "$SID11" idle 0 1 >/dev/null
     OUT11_FILE="/tmp/${TEST_TAG}-11.out"
-    bash "$BIN" wait "$PROJ11" --timeout 60 > "$OUT11_FILE" 2>&1 &
+    ( cd "$PROJ11" && exec bash "$BIN" wait --timeout 60 > "$OUT11_FILE" 2>&1 ) &
     P11=$!
     sleep 18
     if kill -0 "$P11" 2>/dev/null; then

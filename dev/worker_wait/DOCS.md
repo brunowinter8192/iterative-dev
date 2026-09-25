@@ -10,7 +10,7 @@ No `__init__.py`; run manually: `bash dev/worker_wait/test_worker_wait.sh`. Pass
 
 ## Flow
 
-Each test is a parallel strand with its own home directory (own hooks file), trace log and tmux server. Fixture workers are dummy processes; wait runs for real and exit reason and timing are asserted.
+Each test is a parallel strand (wait runs with the fixture project as cwd, it takes no path) with its own home directory (own hooks file), trace log and tmux server. Fixture workers are dummy processes; wait runs for real and exit reason and timing are asserted.
 
 ## Modules
 
@@ -34,7 +34,7 @@ Each test is a parallel strand with its own home directory (own hooks file), tra
 
 ---
 
-### tests_gate.sh (154 LOC)
+### tests_gate.sh (156 LOC)
 
 **Purpose:** Test functions for the transition-gate proofs: idle from start, no worker, working then idle, concurrent waits, vanished session.
 **Reads:** Fixtures from `fixtures.sh`.
