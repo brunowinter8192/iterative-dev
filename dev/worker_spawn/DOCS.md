@@ -6,7 +6,7 @@ Smoke tests for the worker spawn flow in src/spawn: tmux session creation, envir
 
 ## Public Interface
 
-No `__init__.py`; each script is run manually: `python3 dev/worker_spawn/test_capture_clean.py`, `bash dev/worker_spawn/test_direct_command.sh`, `bash dev/worker_spawn/test_spawn_flow.sh`, `bash dev/worker_spawn/test_xproject_worktrees.sh`, `bash dev/worker_spawn/render_runner_flags.sh`.
+No `__init__.py`; each script is run manually: `python3 dev/worker_spawn/test_capture_clean.py`, `bash dev/worker_spawn/test_direct_command.sh`, `bash dev/worker_spawn/test_spawn_flow.sh`, `bash dev/worker_spawn/test_xproject_worktrees.sh`, `bash dev/worker_spawn/render_runner_flags.sh`, `bash dev/worker_spawn/verify_no_viewer.sh`.
 
 ## Flow
 
@@ -61,6 +61,16 @@ Each suite drives src/spawn or bin/worker-cli against private throwaway tmux ser
 **Writes:** stdout; `md/render_runner_flags.md`; a fake home directory removed on exit.
 **Called by:** Run manually.
 **Calls out:** bash only (tmux and helpers mocked).
+
+---
+
+### verify_no_viewer.sh (108 LOC)
+
+**Purpose:** Verifies that a real worker-cli spawn opens the viewer by default and opens none when the viewer is suppressed.
+**Reads:** Nothing persistent; osascript and ghostty are stubs on PATH.
+**Writes:** stdout; per-strand stub call log and tmux server, removed.
+**Called by:** Run manually.
+**Calls out:** `bin/worker-cli` (subprocess), tmux, `dev/strand_runner.sh`.
 
 ## State
 
