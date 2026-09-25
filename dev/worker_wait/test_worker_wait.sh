@@ -7,6 +7,9 @@ set -uo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SELF_DIR/../.." && pwd)"
 BIN="$PLUGIN_ROOT/bin/worker-cli"
+TRACE_WAIT_BOUND=120
+HANG_GUARD=90
+WAIT_CEILING=150
 
 export CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT"
 

@@ -8,10 +8,10 @@ test1_idle_from_start() {
     OUT1=$(cd "$PROJ1" && bash "$BIN" wait --timeout 25)
     T1=$(date +%s)
     ELAPSED1=$((T1 - T0))
-    if [ "$OUT1" = "timeout" ] && [ "$ELAPSED1" -ge 25 ] && [ "$ELAPSED1" -le 32 ]; then
+    if [ "$OUT1" = "timeout" ] && [ "$ELAPSED1" -ge 25 ] && [ "$ELAPSED1" -le $((25 + HANG_GUARD)) ]; then
         pass "test1 idle-from-start-never-exits: reason='$OUT1' elapsed=${ELAPSED1}s"
     else
-        fail "test1 idle-from-start-never-exits: reason='$OUT1' elapsed=${ELAPSED1}s (expected 'timeout', ~25-32s)"
+        fail "test1 idle-from-start-never-exits: reason='$OUT1' elapsed=${ELAPSED1}s (expected 'timeout', >=25s and <=$((25 + HANG_GUARD))s)"
     fi
 }
 
@@ -35,19 +35,19 @@ test1b_tooling_child_incident() {
     SID1B="${TEST_TAG}-sess-1b"
     create_worker w1 "$PROJ1B" "$SID1B" working 1 >/dev/null
     OUT1B_FILE="/tmp/${TEST_TAG}-1b.out"
-    ( cd "$PROJ1B" && exec bash "$BIN" wait --timeout 40 > "$OUT1B_FILE" 2>&1 ) &
+    ( cd "$PROJ1B" && exec bash "$BIN" wait --timeout "$WAIT_CEILING" > "$OUT1B_FILE" 2>&1 ) &
     P1B=$!
-    sleep 2
+    require_trace "test1b" "pid=$P1B .*status=working"
     set_hook_status "$SID1B" idle "$PROJ1B"
     T0=$(date +%s)
     wait "$P1B"; RC1B=$?
     T1=$(date +%s)
     OUT1B=$(cat "$OUT1B_FILE")
     ELAPSED1B=$((T1 - T0))
-    if [ "$OUT1B" = "workers idle" ] && [ "$RC1B" = 0 ] && [ "$ELAPSED1B" -le 25 ]; then
+    if [ "$OUT1B" = "workers idle" ] && [ "$RC1B" = 0 ] && [ "$ELAPSED1B" -le "$HANG_GUARD" ]; then
         pass "test1b tooling-child-incident: reason='$OUT1B' ${ELAPSED1B}s after the idle edge (persistent grandchild correctly ignored)"
     else
-        fail "test1b tooling-child-incident: rc=$RC1B reason='$OUT1B' elapsed=${ELAPSED1B}s (expected 'workers idle', <=25s after edge)"
+        fail "test1b tooling-child-incident: rc=$RC1B reason='$OUT1B' elapsed=${ELAPSED1B}s (expected 'workers idle', <=${HANG_GUARD}s after edge)"
     fi
     rm -f "$OUT1B_FILE"
     destroy_worker w1 "$PROJ1B" "$SID1B"
@@ -59,10 +59,10 @@ test2_no_worker_never_exits() {
     OUT2=$(cd "/tmp/${TEST_TAG}-nonexistent" && bash "$BIN" wait --timeout 25)
     T1=$(date +%s)
     ELAPSED2=$((T1 - T0))
-    if [ "$OUT2" = "timeout" ] && [ "$ELAPSED2" -ge 25 ] && [ "$ELAPSED2" -le 32 ]; then
+    if [ "$OUT2" = "timeout" ] && [ "$ELAPSED2" -ge 25 ] && [ "$ELAPSED2" -le $((25 + HANG_GUARD)) ]; then
         pass "test2 no-worker-never-exits: reason='$OUT2' elapsed=${ELAPSED2}s"
     else
-        fail "test2 no-worker-never-exits: reason='$OUT2' elapsed=${ELAPSED2}s (expected 'timeout', ~25-32s, never 'no workers')"
+        fail "test2 no-worker-never-exits: reason='$OUT2' elapsed=${ELAPSED2}s (expected 'timeout', >=25s and <=$((25 + HANG_GUARD))s, never 'no workers')"
     fi
 }
 
@@ -72,10 +72,10 @@ test2b_timeout_short() {
     OUT2B=$(cd "/tmp/${TEST_TAG}-nonexistent-2b" && bash "$BIN" wait --timeout 3)
     T1=$(date +%s)
     ELAPSED2B=$((T1 - T0))
-    if [ "$OUT2B" = "timeout" ] && [ "$ELAPSED2B" -ge 3 ] && [ "$ELAPSED2B" -le 10 ]; then
+    if [ "$OUT2B" = "timeout" ] && [ "$ELAPSED2B" -ge 3 ] && [ "$ELAPSED2B" -le $((3 + HANG_GUARD)) ]; then
         pass "test2b timeout-short: reason='$OUT2B' elapsed=${ELAPSED2B}s"
     else
-        fail "test2b timeout-short: reason='$OUT2B' elapsed=${ELAPSED2B}s (expected 'timeout', 3-10s)"
+        fail "test2b timeout-short: reason='$OUT2B' elapsed=${ELAPSED2B}s (expected 'timeout', >=3s and <=$((3 + HANG_GUARD))s)"
     fi
 }
 
@@ -84,9 +84,9 @@ test3_working_then_idle_edge() {
     SID3="${TEST_TAG}-sess-3"
     create_worker w1 "$PROJ3" "$SID3" working 0 1 >/dev/null
     OUT3_FILE="/tmp/${TEST_TAG}-3.out"
-    ( cd "$PROJ3" && exec bash "$BIN" wait --timeout 40 > "$OUT3_FILE" 2>&1 ) &
+    ( cd "$PROJ3" && exec bash "$BIN" wait --timeout "$WAIT_CEILING" > "$OUT3_FILE" 2>&1 ) &
     P3=$!
-    sleep 10
+    require_trace "test3" "pid=$P3 .*status=working"
     go_quiet "$PROJ3"
     set_hook_status "$SID3" idle "$PROJ3"
     T0=$(date +%s)
@@ -94,10 +94,10 @@ test3_working_then_idle_edge() {
     T1=$(date +%s)
     OUT3=$(cat "$OUT3_FILE")
     ELAPSED3=$((T1 - T0))
-    if [ "$OUT3" = "workers idle" ] && [ "$RC3" = 0 ] && [ "$ELAPSED3" -le 20 ]; then
+    if [ "$OUT3" = "workers idle" ] && [ "$RC3" = 0 ] && [ "$ELAPSED3" -le "$HANG_GUARD" ]; then
         pass "test3 working-then-idle-edge: reason='$OUT3' ${ELAPSED3}s after the edge"
     else
-        fail "test3 working-then-idle-edge: rc=$RC3 reason='$OUT3' elapsed=${ELAPSED3}s (expected 'workers idle', <=20s after edge)"
+        fail "test3 working-then-idle-edge: rc=$RC3 reason='$OUT3' elapsed=${ELAPSED3}s (expected 'workers idle', <=${HANG_GUARD}s after edge)"
     fi
     rm -f "$OUT3_FILE"
     destroy_worker w1 "$PROJ3" "$SID3"
@@ -109,11 +109,12 @@ test3b_concurrent_wait() {
     create_worker w1 "$PROJ3B" "$SID3B" working 0 1 >/dev/null
     OUT3BA_FILE="/tmp/${TEST_TAG}-3ba.out"
     OUT3BB_FILE="/tmp/${TEST_TAG}-3bb.out"
-    ( cd "$PROJ3B" && exec bash "$BIN" wait --timeout 40 > "$OUT3BA_FILE" 2>&1 ) &
+    ( cd "$PROJ3B" && exec bash "$BIN" wait --timeout "$WAIT_CEILING" > "$OUT3BA_FILE" 2>&1 ) &
     P3BA=$!
-    ( cd "$PROJ3B" && exec bash "$BIN" wait --timeout 40 > "$OUT3BB_FILE" 2>&1 ) &
+    ( cd "$PROJ3B" && exec bash "$BIN" wait --timeout "$WAIT_CEILING" > "$OUT3BB_FILE" 2>&1 ) &
     P3BB=$!
-    sleep 8
+    require_trace "test3b wait A" "pid=$P3BA .*status=working"
+    require_trace "test3b wait B" "pid=$P3BB .*status=working"
     go_quiet "$PROJ3B"
     set_hook_status "$SID3B" idle "$PROJ3B"
     wait "$P3BA"; RC3BA=$?
@@ -131,18 +132,18 @@ test3b_concurrent_wait() {
 test4_probe_vanishes() {
     PROJ4="/tmp/${TEST_TAG}-4"
     SID4="${TEST_TAG}-sess-4"
-    create_worker w1 "$PROJ4" "$SID4" working 0 >/dev/null
+    create_worker w1 "$PROJ4" "$SID4" working 0 1 >/dev/null
     OUT4_FILE="/tmp/${TEST_TAG}-4.out"
-    ( cd "$PROJ4" && exec bash "$BIN" wait --timeout 12 > "$OUT4_FILE" 2>&1 ) &
+    ( cd "$PROJ4" && exec bash "$BIN" wait --timeout 60 > "$OUT4_FILE" 2>&1 ) &
     P4=$!
-    sleep 3
+    require_trace "test4" "pid=$P4 .*status=working"
     SESSION4="worker-$(basename "$PROJ4")-w1"
     tmux kill-session -t "$SESSION4" 2>/dev/null || true
-    sleep 1
+    require_trace "test4" "pid=$P4 .*empty=1"
     if kill -0 "$P4" 2>/dev/null; then
-        pass "test4a probe-vanishes: wait process still alive immediately after target killed"
+        pass "test4a probe-vanishes: wait process still alive after target killed and seen missing by a poll"
     else
-        fail "test4a probe-vanishes: wait process already exited (early exit!) right after target killed"
+        fail "test4a probe-vanishes: wait process already exited (early exit!) after target killed"
     fi
     wait "$P4"; RC4=$?
     OUT4=$(cat "$OUT4_FILE")

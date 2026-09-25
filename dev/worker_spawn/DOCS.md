@@ -34,7 +34,7 @@ Each suite drives src/spawn or bin/worker-cli against private throwaway tmux ser
 
 ---
 
-### test_spawn_flow.sh (171 LOC)
+### test_spawn_flow.sh (196 LOC)
 
 **Purpose:** Tests the spawn flow without real Claude Code: viewer launch, proxy setup with a stub proxy binary, and a full spawn with a mock.
 **Reads:** `src/spawn` shell modules (sourced).
