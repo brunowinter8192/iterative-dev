@@ -55,9 +55,10 @@ description:
 
 ### Phase 2 — Konformität mit den Modul-Standards
 
-**Diese Phase bezieht sich auf § Kommentare und Docstrings in deinem Systemprompt.**
+**Diese Phase bezieht sich auf § Kommentare und Docstrings, § Modulaufbau und § Import-Konvention in deinem Systemprompt.**
 - Der Code folgt dem Prinzip Self-documenting Code.
 - Die process-docs übernehmen die Rolle von Architecture Decision Records.
+- Der Modulaufbau folgt Functional Core, Imperative Shell und der Stepdown Rule.
 
 #### Step 1 — Scan nach Kommentaren und Docstrings
 
@@ -74,6 +75,19 @@ description:
 
 1. Entferne per Skript alle Kommentare aus den Modulen, die nicht die Section Marker `# INFRASTRUCTURE`, `# ORCHESTRATOR` und `# FUNCTIONS` sind.
 2. Übertrage alle relevanten Inhalte in die entsprechenden process-docs.
+
+#### Step 3 — Scan nach Modulaufbau und Imports
+
+1. Scanne jedes Modul gegen die Rules in § Modulaufbau in deinem Systemprompt.
+    - Ein typisches Finding ist ein Orchestrator, der selbst rechnet oder filtert, statt nur Funktionen aufzurufen.
+2. Scanne jedes Modul gegen die Rules in § Import-Konvention in deinem Systemprompt.
+3. Scanne jedes Modul gegen die Rules in § Abhängigkeiten zwischen Modulen in deinem Systemprompt.
+
+#### Step 4 — Dispatch nach Modulaufbau und Imports
+
+1. Schreibe deine Findings in eine Datei in tmp/.
+2. Gib den Pfad zu deinen Findings zusammen mit einem Prompt zum Refactor an einen oder mehrere Worker.
+    - Parallelisiere die Arbeit, wenn möglich.
 
 ### Phase 3 — Struktur der Tests
 
