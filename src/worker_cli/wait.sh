@@ -60,7 +60,7 @@ _wait_has_live_bg_task() {
 cmd_wait() {
     _wait_parse_args "$@"
     local project timeout="$_WAIT_TIMEOUT"
-    project=$(resolve_project_path "$_WAIT_OVERRIDE")
+    project=$(resolve_project_path "$(pwd)")
     _WAIT_TRACE_TAG="pid=$$ project=$(basename "$project")"
     _wait_trace_init
     _wait_trace "$_WAIT_TRACE_TAG event=start timeout=$timeout"
@@ -101,13 +101,12 @@ cmd_wait() {
 }
 
 _wait_parse_args() {
-    _WAIT_OVERRIDE=""
     _WAIT_TIMEOUT=3300
     while [ $# -gt 0 ]; do
         case "$1" in
             --timeout) _WAIT_TIMEOUT="${2:?worker-cli wait: --timeout needs a value}"; shift 2 ;;
             --timeout=*) _WAIT_TIMEOUT="${1#--timeout=}"; shift ;;
-            *) _WAIT_OVERRIDE="$1"; shift ;;
+            *) arg_unexpected wait "wait [--timeout SEC]" "wait takes no path and uses the current project." "$1" ;;
         esac
     done
 }

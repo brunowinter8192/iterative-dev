@@ -83,7 +83,7 @@ _janitor_parse_args() {
             --dry-run) _JANITOR_DRY_RUN=1; shift ;;
             --max-age-hours) _JANITOR_MAX_AGE_HOURS="${2:?worker-cli janitor: --max-age-hours needs a value}"; shift 2 ;;
             --max-age-hours=*) _JANITOR_MAX_AGE_HOURS="${1#--max-age-hours=}"; shift ;;
-            *) echo "worker-cli janitor: unknown arg '$1'" >&2; exit 2 ;;
+            *) arg_unexpected janitor "janitor [--dry-run] [--max-age-hours N]" "" "$1" ;;
         esac
     done
 }
@@ -132,7 +132,7 @@ _janitor_process_session() {
     else
         echo "KILL: $sess  name=$rname project=$rproj age=${age}s status=$status uncommitted=$dirty"
         _janitor_log "action=kill session=$sess name=$rname project=$rproj age_s=$age status=${status// /_} uncommitted=$dirty"
-        "$0" kill "$rname" "$rproj" 2>&1 | sed 's/^/  /'
+        _kill_worker "$rname" "$rproj" 2>&1 | sed 's/^/  /'
     fi
 }
 
@@ -170,6 +170,6 @@ _janitor_process_orphan() {
     else
         echo "ORPHAN-CLEAN: $oname  project=$oproj uncommitted=$dirty"
         _janitor_log "action=orphan-clean name=$oname project=$oproj uncommitted=$dirty"
-        "$0" kill "$oname" "$oproj" 2>&1 | sed 's/^/  /'
+        _kill_worker "$oname" "$oproj" 2>&1 | sed 's/^/  /'
     fi
 }

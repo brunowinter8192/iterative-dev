@@ -14,7 +14,7 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 
 ## Flow
 
-`worker-cli spawn <name> <prompt_file> <project_path> [model]` in → `spawn.py` resolves the model + sets up the git worktree → sources `tmux_spawn.sh` and launches the tmux session + Ghostty viewer → session name out.
+`worker-cli spawn <name> <prompt_file> [--no-worktree]` in → `spawn.py` resolves the model + sets up the git worktree → sources `tmux_spawn.sh` and launches the tmux session + Ghostty viewer → session name out.
 
 ## Modules
 
@@ -72,9 +72,9 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 
 **Purpose:** Per-worker mitmproxy setup shared by spawn and revive; publishes the `WORKER_PROXY_*` globals.
 **Reads:** proxy marker `/tmp/.monitor_cc_proxy_<session_id>`.
-**Writes:** live addon copies (made by monitor-cc's `src/copy_proxy_live.sh`, never copied here), mitmdump process, `WORKER_PROXY_*` globals.
+**Writes:** live addon copies (made by monitor-cc's `copy_proxy_live.sh`, never copied here), mitmdump process, `WORKER_PROXY_*` globals.
 **Called by:** `tmux_spawn.sh`, `worker_revive.sh`.
-**Calls out:** mitmdump, lsof, monitor-cc `src/copy_proxy_live.sh` (path from marker line 3).
+**Calls out:** mitmdump, lsof, monitor-cc `copy_proxy_live.sh` (path from marker line 3).
 
 ---
 
@@ -108,9 +108,9 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 
 ---
 
-### spawn.py (146 LOC)
+### spawn.py (144 LOC)
 
-**Purpose:** Set up the git worktree and launch the worker session, resolving the model (CLI argument wins over the config file) before handing off.
+**Purpose:** Set up the git worktree and launch the worker session, resolving the model from the config file before handing off; it takes no model argument.
 **Reads:** prompt file, project directory, `~/.claude/shared-rules/model_selection.json`.
 **Writes:** the git worktree for the worker, then hands the session launch to `tmux_spawn.sh` via bash subprocess.
 **Called by:** `~/.local/bin/worker-cli spawn` (via `cd "$PLUGIN" && python3 -m src.spawn.spawn`).

@@ -10,13 +10,23 @@ No `__init__.py`. The `.sh` files are sourced by `bin/worker-cli` (resolved thro
 
 ## Flow
 
-`worker-cli <cmd> args` in -> `bin/worker-cli` sources the libs and dispatches to `cmd_<cmd>` -> the command resolves project/worker, calls the `src/spawn/` libs through a fresh `bash -c` that sources `tmux_spawn.sh` -> stdout/exit code out.
+`worker-cli <cmd> args` in -> `bin/worker-cli` sources the libs and dispatches to `cmd_<cmd>` -> the command checks its arguments against its exact form (surplus argument aborts with exit 2 and the correct form), resolves the worker from the registry, calls the `src/spawn/` libs through a fresh `bash -c` that sources `tmux_spawn.sh` -> stdout/exit code out.
 
 ## Modules
 
-### registry.sh (67 LOC)
+### args.sh (34 LOC)
 
-**Purpose:** Project/worker path resolution, registry and sidecar file helpers, status probe wrapper.
+**Purpose:** Argument tripwire shared by every subcommand: exact-arity check, abort with the correct form on a surplus or missing argument.
+**Reads:** Nothing.
+**Writes:** stderr, exit code 2.
+**Called by:** all other worker_cli libs.
+**Calls out:** none.
+
+---
+
+### registry.sh (62 LOC)
+
+**Purpose:** Worker-to-project resolution from the registry only, registry and sidecar file helpers, status probe wrapper.
 **Reads:** worker registry dir, tmux session list.
 **Writes:** registry and sidecar files.
 **Called by:** all other worker_cli libs.
@@ -24,7 +34,7 @@ No `__init__.py`. The `.sh` files are sourced by `bin/worker-cli` (resolved thro
 
 ---
 
-### cmd_query.sh (146 LOC)
+### cmd_query.sh (113 LOC)
 
 **Purpose:** Read-only subcommands: list, status, capture, response.
 **Reads:** registry, session JSONL, tmux via spawn libs.
@@ -34,9 +44,9 @@ No `__init__.py`. The `.sh` files are sourced by `bin/worker-cli` (resolved thro
 
 ---
 
-### cmd_lifecycle.sh (191 LOC)
+### cmd_lifecycle.sh (252 LOC)
 
-**Purpose:** State-changing subcommands: merge, kill, send, spawn, revive, worktree, worktree-rm, sweep-logs.
+**Purpose:** State-changing subcommands: merge (across every repo holding a branch of the worker), kill, send, spawn, revive, worktree, worktree-rm, sweep-logs.
 **Reads:** registry, sidecar files.
 **Writes:** git branches/worktrees, tmux sessions, registry, stdout.
 **Called by:** bin/worker-cli.
@@ -44,7 +54,7 @@ No `__init__.py`. The `.sh` files are sourced by `bin/worker-cli` (resolved thro
 
 ---
 
-### wait.sh (180 LOC)
+### wait.sh (179 LOC)
 
 **Purpose:** wait subcommand: poll loop, transition gate, trace log, background-task probe.
 **Reads:** tmux via spawn libs, session tasks dir (lsof).

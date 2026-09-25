@@ -3,42 +3,93 @@
 # FUNCTIONS
 
 cmd_merge() {
-    [ $# -lt 1 ] && { echo "worker-cli merge: need <name> [project_path]" >&2; exit 2; }
+    require_arity merge "merge <name>" 1 1 "" "$@"
     local name="$1"
-    local override="${2:-}"
-    local project current
-    project=$(resolve_worker_project "$name" "$override")
-    current=$(git -C "$project" branch --show-current)
-    echo "=== Commits on branch $name not in $current ==="
-    git -C "$project" log "$current".."$name" --oneline -- || true
-    echo
-    echo "=== Merging $name into $current ==="
-    _merge_run "$project" "$name" "$current"
-    _merge_verify "$project" "$name" "$current"
+    local spawn_project targets
+    spawn_project=$(resolve_worker_project "$name")
+    targets=$(_merge_targets "$name" "$spawn_project")
+    _merge_all "$name" "$targets"
 }
 
-_merge_run() {
-    local project="$1" name="$2"
-    local merge_rc
-    set +e
-    _MERGE_OUT=$(git -C "$project" merge "$name" --no-ff -m "merge: worker $name")
-    merge_rc=$?
-    set -e
-    echo "$_MERGE_OUT"
-    [ "$merge_rc" -ne 0 ] && exit "$merge_rc"
+_merge_targets() {
+    local name="$1" spawn_project="$2"
+    local sidecar="$REGISTRY_DIR/$name.worktrees"
+    local repo branch
+    {
+        printf '%s\t%s\n' "$spawn_project" "$name"
+        [ -f "$sidecar" ] && cat "$sidecar"
+    } | while IFS=$'\t' read -r repo branch; do
+        [ -z "$repo" ] && continue
+        [ -z "$branch" ] && branch="$name"
+        git -C "$repo" rev-parse --verify -q "refs/heads/$branch" >/dev/null || continue
+        printf '%s\t%s\n' "$repo" "$branch"
+    done | awk -F'\t' '!seen[$1]++'
     return 0
 }
 
-_merge_verify() {
-    local project="$1" name="$2" current="$3"
-    if [[ "$_MERGE_OUT" == *"Already up to date"* ]]; then
-        echo "worker-cli merge: branch '$name' carried no commits into '$current' — merge was a no-op. Likely causes: (1) a cross-project worker merged without its project_path (the branch lives in the other repo), (2) the worker never committed." >&2
+_merge_all() {
+    local name="$1" targets="$2"
+    if [ -z "$targets" ]; then
+        echo "worker-cli merge: no repo holds a branch of worker '$name' (registry project and sidecar worktrees checked)" >&2
         exit 1
     fi
+    local merged=0 repo branch
+    while IFS=$'\t' read -r repo branch; do
+        [ -z "$repo" ] && continue
+        if _merge_repo "$name" "$repo" "$branch"; then
+            merged=$((merged + 1))
+        fi
+    done <<< "$targets"
+    if [ "$merged" -eq 0 ]; then
+        echo "worker-cli merge: worker '$name' carried no commits in any of its repos ($(echo "$targets" | cut -f1 | tr '\n' ' ')) — merge was a no-op. Likely cause: the worker never committed." >&2
+        exit 1
+    fi
+}
+
+_merge_repo() {
+    local name="$1" repo="$2" branch="$3"
+    local current
+    current=$(git -C "$repo" branch --show-current)
+    echo "##### repo: $repo #####"
+    if [ -z "$current" ]; then
+        echo "worker-cli merge: $repo is on a detached HEAD, cannot merge" >&2
+        exit 1
+    fi
+    if [ "$(git -C "$repo" rev-list --count "$current".."$branch")" -eq 0 ]; then
+        echo "skipped: branch $branch carries no commits not in $current"
+        echo
+        return 1
+    fi
+    echo "=== Commits on branch $branch not in $current ==="
+    git -C "$repo" log "$current".."$branch" --oneline -- || true
+    echo
+    echo "=== Merging $branch into $current ==="
+    _merge_run "$repo" "$branch" "$name"
+    _merge_verify "$repo"
+    echo
+    return 0
+}
+
+_merge_run() {
+    local repo="$1" branch="$2" name="$3"
+    local merge_out merge_rc
+    set +e
+    merge_out=$(git -C "$repo" merge "$branch" --no-ff -m "merge: worker $name")
+    merge_rc=$?
+    set -e
+    echo "$merge_out"
+    if [ "$merge_rc" -ne 0 ]; then
+        echo "worker-cli merge: merge failed in $repo, stopping" >&2
+        exit "$merge_rc"
+    fi
+}
+
+_merge_verify() {
+    local repo="$1"
     local files
-    files=$(git -C "$project" diff ORIG_HEAD --name-only)
+    files=$(git -C "$repo" diff ORIG_HEAD --name-only)
     if [ -z "$files" ]; then
-        echo "worker-cli merge: merge completed but brought in no file changes (git diff ORIG_HEAD --name-only was empty)" >&2
+        echo "worker-cli merge: merge in $repo completed but brought in no file changes (git diff ORIG_HEAD --name-only was empty)" >&2
         exit 1
     fi
     echo
@@ -47,11 +98,16 @@ _merge_verify() {
 }
 
 cmd_kill() {
-    [ $# -lt 1 ] && { echo "worker-cli kill: need <name> [project_path]" >&2; exit 2; }
+    require_arity kill "kill <name>" 1 1 "" "$@"
     local name="$1"
-    local override="${2:-}"
-    local project session
-    project=$(resolve_worker_project "$name" "$override")
+    local project
+    project=$(resolve_worker_project "$name")
+    _kill_worker "$name" "$project"
+}
+
+_kill_worker() {
+    local name="$1" project="$2"
+    local session
     session=$(_worker_session_name "$project" "$name")
     echo "Killing worker: $session"
     bash -c "source \"$SPAWN\" && _stop_worker_logger \"\$1\"" _ "$name"
@@ -84,42 +140,47 @@ _kill_cross_project_worktrees() {
 }
 
 cmd_send() {
-    [ $# -lt 2 ] && { echo "worker-cli send: need <name> <message> [project_path]" >&2; exit 2; }
+    require_arity send "send <name> <message>" 2 2 "" "$@"
     local name="$1"
     local message="$2"
-    local override="${3:-}"
     local project
-    project=$(resolve_worker_project "$name" "$override")
+    project=$(resolve_worker_project "$name")
     _WORKER_MSG="$message" bash -c 'source "$1" && worker_send "$2" "$_WORKER_MSG" "$3"' \
         _ "$SPAWN" "$name" "$project"
 }
 
 cmd_spawn() {
-    [ $# -lt 3 ] && { echo "worker-cli spawn: need <name> <prompt_file> <project_path> [model] [--no-worktree]" >&2; exit 2; }
-    local name="$1"
-    local prompt_file="$2"; [[ "$prompt_file" != /* ]] && prompt_file="$(pwd)/$prompt_file"
+    local form="spawn <name> <prompt_file> [--no-worktree]"
+    local note="spawn takes no project_path and no model: the project is the current one, the model comes from the config."
+    local worktree_flag="" positional=() arg
+    for arg in "$@"; do
+        case "$arg" in
+            --no-worktree) worktree_flag="--no-worktree" ;;
+            *)             positional+=("$arg") ;;
+        esac
+    done
+    require_arity spawn "$form" 2 2 "$note" "${positional[@]}"
+    local name="${positional[0]}"
+    local prompt_file="${positional[1]}"; [[ "$prompt_file" != /* ]] && prompt_file="$(pwd)/$prompt_file"
     local project
-    project=$(_spawn_resolve_project "$3")
-    local model="${4:-}"
-    local worktree_flag=""
-    [ "${5:-}" = "--no-worktree" ] && worktree_flag="--no-worktree"
-    cd "$PLUGIN" && python3 -m src.spawn.spawn "$name" "$prompt_file" "$project" "$model" $worktree_flag
+    project=$(_spawn_resolve_project)
+    cd "$PLUGIN" && python3 -m src.spawn.spawn "$name" "$prompt_file" "$project" $worktree_flag
     registry_write "$name" "$project"
     _spawn_install_death_hook "$name" "$project"
 }
 
 _spawn_resolve_project() {
-    local requested project
-    requested=$(resolve_project_path "$1")
+    local project
     if [ -n "${PROXY_PROJECT_PATH:-}" ]; then
-        project=$(resolve_project_path "$PROXY_PROJECT_PATH")
-        if [ "$requested" != "$project" ]; then
-            echo "worker-cli spawn: spawning into main session project $project (PROXY_PROJECT_PATH policy); project_path arg '$1' ignored — for cross-project work, create a worktree in the target project and have the worker cd there" >&2
-        fi
-        echo "$project"
-    else
-        echo "$requested"
+        resolve_project_path "$PROXY_PROJECT_PATH"
+        return 0
     fi
+    project=$(resolve_project_path "$(pwd)")
+    if [ ! -e "$project/.git" ]; then
+        echo "worker-cli spawn: current directory $(pwd) is not inside a git repo; run spawn from the project you want the worker in" >&2
+        exit 1
+    fi
+    echo "$project"
 }
 
 _spawn_install_death_hook() {
@@ -132,16 +193,15 @@ _spawn_install_death_hook() {
 }
 
 cmd_revive() {
-    [ $# -lt 1 ] && { echo "worker-cli revive: need <name> [project_path]" >&2; exit 2; }
+    require_arity revive "revive <name>" 1 1 "" "$@"
     local name="$1"
-    local override="${2:-}"
     local project
-    project=$(resolve_worker_project "$name" "$override")
+    project=$(resolve_worker_project "$name")
     bash -c "source \"$SPAWN\" && worker_revive \"\$1\" \"\$2\"" _ "$name" "$project"
 }
 
 cmd_worktree() {
-    [ $# -lt 2 ] && { echo "worker-cli worktree: need <name> <target-repo> [branch]" >&2; exit 2; }
+    require_arity worktree "worktree <name> <target_repo> [branch]" 2 3 "" "$@"
     local name="$1"
     local target
     target=$(resolve_project_path "$2")
@@ -164,7 +224,7 @@ cmd_worktree() {
 }
 
 cmd_worktree_rm() {
-    [ $# -lt 2 ] && { echo "worker-cli worktree-rm: need <target-repo> <name> [branch]" >&2; exit 2; }
+    require_arity worktree-rm "worktree-rm <target_repo> <name> [branch]" 2 3 "" "$@"
     local target
     target=$(resolve_project_path "$1")
     local name="$2"
@@ -176,16 +236,17 @@ cmd_worktree_rm() {
 }
 
 cmd_sweep_logs() {
-    local dry_run=0 max_age_hours="" logdir_override=""
+    local dry_run=0 max_age_hours="" positional=()
     while [ $# -gt 0 ]; do
         case "$1" in
             --dry-run) dry_run=1; shift ;;
             --max-age-hours) max_age_hours="${2:?worker-cli sweep-logs: --max-age-hours needs a value}"; shift 2 ;;
             --max-age-hours=*) max_age_hours="${1#--max-age-hours=}"; shift ;;
-            *) logdir_override="$1"; shift ;;
+            *) positional+=("$1"); shift ;;
         esac
     done
-    local log_dir="${logdir_override:-${WORKER_LOGGER_DIR:-$HOME/Documents/ai/Meta/iterative-dev/src/logs}}"
+    require_arity sweep-logs "sweep-logs [--dry-run] [--max-age-hours N] [logdir]" 0 1 "" "${positional[@]}"
+    local log_dir="${positional[0]:-${WORKER_LOGGER_DIR:-$HOME/Documents/ai/Meta/iterative-dev/src/logs}}"
     bash -c "source \"$SPAWN\" && sweep_stale_logs \"\$1\" \"\$2\" \"\$3\"" \
         _ "$log_dir" "$max_age_hours" "$dry_run"
 }

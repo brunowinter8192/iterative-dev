@@ -14,7 +14,7 @@ The Python script drives the real resolver against temporary config files. The s
 
 ## Modules
 
-### verify_worker_model_precedence.sh (212 LOC)
+### verify_worker_model_precedence.sh (235 LOC)
 
 **Purpose:** Verifies explicit-model use and the abort on a missing model in the shell spawn functions, static wiring, and real worker-cli spawns against a mock claude.
 **Reads:** Only temporary config files; the real model-selection config is never touched.
@@ -24,9 +24,9 @@ The Python script drives the real resolver against temporary config files. The s
 
 ---
 
-### verify_spawn_model_resolution.py (161 LOC)
+### verify_spawn_model_resolution.py (158 LOC)
 
-**Purpose:** Verifies the Python resolver's config cases, the abort on a malformed config, and that an omitted model argument never leaks the string None.
+**Purpose:** Verifies the Python resolver's config cases, the abort on a malformed config, and that the real parser rejects a model argument.
 **Reads:** Only temporary config files.
 **Writes:** stdout; `md/verify_spawn_model_resolution.md`.
 **Called by:** Run manually as a regression guard.

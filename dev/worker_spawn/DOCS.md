@@ -34,7 +34,7 @@ Each suite drives src/spawn or bin/worker-cli against private throwaway tmux ser
 
 ---
 
-### test_spawn_flow.sh (169 LOC)
+### test_spawn_flow.sh (171 LOC)
 
 **Purpose:** Tests the spawn flow without real Claude Code: viewer launch, proxy setup with a stub proxy binary, and a full spawn with a mock.
 **Reads:** `src/spawn` shell modules (sourced).
@@ -64,7 +64,7 @@ Each suite drives src/spawn or bin/worker-cli against private throwaway tmux ser
 
 ---
 
-### verify_no_viewer.sh (108 LOC)
+### verify_no_viewer.sh (110 LOC)
 
 **Purpose:** Verifies that a real worker-cli spawn opens the viewer by default and opens none when the viewer is suppressed.
 **Reads:** Nothing persistent; osascript and ghostty are stubs on PATH.

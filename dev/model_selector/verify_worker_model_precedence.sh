@@ -12,7 +12,7 @@ WORKER_CLI="$PLUGIN_ROOT/bin/worker-cli"
 export CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT"
 source "$SCRIPT_DIR/../strand_runner.sh"
 
-STRANDS=(explicit_model missing_model e2e_no_model e2e_explicit e2e_malformed structural)
+STRANDS=(explicit_model missing_model e2e_no_model e2e_malformed e2e_removed_args structural)
 
 # ORCHESTRATOR
 
@@ -42,19 +42,21 @@ MOCKEOF
 }
 
 _spawn_via_cli() {
-    local e2e_name="$1" model_arg="$2" config_path="$3" e2e_project="$4" e2e_prompt="$5" mock_claude="$6"
+    local e2e_name="$1" config_path="$2" e2e_project="$3" e2e_prompt="$4" mock_claude="$5"
+    shift 5
     ( unset PROXY_PROJECT_PATH
+      cd "$e2e_project"
       export MODEL_SELECTION_FILE="$config_path"
       export CLAUDE_BIN="$mock_claude"
       export WORKER_NO_VIEWER=1
       export CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT"
-      "$WORKER_CLI" spawn "$e2e_name" "$e2e_prompt" "$e2e_project" "$model_arg" --no-worktree \
+      "$WORKER_CLI" spawn "$e2e_name" "$e2e_prompt" "$@" --no-worktree \
           > "$STRAND_DIR/e2e_output_${e2e_name}.log" 2>&1
     )
 }
 
 _assert_spawn_models() {
-    local e2e_name="$1" model_arg="$2" expected="$3" session="$4"
+    local e2e_name="$1" expected="$2" session="$3"
     local runner_file runner_model
     runner_file=$(ls /tmp/.worker_"${e2e_name}".* 2>/dev/null | head -1)
     if [ -n "$runner_file" ] && [ -f "$runner_file" ]; then
@@ -62,20 +64,20 @@ _assert_spawn_models() {
     else
         runner_model="<runner file not found — see $STRAND_DIR/e2e_output_${e2e_name}.log>"
     fi
-    _assert_eq "real worker-cli spawn (model_arg='$model_arg') -> runner script's --model" \
+    _assert_eq "real worker-cli spawn -> runner script's --model" \
         "$expected" "$runner_model"
 
     local env_model
     env_model=$(tmux show-environment -t "$session" WORKER_MODEL 2>/dev/null | cut -d= -f2-)
-    _assert_eq "real worker-cli spawn (model_arg='$model_arg') -> tmux WORKER_MODEL env" \
+    _assert_eq "real worker-cli spawn -> tmux WORKER_MODEL env" \
         "$expected" "$env_model"
 }
 
 _run_e2e_spawn() {
-    local e2e_name="$1" model_arg="$2" config_path="$3" expected="$4"
+    local e2e_name="$1" config_path="$2" expected="$3"
 
     local e2e_project="$STRAND_DIR/e2e_project_${e2e_name}"
-    mkdir -p "$e2e_project"
+    _init_git_project "$e2e_project"
     local e2e_prompt="$STRAND_DIR/e2e_prompt_${e2e_name}.txt"
     echo "# e2e test prompt" > "$e2e_prompt"
 
@@ -87,16 +89,21 @@ _run_e2e_spawn() {
     tmux kill-session -t "$session" 2>/dev/null || true
     rm -f /tmp/.worker_"${e2e_name}".* 2>/dev/null
 
-    _spawn_via_cli "$e2e_name" "$model_arg" "$config_path" "$e2e_project" "$e2e_prompt" "$mock_claude"
+    _spawn_via_cli "$e2e_name" "$config_path" "$e2e_project" "$e2e_prompt" "$mock_claude"
 
     sleep 1
 
-    _assert_spawn_models "$e2e_name" "$model_arg" "$expected" "$session"
+    _assert_spawn_models "$e2e_name" "$expected" "$session"
 
     local runner_file
     runner_file=$(ls /tmp/.worker_"${e2e_name}".* 2>/dev/null | head -1)
     tmux kill-session -t "$session" 2>/dev/null || true
     rm -f "$runner_file" "/tmp/worker-${e2e_name}.done" 2>/dev/null
+}
+
+_init_git_project() {
+    mkdir -p "$1"
+    git init "$1" -b main -q
 }
 
 _write_e2e_config() {
@@ -118,7 +125,7 @@ strand_explicit_model() {
     spawn_claude_worker_from_file "workers" "$name" "$project" "claude-direct-explicit" "$prompt" \
         > "$STRAND_DIR/direct_output.log" 2>&1 || rc=$?
     _assert_eq "spawn_claude_worker_from_file with an explicit model -> returns 0" "0" "$rc"
-    _assert_spawn_models "$name" "claude-direct-explicit" "claude-direct-explicit" "worker-$(basename "$project")-$name"
+    _assert_spawn_models "$name" "claude-direct-explicit" "worker-$(basename "$project")-$name"
     rm -f /tmp/.worker_"${name}".* "/tmp/worker-${name}.done" 2>/dev/null
 }
 
@@ -161,7 +168,7 @@ _assert_missing_model() {
 strand_e2e_no_model() {
     source "$SPAWN_SH"
     _write_e2e_config
-    _run_e2e_spawn "mstestnomodel$$" "" "$E2E_CONFIG" "claude-e2e-verify-9999"
+    _run_e2e_spawn "mstestnomodel$$" "$E2E_CONFIG" "claude-e2e-verify-9999"
 }
 
 strand_e2e_malformed() {
@@ -170,12 +177,12 @@ strand_e2e_malformed() {
     echo '{not valid json' > "$malformed_config"
     _write_mock_claude "$STRAND_DIR/mock_claude.sh"
     local e2e_project="$STRAND_DIR/e2e_project" e2e_prompt="$STRAND_DIR/e2e_prompt.txt"
-    mkdir -p "$e2e_project"
+    _init_git_project "$e2e_project"
     echo "# e2e test prompt" > "$e2e_prompt"
     rm -f /tmp/.worker_"${e2e_name}".* 2>/dev/null
 
     local spawn_rc=0
-    _spawn_via_cli "$e2e_name" "" "$malformed_config" "$e2e_project" "$e2e_prompt" "$STRAND_DIR/mock_claude.sh" || spawn_rc=$?
+    _spawn_via_cli "$e2e_name" "$malformed_config" "$e2e_project" "$e2e_prompt" "$STRAND_DIR/mock_claude.sh" || spawn_rc=$?
     local log="$STRAND_DIR/e2e_output_${e2e_name}.log"
 
     _assert_eq "real worker-cli spawn with a malformed config -> non-zero exit" \
@@ -188,10 +195,26 @@ strand_e2e_malformed() {
         "0" "$(ls /tmp/.worker_"${e2e_name}".* 2>/dev/null | wc -l | tr -d ' ')"
 }
 
-strand_e2e_explicit() {
+strand_e2e_removed_args() {
     source "$SPAWN_SH"
     _write_e2e_config
-    _run_e2e_spawn "mstestexplicit$$" "claude-e2e-explicit-arg" "$E2E_CONFIG" "claude-e2e-explicit-arg"
+    _write_mock_claude "$STRAND_DIR/mock_claude.sh"
+    local e2e_name="mstestremoved$$" e2e_project="$STRAND_DIR/e2e_project" e2e_prompt="$STRAND_DIR/e2e_prompt.txt"
+    _init_git_project "$e2e_project"
+    echo "# e2e test prompt" > "$e2e_prompt"
+    rm -f /tmp/.worker_"${e2e_name}".* 2>/dev/null
+
+    local extra rc
+    for extra in "$e2e_project" "claude-e2e-explicit-arg"; do
+        rc=0
+        _spawn_via_cli "$e2e_name" "$E2E_CONFIG" "$e2e_project" "$e2e_prompt" "$STRAND_DIR/mock_claude.sh" "$extra" || rc=$?
+        local log="$STRAND_DIR/e2e_output_${e2e_name}.log"
+        _assert_eq "spawn with surplus argument '$(basename "$extra")' -> exit 2" "2" "$rc"
+        _assert_eq "spawn with surplus argument '$(basename "$extra")' -> stderr names the correct form" \
+            "1" "$(grep -c 'Correct form: worker-cli spawn <name> <prompt_file> \[--no-worktree\]' "$log")"
+        _assert_eq "spawn with surplus argument '$(basename "$extra")' -> no runner script was written" \
+            "0" "$(ls /tmp/.worker_"${e2e_name}".* 2>/dev/null | wc -l | tr -d ' ')"
+    done
 }
 
 strand_structural() {

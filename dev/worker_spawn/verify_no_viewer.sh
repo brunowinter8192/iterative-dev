@@ -44,12 +44,14 @@ _spawn_via_cli() {
     local name="$1"
     PROJECT="$STRAND_DIR/project"
     mkdir -p "$PROJECT"
+    git init "$PROJECT" -b main -q
     echo "# viewer test prompt" > "$STRAND_DIR/prompt.txt"
     SESSION="worker-project-${name}"
     ( unset PROXY_PROJECT_PATH
+      cd "$PROJECT"
       export MODEL_SELECTION_FILE="$STRAND_DIR/none.json"
       export CLAUDE_BIN="$MOCK_CLAUDE"
-      "$WORKER_CLI" spawn "$name" "$STRAND_DIR/prompt.txt" "$PROJECT" claude-viewer-test --no-worktree \
+      "$WORKER_CLI" spawn "$name" "$STRAND_DIR/prompt.txt" --no-worktree \
           > "$STRAND_DIR/spawn.log" 2>&1
     )
 }
