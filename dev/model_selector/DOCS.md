@@ -2,7 +2,7 @@
 
 ## Role
 
-Verification scripts for worker-model resolution from the shared model-selection config, across bin/worker-cli, src/spawn/spawn.py and the src/spawn shell modules. Re-run after changing resolution, its call sites or the spawn subcommand.
+Verification scripts for worker-model handling: config resolution lives only in src/spawn/spawn.py, the src/spawn shell functions require an explicit model. Re-run after changing either side or the spawn subcommand.
 
 ## Public Interface
 
@@ -10,13 +10,13 @@ No `__init__.py`; run manually: `bash dev/model_selector/verify_worker_model_pre
 
 ## Flow
 
-Each script drives the real resolver (shell and Python side respectively) against temporary config files, with independent cases as parallel strands. The Python side also writes its report to md/.
+The Python script drives the real resolver against temporary config files. The shell script proves the shell functions use an explicit model and abort without one, and runs real `bin/worker-cli spawn` calls against a mock claude. Independent cases are parallel strands. The Python side also writes its report to md/.
 
 ## Modules
 
-### verify_worker_model_precedence.sh (226 LOC)
+### verify_worker_model_precedence.sh (211 LOC)
 
-**Purpose:** Verifies the shell resolver, its call-site pattern, static wiring, and real worker-cli spawns against a mock claude, including the abort on a malformed config.
+**Purpose:** Verifies explicit-model use and the abort on a missing model in the shell spawn functions, static wiring, and real worker-cli spawns against a mock claude.
 **Reads:** Only temporary config files; the real model-selection config is never touched.
 **Writes:** stdout; per-strand tmux servers, runner scripts and markers, all removed.
 **Called by:** Run manually as a regression guard.
