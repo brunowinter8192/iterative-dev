@@ -14,9 +14,9 @@ Each script drives the real resolver (shell and Python side respectively) agains
 
 ## Modules
 
-### verify_worker_model_precedence.sh (185 LOC)
+### verify_worker_model_precedence.sh (208 LOC)
 
-**Purpose:** Verifies the shell resolver, its call-site expansion patterns, the static wiring, and two real worker-cli spawn runs against a mock claude.
+**Purpose:** Verifies the shell resolver, its call-site pattern, static wiring, and real worker-cli spawns against a mock claude, including the abort on a malformed config.
 **Reads:** Only temporary config files; the real model-selection config is never touched.
 **Writes:** stdout; per-strand tmux servers, runner scripts and markers, all removed.
 **Called by:** Run manually as a regression guard.
@@ -24,9 +24,9 @@ Each script drives the real resolver (shell and Python side respectively) agains
 
 ---
 
-### verify_spawn_model_resolution.py (159 LOC)
+### verify_spawn_model_resolution.py (161 LOC)
 
-**Purpose:** Verifies the Python resolver's config cases and that an omitted model argument never leaks the string None.
+**Purpose:** Verifies the Python resolver's config cases, the abort on a malformed config, and that an omitted model argument never leaks the string None.
 **Reads:** Only temporary config files.
 **Writes:** stdout; `md/verify_spawn_model_resolution.md`.
 **Called by:** Run manually as a regression guard.

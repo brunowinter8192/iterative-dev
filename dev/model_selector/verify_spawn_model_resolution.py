@@ -77,8 +77,8 @@ def _report_lines(outputs: dict) -> list[str]:
     lines.append(outputs["explicit_cli_arg"].strip())
     lines.append(outputs["omitted_cli_arg"].strip())
     lines.append("")
-    lines.append("RESULT: PASS — _resolve_worker_model correct for valid/missing/malformed/missing-key "
-                 "config; args.model is real None (never the string 'None') when omitted; the "
+    lines.append("RESULT: PASS — _resolve_worker_model correct for valid/missing/missing-key config, aborts "
+                 "on a malformed config; args.model is real None (never the string 'None') when omitted; the "
                  "resolved model passed onward is always a concrete non-empty string.")
     return lines
 
@@ -106,10 +106,12 @@ def _verify_malformed_config_file(spawn, tmp) -> str:
     malformed_path = Path(tmp) / "malformed.json"
     malformed_path.write_text("{not valid json")
     spawn._MODEL_SELECTION_FILE = str(malformed_path)
-    resolved = spawn._resolve_worker_model()
-    line = f"Malformed JSON -> {resolved!r} (expected hardcoded fallback, no raise)"
-    assert resolved == spawn._DEFAULT_WORKER_MODEL
-    return line
+    try:
+        resolved = spawn._resolve_worker_model()
+    except json.JSONDecodeError as error:
+        assert "Expecting property name" in str(error)
+        return f"Malformed JSON -> aborts with JSONDecodeError: {error} (expected abort, no fallback)"
+    raise AssertionError(f"malformed config must abort, got {resolved!r}")
 
 
 def _verify_missing_key_config_file(spawn, tmp) -> str:
