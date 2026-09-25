@@ -94,7 +94,7 @@ Command line in → thin wrapper resolves the project path or plugin root → de
 
 ---
 
-### worker-cli (68 LOC)
+### worker-cli (69 LOC)
 
 **Purpose:** Dispatcher for the worker lifecycle subcommands; loads implementations from `src/worker_cli/` next to the script and spawn libs from the plugin cache.
 **Reads:** worker registry directory, plugin root environment variable.
