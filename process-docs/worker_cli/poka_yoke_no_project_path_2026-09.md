@@ -61,3 +61,13 @@ Exit 1 when no repo holds the branch, or when every repo was skipped (`carried n
 ## Test evidence
 
 Suites run as parallel strands with CLAUDE_PLUGIN_ROOT at the worktree: worker_cli (5), worker_merge (4, including cross-project without path and cross-project conflict), model_selector (6 shell + 6 python), worker_spawn (xproject 3, viewer 3, flow 3), worker_janitor (4), worker_sweep_logs (5), worker_wait (15). Running all suites at once produced load timeouts in worker_spawn/test_spawn_flow (viewer took 10s, spawn 12.7s) and five worker_wait strands (four of them run into fixed timing windows; two were wait calls on non-existent directories that needed `mkdir` and `cd`); both passed when run alone. Lesson: run the timing-sensitive suites (worker_wait, test_spawn_flow) on their own.
+
+## Recap (2026-09-25)
+
+Status: committed on branch `wcli`, not merged. The merge waits until another Claude Code session on the machine, which still calls worker-cli with project_path and a wait path, is finished. Once `bin/worker-cli` is merged to integration it is live for every session immediately, and those old-style calls then abort with exit 2.
+
+Files of this task (`git diff integration --name-only`, the `docs_drift_check` entries in that list come from integration having moved on, not from this task): `bin/worker-cli`, `src/worker_cli/{args,cmd_lifecycle,cmd_query,janitor,registry,wait}.sh`, `src/spawn/spawn.py`, the DOCS.md of `src/worker_cli`, `src/spawn`, `dev`, `dev/worker_cli`, `dev/worker_merge`, `dev/model_selector`, `dev/worker_spawn`, `dev/worker_wait`, and the dev suites named in the test evidence section.
+
+Order after the other session is done: merge `wcli` to integration, plugin-publish, then verify with real workers. Include the hook, rule and skill follow-ups listed above (monitor-cc hooks `rewrite_worker_wait.py` and `block_worker_spawn_placement.py`, shared-rules `tool-use.md` and `workers.md`) before or together with the merge, otherwise the `cd X && worker-cli wait` rewrite by the hook produces a tripwire error.
+
+Working lessons: (1) a Python rewrite of a file with `open(p,'w')` before `open(p).read()` truncated `tests_transitions.sh` once; restore with `git checkout` and read first. (2) `sed -i` on macOS needs an empty suffix argument. (3) Run `worker_wait` and `test_spawn_flow` alone; in a 9-suite parallel run they hit their fixed timing windows.
