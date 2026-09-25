@@ -71,7 +71,11 @@ cmd_wait() {
             echo "timeout"
             exit 0
         fi
-        names=$(_wait_list_names "$project")
+        if ! names=$(_wait_list_names "$project"); then
+            _wait_trace "$_WAIT_TRACE_TAG event=exit reason=list_failed elapsed=$elapsed saw_working=$_WAIT_SAW_WORKING"
+            echo "worker-cli: worker_list failed for project $project" >&2
+            exit 1
+        fi
         if [ -z "$names" ]; then
             stable_count=0
             empty_count=$((empty_count + 1))
@@ -106,8 +110,9 @@ _wait_parse_args() {
 
 _wait_list_names() {
     local project="$1"
-    bash -c "source \"$SPAWN\" && worker_list \"\$1\"" _ "$project" 2>/dev/null \
-        | awk '{print $1}' || true
+    local listing
+    listing=$(bash -c "source \"$SPAWN\" && worker_list \"\$1\"" _ "$project") || return 1
+    echo "$listing" | awk '{print $1}'
 }
 
 _wait_poll_once() {

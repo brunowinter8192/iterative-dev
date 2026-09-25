@@ -114,12 +114,9 @@ fi
 
 INSTALLED_VERSION=$(python3 - <<EOF
 import json
-try:
-    data = json.load(open("$INSTALLED_JSON"))
-    entries = data.get("plugins", {}).get("$KEY", [])
-    print(entries[0]["version"] if entries else "")
-except Exception:
-    print("")
+data = json.load(open("$INSTALLED_JSON"))
+entries = data.get("plugins", {}).get("$KEY", [])
+print(entries[0]["version"] if entries else "")
 EOF
 )
 

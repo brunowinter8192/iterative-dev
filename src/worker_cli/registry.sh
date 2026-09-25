@@ -43,38 +43,6 @@ sidecar_delete() {
     rm -f "$REGISTRY_DIR/$name.worktrees"
 }
 
-tmux_scan_project() {
-    local name="$1"
-    local count
-    count=$(tmux ls 2>/dev/null | grep -cE "^worker-[^:]+-${name}:" || true)
-    if [ "$count" -eq 0 ]; then
-        return 1
-    fi
-    if [ "$count" -gt 1 ]; then
-        echo "worker-cli: multiple tmux sessions match worker name '$name':" >&2
-        tmux ls 2>/dev/null | grep -oE "^worker-[^:]*-${name}[^:]*" >&2
-        return 1
-    fi
-    local session
-    session=$(tmux ls 2>/dev/null | grep -oE "^worker-[^:]*-${name}:" | head -1)
-    session="${session%:}"
-    local middle="${session#worker-}"
-    local proj_basename="${middle%-${name}}"
-    local found=""
-    while IFS= read -r d; do
-        if [ -e "$d/.git" ]; then
-            found="$d"
-            break
-        fi
-    done < <(find ~/Documents/ai -maxdepth 6 -type d -name "$proj_basename" 2>/dev/null)
-    if [ -n "$found" ]; then
-        registry_write "$name" "$found"
-        echo "$found"
-        return 0
-    fi
-    return 1
-}
-
 resolve_worker_project() {
     local name="$1"
     local override="${2:-}"
@@ -88,13 +56,7 @@ resolve_worker_project() {
         echo "$from_registry"
         return 0
     fi
-    local from_tmux
-    from_tmux=$(tmux_scan_project "$name" 2>&1) || true
-    if [ -n "$from_tmux" ] && [[ "$from_tmux" != *"worker-cli:"* ]]; then
-        echo "$from_tmux"
-        return 0
-    fi
-    echo "worker-cli: worker '$name' not found in registry or tmux" >&2
+    echo "worker-cli: worker '$name' not found in registry" >&2
     exit 1
 }
 

@@ -45,16 +45,6 @@ _janitor_resolve_worker() {
         fi
     fi
 
-    local guess="${session##*-}"
-    local resolved
-    resolved=$(tmux_scan_project "$guess" 2>/dev/null) || resolved=""
-    if [ -n "$resolved" ]; then
-        rsession=$(bash -c "source \"$SPAWN\" && _worker_session_name \"\$1\" \"\$2\"" _ "$resolved" "$guess" 2>/dev/null) || rsession=""
-        if [ "$rsession" = "$session" ]; then
-            echo "${guess}|${resolved}"
-            return 0
-        fi
-    fi
     return 1
 }
 
