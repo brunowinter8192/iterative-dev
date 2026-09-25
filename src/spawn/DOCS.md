@@ -68,13 +68,13 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 
 ---
 
-### worker_proxy.sh (111 LOC)
+### worker_proxy.sh (118 LOC)
 
 **Purpose:** Per-worker mitmproxy setup shared by spawn and revive; publishes the `WORKER_PROXY_*` globals.
 **Reads:** proxy marker `/tmp/.monitor_cc_proxy_<session_id>`.
-**Writes:** live addon copies, mitmdump process, `WORKER_PROXY_*` globals.
+**Writes:** live addon copies (made by monitor-cc's `src/copy_proxy_live.sh`, never copied here), mitmdump process, `WORKER_PROXY_*` globals.
 **Called by:** `tmux_spawn.sh`, `worker_revive.sh`.
-**Calls out:** mitmdump, lsof.
+**Calls out:** mitmdump, lsof, monitor-cc `src/copy_proxy_live.sh` (path from marker line 3).
 
 ---
 
