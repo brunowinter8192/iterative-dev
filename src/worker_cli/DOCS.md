@@ -14,7 +14,7 @@ No `__init__.py`. The `.sh` files are sourced by `bin/worker-cli` (resolved thro
 
 ## Modules
 
-### registry.sh (85 LOC)
+### registry.sh (65 LOC)
 
 **Purpose:** Project/worker path resolution, registry and sidecar file helpers, status probe wrapper.
 **Reads:** worker registry dir, tmux session list.
@@ -34,7 +34,7 @@ No `__init__.py`. The `.sh` files are sourced by `bin/worker-cli` (resolved thro
 
 ---
 
-### cmd_lifecycle.sh (188 LOC)
+### cmd_lifecycle.sh (189 LOC)
 
 **Purpose:** State-changing subcommands: merge, kill, send, spawn, revive, worktree, worktree-rm, sweep-logs.
 **Reads:** registry, sidecar files.

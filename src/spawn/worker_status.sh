@@ -66,7 +66,7 @@ _worker_session_jsonl() {
     local worktree encoded
     worktree=$(tmux display-message -t "${session}:^" -p "#{pane_current_path}" 2>/dev/null || true)
     [ -n "$worktree" ] || return 0
-    encoded=$(echo "$worktree" | tr '/_.' '-')
+    encoded=$(encode_worktree_path "$worktree")
     ls -t "$HOME/.claude/projects/${encoded}"/*.jsonl 2>/dev/null | head -1 || true
 }
 

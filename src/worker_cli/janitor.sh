@@ -17,7 +17,7 @@ _janitor_resolve_worker() {
         rname=$(basename "$f")
         rproj=$(cat "$f" 2>/dev/null) || continue
         [ -z "$rproj" ] && continue
-        rsession=$(bash -c "source \"$SPAWN\" && _worker_session_name \"\$1\" \"\$2\"" _ "$rproj" "$rname" 2>/dev/null) || continue
+        rsession=$(_worker_session_name "$rproj" "$rname")
         if [ "$rsession" = "$session" ]; then
             echo "${rname}|${rproj}"
             return 0
@@ -33,11 +33,11 @@ _janitor_resolve_worker() {
             proj="${pcp%%/.claude/worktrees/*}"
         else
             proj=$(resolve_project_path "$pcp")
-            local prefix="worker-$(basename "$proj")-"
+            local prefix="worker-$(_worker_project_name "$proj")-"
             [[ "$session" == "$prefix"* ]] && name="${session#$prefix}"
         fi
         if [ -n "$name" ] && [ -n "$proj" ]; then
-            rsession=$(bash -c "source \"$SPAWN\" && _worker_session_name \"\$1\" \"\$2\"" _ "$proj" "$name" 2>/dev/null) || rsession=""
+            rsession=$(_worker_session_name "$proj" "$name")
             if [ "$rsession" = "$session" ]; then
                 echo "${name}|${proj}"
                 return 0
@@ -148,7 +148,7 @@ _janitor_process_orphan() {
     oname=$(basename "$f")
     oproj=$(cat "$f" 2>/dev/null) || return 0
     [ -z "$oproj" ] && return 0
-    osession=$(bash -c "source \"$SPAWN\" && _worker_session_name \"\$1\" \"\$2\"" _ "$oproj" "$oname" 2>/dev/null) || return 0
+    osession=$(_worker_session_name "$oproj" "$oname")
     tmux has-session -t "$osession" 2>/dev/null && return 0
 
     mtime=$(stat -f %m "$f")

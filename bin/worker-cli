@@ -18,6 +18,7 @@ _resolve_cli_lib_dir() {
 }
 
 CLI_LIB_DIR="$(_resolve_cli_lib_dir)"
+source "$CLI_LIB_DIR/../common/paths.sh"
 source "$CLI_LIB_DIR/registry.sh"
 source "$CLI_LIB_DIR/cmd_query.sh"
 source "$CLI_LIB_DIR/cmd_lifecycle.sh"

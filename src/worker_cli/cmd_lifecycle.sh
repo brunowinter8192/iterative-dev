@@ -50,7 +50,7 @@ cmd_kill() {
     local override="${2:-}"
     local project session
     project=$(resolve_worker_project "$name" "$override")
-    session="worker-$(basename "$project")-$name"
+    session=$(_worker_session_name "$project" "$name")
     echo "Killing worker: $session"
     bash -c "source \"$SPAWN\" && _stop_worker_logger \"\$1\"" _ "$name"
     tmux kill-session -t "$session" 2>/dev/null && echo "  tmux session: killed" || echo "  tmux session: not found"
@@ -123,7 +123,8 @@ _spawn_resolve_project() {
 _spawn_install_death_hook() {
     local name="$1" project="$2"
     local death_log="$HOME/.claude/worker-deaths.log"
-    local session="worker-$(basename "$project")-$name"
+    local session
+    session=$(_worker_session_name "$project" "$name")
     tmux set-hook -t "$session" pane-died \
         "run-shell 'echo \"\$(date -Iseconds) worker=$name session=#{session_name} status=#{pane_dead_status} signal=#{pane_dead_signal}\" >> $death_log'"
 }

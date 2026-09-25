@@ -34,7 +34,7 @@ _wait_has_live_bg_task() {
         session=$(_worker_session_name "$2" "$3")
         worktree=$(tmux display-message -t "${session}:^" -p "#{pane_current_path}" 2>/dev/null) || { echo error; exit 0; }
         [ -z "$worktree" ] && { echo error; exit 0; }
-        encoded=$(echo "$worktree" | tr "/_." "-")
+        encoded=$(encode_worktree_path "$worktree")
         jsonl=$(ls -t "$HOME/.claude/projects/${encoded}"/*.jsonl 2>/dev/null | head -1)
         [ -z "$jsonl" ] && { echo error; exit 0; }
         session_id=$(basename "$jsonl" .jsonl)

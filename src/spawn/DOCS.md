@@ -18,7 +18,7 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 
 ## Modules
 
-### tmux_spawn.sh (193 LOC)
+### tmux_spawn.sh (177 LOC)
 
 **Purpose:** Entry point sourced by callers — sources the sibling libs, owns session naming, model resolution and `spawn_claude_worker`.
 **Reads:** `~/.claude/shared-rules/model_selection.json`.
@@ -68,7 +68,7 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 
 ---
 
-### worker_revive.sh (145 LOC)
+### worker_revive.sh (141 LOC)
 
 **Purpose:** `worker_revive` — recreates a dead-pane worker session via `claude --resume`.
 **Reads:** tmux session environment, session JSONL, worktree dir.

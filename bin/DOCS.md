@@ -14,7 +14,7 @@ Command line in → thin wrapper resolves the project path or plugin root → de
 
 ## Modules
 
-### dev-sync (52 LOC)
+### dev-sync (38 LOC)
 
 **Purpose:** Fast-forward main or master to the dev branch HEAD via a ref update, without checkout.
 **Reads:** git repository at the given or current project path (worktree-aware).
@@ -54,7 +54,7 @@ Command line in → thin wrapper resolves the project path or plugin root → de
 
 ---
 
-### git-check (21 LOC)
+### git-check (7 LOC)
 
 **Purpose:** Pre-commit report with auto-staging for a repository, resolving worktree paths to the project root.
 **Reads:** git repository at the given or current path.
@@ -94,7 +94,7 @@ Command line in → thin wrapper resolves the project path or plugin root → de
 
 ---
 
-### worker-cli (62 LOC)
+### worker-cli (63 LOC)
 
 **Purpose:** Dispatcher for the worker lifecycle subcommands; loads implementations from `src/worker_cli/` next to the script and spawn libs from the plugin cache.
 **Reads:** worker registry directory, plugin root environment variable.
