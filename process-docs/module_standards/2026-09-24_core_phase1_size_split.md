@@ -227,3 +227,16 @@ Glyphs replaced by ASCII: `plugin-publish` end message (`OK: ...`), `plugin-sync
 Before/after comparison of the executables in isolated scratch repos and an isolated `HOME` (usage and error paths of every `bin/` tool, `gc`, `gcommit` incl. plugin-dir refusal, `git-check --auto-stage`, `dev-sync` incl. the three refusal cases, `plugin-publish` dry run, real run with `--no-push`, dirty tree, version bump, not-in-repo): stdout, stderr, exit codes, the resulting cache tree and `installed_plugins.json` were identical, apart from a `poread` sha of a DOCS.md that changed between the two runs. Full suite set green on the final code: worker_merge, worker_janitor, worker_sweep_logs, worker_spawn (xproject, direct_command, capture_clean), worker_status, worker_wait, model_selector (both), poread_cli, docs_drift_check, git_automation.
 
 Pitfall met: `rm -f dev/git_automation/md/probe_umlaut_staging_2*.md` after running the probe also deleted two tracked reports whose names match; they were restored in a follow-up commit. Restore generated reports with `git checkout` instead of globbing.
+
+# Recap (2026-09-25, after the merge of Phase 6 into integration)
+
+Inventory: `git diff integration --name-only` is empty, everything of this job (Phases 1, 2, 4, 5, 6) is merged. DOCS.md files touched over the job and checked again at recap: `bin/DOCS.md`, `DOCS.md`, `src/DOCS.md`, `src/spawn/DOCS.md`, `src/worker_cli/DOCS.md`, `src/common/DOCS.md`, `src/git/DOCS.md`, `src/pipeline/DOCS.md`, `src/poread_cli/DOCS.md`, `src/docs_drift_check/DOCS.md`. `docs-drift-check` from the repo root reports 0 path, 0 LOC and 0 rule findings.
+
+Order of the job and what each phase left behind for a successor:
+1. Phase 1 split `bin/worker-cli` and `tmux_spawn.sh` into libraries (sections "Phase 1" above, top of this file).
+2. Phase 2 stripped comments; the knowledge that lived in them is grouped per file in the Phase 2 section. Read that section before changing `wait.sh`, `worker_status.sh`, `worker_proxy.sh` or `worker_revive.sh`: it records the incidents behind the guards.
+3. Phase 4 brought the DOCS.md files into format; the cut function/constant names are salvaged verbatim in the Phase 4 section.
+4. Phase 5 replaced silent fallbacks by tripwires (list of kept fallbacks with their reasons in the Phase 5 section).
+5. Phase 6 added section markers and `main` orchestrators, one owner for path/session rules (`src/common/paths.sh`), removed the unobserved `find` resolution fallback.
+
+Open items known at the end: (a) the shell `_resolve_worker_model` duplicate of `spawn.py` (decision with the owner, filed as an issue); (b) `plugin-sync.sh` is flagged as dead-code candidate in the root DOCS.md, deletion is the owner's call; (c) `list_agents` derives the Claude Code project directory by replacing only `/` (not `.` and `_`), so it fails for paths containing those characters (seen on a worktree path in Phase 6, not fixed because it changes behaviour); (d) `~/.local/bin/dev-sync` and `~/.local/bin/show` are dangling symlinks into the removed `Meta/blank/bin/`.
