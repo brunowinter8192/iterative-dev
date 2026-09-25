@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# INFRASTRUCTURE
+
 set -uo pipefail
 
 NAME="${1:?need worker name}"
@@ -10,18 +12,43 @@ EVENT="${4:-spawn}"
 SAMPLE_INTERVAL="${WORKER_LOGGER_INTERVAL:-10}"
 PID_FILE="/tmp/worker-logger-${NAME}.pid"
 
-mkdir -p "$LOG_DIR"
 TS="$(date +%Y%m%d_%H%M%S)"
 LOG_FILE="${LOG_DIR}/${NAME}_${TS}_${EVENT}.log"
 DEATH_FILE="${LOG_DIR}/${NAME}_${TS}_${EVENT}_DEATH.txt"
 
-echo $$ > "$PID_FILE"
+# ORCHESTRATOR
+
+main() {
+    prepare_log_dir
+    register_pid
+    install_traps
+    locate_jsonl
+    write_baseline
+    sample_until_gone
+}
+
+# FUNCTIONS
+
+prepare_log_dir() {
+    mkdir -p "$LOG_DIR"
+}
+
+register_pid() {
+    echo $$ > "$PID_FILE"
+}
+
+install_traps() {
+    trap _self_cleanup TERM INT HUP
+}
 
 _self_cleanup() {
     rm -f "$PID_FILE"
     exit 0
 }
-trap _self_cleanup TERM INT HUP
+
+locate_jsonl() {
+    JSONL_PATH="$(_find_jsonl || true)"
+}
 
 _find_jsonl() {
     local d
@@ -34,16 +61,28 @@ _find_jsonl() {
     return 1
 }
 
-JSONL_PATH="$(_find_jsonl || true)"
+write_baseline() {
+    {
+        echo "# worker_logger v1 — diagnostic samples for worker '$NAME'"
+        echo "# event=$EVENT session=$SESSION log_dir=$LOG_DIR"
+        echo "# jsonl=$JSONL_PATH"
+        echo "# sample_interval=${SAMPLE_INTERVAL}s"
+        echo "# started=$(date -Iseconds)"
+        echo "# format: <iso-ts> pane_dead=<0|1> claude_pid=<N> claude_rss_mb=<X> total_rss_gb=<Y> jsonl_age_s=<Z>"
+    } >> "$LOG_FILE"
+}
 
-{
-    echo "# worker_logger v1 — diagnostic samples for worker '$NAME'"
-    echo "# event=$EVENT session=$SESSION log_dir=$LOG_DIR"
-    echo "# jsonl=$JSONL_PATH"
-    echo "# sample_interval=${SAMPLE_INTERVAL}s"
-    echo "# started=$(date -Iseconds)"
-    echo "# format: <iso-ts> pane_dead=<0|1> claude_pid=<N> claude_rss_mb=<X> total_rss_gb=<Y> jsonl_age_s=<Z>"
-} >> "$LOG_FILE"
+sample_until_gone() {
+    while true; do
+        if ! tmux has-session -t "$SESSION" 2>/dev/null; then
+            echo "$(date -Iseconds) session_gone=1 — exiting" >> "$LOG_FILE"
+            rm -f "$PID_FILE"
+            exit 0
+        fi
+        _sample
+        sleep "$SAMPLE_INTERVAL"
+    done
+}
 
 _sample() {
     local now pane_dead claude_pid claude_rss_mb total_rss_gb jsonl_age_s
@@ -151,12 +190,4 @@ _capture_death() {
     } > "$DEATH_FILE"
 }
 
-while true; do
-    if ! tmux has-session -t "$SESSION" 2>/dev/null; then
-        echo "$(date -Iseconds) session_gone=1 — exiting" >> "$LOG_FILE"
-        rm -f "$PID_FILE"
-        exit 0
-    fi
-    _sample
-    sleep "$SAMPLE_INTERVAL"
-done
+main

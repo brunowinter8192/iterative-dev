@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+# INFRASTRUCTURE
+
+source "$(dirname "${BASH_SOURCE[0]}")/config.sh"
+
+# FUNCTIONS
+
 worker_revive() {
     local name="$1"
     local project_path="$2"

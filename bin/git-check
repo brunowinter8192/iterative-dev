@@ -1,7 +1,26 @@
 #!/usr/bin/env bash
 
+# INFRASTRUCTURE
+
 PLUGIN="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/cache/brunowinter-plugins/iterative-dev/1.0.0}"
 
 source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../src/common/paths.sh"
-REPO=$(resolve_project_path "${1:-}")
-cd "$PLUGIN" && python3 -m src.git.check "$REPO" --auto-stage
+
+# ORCHESTRATOR
+
+main() {
+  resolve_repo "${1:-}"
+  run_check
+}
+
+# FUNCTIONS
+
+resolve_repo() {
+  REPO=$(resolve_project_path "${1:-}")
+}
+
+run_check() {
+  cd "$PLUGIN" && python3 -m src.git.check "$REPO" --auto-stage
+}
+
+main "$@"

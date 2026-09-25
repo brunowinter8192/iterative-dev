@@ -1,17 +1,33 @@
 #!/usr/bin/env bash
 
+# INFRASTRUCTURE
+
 set -e
 
-if [ $# -lt 1 ]; then
-  echo "Usage: gc \"<msg>\" [files...]" >&2
-  exit 1
-fi
+# ORCHESTRATOR
 
-msg="$1"
-shift
+main() {
+  require_message "$@"
+  commit_changes "$@"
+}
 
-if [ $# -eq 0 ]; then
-  git commit -am "$msg"
-else
-  git add "$@" && git commit -m "$msg"
-fi
+# FUNCTIONS
+
+require_message() {
+  if [ $# -lt 1 ]; then
+    echo "Usage: gc \"<msg>\" [files...]" >&2
+    exit 1
+  fi
+}
+
+commit_changes() {
+  local msg="$1"
+  shift
+  if [ $# -eq 0 ]; then
+    git commit -am "$msg"
+  else
+    git add "$@" && git commit -m "$msg"
+  fi
+}
+
+main "$@"

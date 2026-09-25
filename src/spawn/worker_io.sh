@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+# INFRASTRUCTURE
+
+_ORCHESTRATOR_SIGNALS_FILE="$HOME/Library/Application Support/com.brunowinter.monitor-cc-menubar/orchestrator_signals.json"
+
+# FUNCTIONS
+
 _orchestrator_signal_update() {
     local session_name="$1"
     python3 - "$_ORCHESTRATOR_SIGNALS_FILE" "$session_name" <<'PYEOF'

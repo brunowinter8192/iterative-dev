@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# FUNCTIONS
+
 cmd_merge() {
     [ $# -lt 1 ] && { echo "worker-cli merge: need <name> [project_path]" >&2; exit 2; }
     local name="$1"

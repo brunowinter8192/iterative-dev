@@ -14,7 +14,7 @@ No `__init__.py`. The `.sh` files are sourced by `bin/worker-cli` (resolved thro
 
 ## Modules
 
-### registry.sh (65 LOC)
+### registry.sh (67 LOC)
 
 **Purpose:** Project/worker path resolution, registry and sidecar file helpers, status probe wrapper.
 **Reads:** worker registry dir, tmux session list.
@@ -24,7 +24,7 @@ No `__init__.py`. The `.sh` files are sourced by `bin/worker-cli` (resolved thro
 
 ---
 
-### cmd_query.sh (144 LOC)
+### cmd_query.sh (146 LOC)
 
 **Purpose:** Read-only subcommands: list, status, capture, response.
 **Reads:** registry, session JSONL, tmux via spawn libs.
@@ -34,7 +34,7 @@ No `__init__.py`. The `.sh` files are sourced by `bin/worker-cli` (resolved thro
 
 ---
 
-### cmd_lifecycle.sh (189 LOC)
+### cmd_lifecycle.sh (191 LOC)
 
 **Purpose:** State-changing subcommands: merge, kill, send, spawn, revive, worktree, worktree-rm, sweep-logs.
 **Reads:** registry, sidecar files.
@@ -44,7 +44,7 @@ No `__init__.py`. The `.sh` files are sourced by `bin/worker-cli` (resolved thro
 
 ---
 
-### wait.sh (176 LOC)
+### wait.sh (180 LOC)
 
 **Purpose:** wait subcommand: poll loop, transition gate, trace log, background-task probe.
 **Reads:** tmux via spawn libs, session tasks dir (lsof).
@@ -54,7 +54,7 @@ No `__init__.py`. The `.sh` files are sourced by `bin/worker-cli` (resolved thro
 
 ---
 
-### janitor.sh (171 LOC)
+### janitor.sh (175 LOC)
 
 **Purpose:** janitor subcommand: age-gated session sweep and orphan registry sweep.
 **Reads:** tmux sessions, registry.

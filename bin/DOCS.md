@@ -14,7 +14,7 @@ Command line in → thin wrapper resolves the project path or plugin root → de
 
 ## Modules
 
-### dev-sync (38 LOC)
+### dev-sync (74 LOC)
 
 **Purpose:** Fast-forward main or master to the dev branch HEAD via a ref update, without checkout.
 **Reads:** git repository at the given or current project path (worktree-aware).
@@ -24,7 +24,7 @@ Command line in → thin wrapper resolves the project path or plugin root → de
 
 ---
 
-### docs-drift-check (7 LOC)
+### docs-drift-check (24 LOC)
 
 **Purpose:** Launcher that exports the current directory as project root and runs the docs-drift-check CLI from the plugin directory.
 **Reads:** plugin root environment variable, current directory.
@@ -34,7 +34,7 @@ Command line in → thin wrapper resolves the project path or plugin root → de
 
 ---
 
-### gc (17 LOC)
+### gc (33 LOC)
 
 **Purpose:** Git commit shortcut: commits tracked modifications, or stages the listed files first.
 **Reads:** git working tree.
@@ -44,7 +44,7 @@ Command line in → thin wrapper resolves the project path or plugin root → de
 
 ---
 
-### gcommit (29 LOC)
+### gcommit (55 LOC)
 
 **Purpose:** Stage everything except the skip list and commit, worktree-correct; refuses to commit into the plugin directory.
 **Reads:** plugin root environment variable, target repository path.
@@ -54,7 +54,7 @@ Command line in → thin wrapper resolves the project path or plugin root → de
 
 ---
 
-### git-check (7 LOC)
+### git-check (26 LOC)
 
 **Purpose:** Pre-commit report with auto-staging for a repository, resolving worktree paths to the project root.
 **Reads:** git repository at the given or current path.
@@ -64,7 +64,7 @@ Command line in → thin wrapper resolves the project path or plugin root → de
 
 ---
 
-### plugin-publish (228 LOC)
+### plugin-publish (287 LOC)
 
 **Purpose:** Push a plugin source repo, bump the cached version and rsync it into the plugin cache, updating the installed-plugins registry atomically.
 **Reads:** plugin source repo, `installed_plugins.json`.
@@ -74,7 +74,7 @@ Command line in → thin wrapper resolves the project path or plugin root → de
 
 ---
 
-### poread (5 LOC)
+### poread (19 LOC)
 
 **Purpose:** Launcher for the poread CLI, which exports a file's full content past Bash's inline-output ceiling.
 **Reads:** plugin root environment variable.
@@ -84,7 +84,7 @@ Command line in → thin wrapper resolves the project path or plugin root → de
 
 ---
 
-### show (46 LOC)
+### show (80 LOC)
 
 **Purpose:** Open files in the default macOS app: text formats in CotEditor, PDFs via a read-only copy, everything else via `open`.
 **Reads:** the named files.
@@ -94,7 +94,7 @@ Command line in → thin wrapper resolves the project path or plugin root → de
 
 ---
 
-### worker-cli (63 LOC)
+### worker-cli (68 LOC)
 
 **Purpose:** Dispatcher for the worker lifecycle subcommands; loads implementations from `src/worker_cli/` next to the script and spawn libs from the plugin cache.
 **Reads:** worker registry directory, plugin root environment variable.

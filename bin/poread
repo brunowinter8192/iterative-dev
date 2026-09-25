@@ -1,5 +1,19 @@
 #!/usr/bin/env bash
 
+# INFRASTRUCTURE
+
 PLUGIN="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/cache/brunowinter-plugins/iterative-dev/1.0.0}"
 
-cd "$PLUGIN" && python3 -m src.poread_cli "$@"
+# ORCHESTRATOR
+
+main() {
+  run_poread "$@"
+}
+
+# FUNCTIONS
+
+run_poread() {
+  cd "$PLUGIN" && python3 -m src.poread_cli "$@"
+}
+
+main "$@"

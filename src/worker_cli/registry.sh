@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# FUNCTIONS
+
 registry_write() {
     local name="$1" project="$2"
     mkdir -p "$REGISTRY_DIR"

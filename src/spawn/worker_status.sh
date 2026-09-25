@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# FUNCTIONS
+
 _worker_detect_status() {
     local session="$1"
 

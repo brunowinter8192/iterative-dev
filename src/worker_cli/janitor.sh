@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 
+# INFRASTRUCTURE
+
 _JANITOR_LOG_FILE="${WORKER_LOGGER_DIR:-$HOME/Documents/ai/Meta/iterative-dev/src/logs}/janitor.log"
 _JANITOR_ORPHAN_GRACE_SECS=30
+
+# FUNCTIONS
 
 _janitor_log() {
     mkdir -p "$(dirname "$_JANITOR_LOG_FILE")"

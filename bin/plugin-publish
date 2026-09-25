@@ -1,10 +1,41 @@
 #!/usr/bin/env bash
 
+# INFRASTRUCTURE
+
 set -euo pipefail
 
 MARKETPLACE="brunowinter-plugins"
 CACHE_BASE="$HOME/.claude/plugins/cache/$MARKETPLACE"
 INSTALLED_JSON="$HOME/.claude/plugins/installed_plugins.json"
+
+DO_PUSH=1
+DRY_RUN=0
+
+# ORCHESTRATOR
+
+main() {
+    parse_args "$@"
+    locate_plugin_root
+    read_source_meta
+    print_plugin_info
+    require_git_repo
+    require_installed_json
+    read_installed_version
+    if [ "$DRY_RUN" = "1" ]; then
+        print_dry_run
+        return 0
+    fi
+    require_clean_tree
+    if [ "$DO_PUSH" = "1" ]; then
+        push_source
+    fi
+    ensure_cache_dir
+    sync_cache
+    update_installed_json
+    print_done
+}
+
+# FUNCTIONS
 
 usage() {
     cat <<'USAGE_EOF'
@@ -33,25 +64,24 @@ state on disk; installed_plugins.json gets a backup on every successful run.
 USAGE_EOF
 }
 
-DO_PUSH=1
-DRY_RUN=0
-
-while [ $# -gt 0 ]; do
-    case "$1" in
-        --no-push)    DO_PUSH=0 ;;
-        --dry-run)    DRY_RUN=1 ;;
-        -h|--help)
-            usage
-            exit 0
-            ;;
-        *)
-            echo "ERROR: unknown arg: $1" >&2
-            echo "Run 'plugin-publish --help' for usage." >&2
-            exit 1
-            ;;
-    esac
-    shift
-done
+parse_args() {
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --no-push)    DO_PUSH=0 ;;
+            --dry-run)    DRY_RUN=1 ;;
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            *)
+                echo "ERROR: unknown arg: $1" >&2
+                echo "Run 'plugin-publish --help' for usage." >&2
+                exit 1
+                ;;
+        esac
+        shift
+    done
+}
 
 find_plugin_root() {
     local d
@@ -66,15 +96,18 @@ find_plugin_root() {
     return 1
 }
 
-REPO_PATH="$(find_plugin_root)" || {
-    echo "ERROR: not inside a plugin source repo." >&2
-    echo "       No .claude-plugin/plugin.json found upward from $(pwd)." >&2
-    exit 1
+locate_plugin_root() {
+    REPO_PATH="$(find_plugin_root)" || {
+        echo "ERROR: not inside a plugin source repo." >&2
+        echo "       No .claude-plugin/plugin.json found upward from $(pwd)." >&2
+        exit 1
+    }
+    PLUGIN_JSON="$REPO_PATH/.claude-plugin/plugin.json"
 }
 
-PLUGIN_JSON="$REPO_PATH/.claude-plugin/plugin.json"
-
-PLUGIN_META=$(python3 - <<EOF
+read_source_meta() {
+    local plugin_meta
+    plugin_meta=$(python3 - <<EOF
 import json, sys
 try:
     d = json.load(open("$PLUGIN_JSON"))
@@ -85,34 +118,42 @@ except Exception as e:
     sys.exit(1)
 EOF
 )
-PLUGIN_NAME=$(echo "$PLUGIN_META" | sed -n '1p')
-SOURCE_VERSION=$(echo "$PLUGIN_META" | sed -n '2p')
+    PLUGIN_NAME=$(echo "$plugin_meta" | sed -n '1p')
+    SOURCE_VERSION=$(echo "$plugin_meta" | sed -n '2p')
 
-if [ -z "$PLUGIN_NAME" ] || [ -z "$SOURCE_VERSION" ]; then
-    echo "ERROR: failed to read plugin name/version from $PLUGIN_JSON" >&2
-    exit 1
-fi
+    if [ -z "$PLUGIN_NAME" ] || [ -z "$SOURCE_VERSION" ]; then
+        echo "ERROR: failed to read plugin name/version from $PLUGIN_JSON" >&2
+        exit 1
+    fi
 
-KEY="${PLUGIN_NAME}@${MARKETPLACE}"
-CACHE_DIR="$CACHE_BASE/$PLUGIN_NAME/$SOURCE_VERSION"
+    KEY="${PLUGIN_NAME}@${MARKETPLACE}"
+    CACHE_DIR="$CACHE_BASE/$PLUGIN_NAME/$SOURCE_VERSION"
+}
 
-echo "Plugin:         $PLUGIN_NAME"
-echo "Source repo:    $REPO_PATH"
-echo "Source version: $SOURCE_VERSION"
-echo "Target cache:   $CACHE_DIR"
-echo
+print_plugin_info() {
+    echo "Plugin:         $PLUGIN_NAME"
+    echo "Source repo:    $REPO_PATH"
+    echo "Source version: $SOURCE_VERSION"
+    echo "Target cache:   $CACHE_DIR"
+    echo
+}
 
-if ! git -C "$REPO_PATH" rev-parse --git-dir >/dev/null 2>&1; then
-    echo "ERROR: $REPO_PATH is not a git repo." >&2
-    exit 1
-fi
+require_git_repo() {
+    if ! git -C "$REPO_PATH" rev-parse --git-dir >/dev/null 2>&1; then
+        echo "ERROR: $REPO_PATH is not a git repo." >&2
+        exit 1
+    fi
+}
 
-if [ ! -f "$INSTALLED_JSON" ]; then
-    echo "ERROR: $INSTALLED_JSON missing." >&2
-    exit 1
-fi
+require_installed_json() {
+    if [ ! -f "$INSTALLED_JSON" ]; then
+        echo "ERROR: $INSTALLED_JSON missing." >&2
+        exit 1
+    fi
+}
 
-INSTALLED_VERSION=$(python3 - <<EOF
+read_installed_version() {
+    INSTALLED_VERSION=$(python3 - <<EOF
 import json
 data = json.load(open("$INSTALLED_JSON"))
 entries = data.get("plugins", {}).get("$KEY", [])
@@ -120,14 +161,19 @@ print(entries[0]["version"] if entries else "")
 EOF
 )
 
-if [ -z "$INSTALLED_VERSION" ]; then
-    echo "ERROR: '$KEY' not found in installed_plugins.json." >&2
-    echo "       Run '/plugin install' first to register the plugin." >&2
-    exit 1
-fi
+    if [ -z "$INSTALLED_VERSION" ]; then
+        echo "ERROR: '$KEY' not found in installed_plugins.json." >&2
+        echo "       Run '/plugin install' first to register the plugin." >&2
+        exit 1
+    fi
+}
 
-if [ "$DRY_RUN" = "1" ]; then
+read_dirty_files() {
     DIRTY=$(git -C "$REPO_PATH" status --porcelain | grep -v '^.. \.beads/' || true)
+}
+
+print_dry_run() {
+    read_dirty_files
     echo "[DRY RUN]"
     if [ -n "$DIRTY" ]; then
         echo "  Working tree dirty (real run would abort):"
@@ -144,58 +190,66 @@ if [ "$DRY_RUN" = "1" ]; then
         echo "  Cache version:   unchanged ($SOURCE_VERSION)"
     fi
     echo "  Would rsync:     $REPO_PATH/  ->  $CACHE_DIR/"
-    exit 0
-fi
+}
 
-DIRTY=$(git -C "$REPO_PATH" status --porcelain | grep -v '^.. \.beads/' || true)
-if [ -n "$DIRTY" ]; then
-    echo "ERROR: working tree has uncommitted changes outside .beads/. Commit first:" >&2
-    echo "       gc \"<message>\"" >&2
-    echo >&2
-    echo "$DIRTY" >&2
-    exit 1
-fi
-
-if [ "$DO_PUSH" = "1" ]; then
-    echo "→ git push"
-    if ! PUSH_OUT=$(git -C "$REPO_PATH" push 2>&1); then
-        echo "ERROR: git push failed. Cache NOT modified." >&2
-        echo "$PUSH_OUT" >&2
+require_clean_tree() {
+    read_dirty_files
+    if [ -n "$DIRTY" ]; then
+        echo "ERROR: working tree has uncommitted changes outside .beads/. Commit first:" >&2
+        echo "       gc \"<message>\"" >&2
+        echo >&2
+        echo "$DIRTY" >&2
         exit 1
     fi
-    [ -n "$PUSH_OUT" ] && echo "  $PUSH_OUT" | sed 's/^/  /'
-fi
+}
 
-if [ "$SOURCE_VERSION" != "$INSTALLED_VERSION" ]; then
-    echo "→ version bump: $INSTALLED_VERSION → $SOURCE_VERSION"
-    mkdir -p "$CACHE_DIR"
-elif [ ! -d "$CACHE_DIR" ]; then
-    echo "→ cache dir missing for current version, recreating"
-    mkdir -p "$CACHE_DIR"
-else
-    echo "→ version unchanged ($SOURCE_VERSION)"
-fi
-
-echo "→ rsync source -> cache"
-rsync -a \
-    --filter='P venv/' --filter='P .venv/' --filter='P node_modules/' --filter='P .env' \
-    --filter=':- .gitignore' \
-    --exclude='.git' \
-    --delete \
-    "$REPO_PATH/" "$CACHE_DIR/" \
-    | sed 's/^/  /' || {
-        echo "ERROR: rsync failed." >&2
+push_source() {
+    echo "→ git push"
+    local push_out
+    if ! push_out=$(git -C "$REPO_PATH" push 2>&1); then
+        echo "ERROR: git push failed. Cache NOT modified." >&2
+        echo "$push_out" >&2
         exit 1
-    }
+    fi
+    [ -n "$push_out" ] && echo "  $push_out" | sed 's/^/  /'
+    return 0
+}
 
-SHA=$(git -C "$REPO_PATH" rev-parse HEAD)
-TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
-BACKUP="/tmp/installed_plugins.json.bak.$(date +%s)"
-TMP="$INSTALLED_JSON.tmp.$$"
+ensure_cache_dir() {
+    if [ "$SOURCE_VERSION" != "$INSTALLED_VERSION" ]; then
+        echo "→ version bump: $INSTALLED_VERSION → $SOURCE_VERSION"
+        mkdir -p "$CACHE_DIR"
+    elif [ ! -d "$CACHE_DIR" ]; then
+        echo "→ cache dir missing for current version, recreating"
+        mkdir -p "$CACHE_DIR"
+    else
+        echo "→ version unchanged ($SOURCE_VERSION)"
+    fi
+}
 
-cp "$INSTALLED_JSON" "$BACKUP"
+sync_cache() {
+    echo "→ rsync source -> cache"
+    rsync -a \
+        --filter='P venv/' --filter='P .venv/' --filter='P node_modules/' --filter='P .env' \
+        --filter=':- .gitignore' \
+        --exclude='.git' \
+        --delete \
+        "$REPO_PATH/" "$CACHE_DIR/" \
+        | sed 's/^/  /' || {
+            echo "ERROR: rsync failed." >&2
+            exit 1
+        }
+}
 
-python3 - <<EOF
+update_installed_json() {
+    SHA=$(git -C "$REPO_PATH" rev-parse HEAD)
+    TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+    BACKUP="/tmp/installed_plugins.json.bak.$(date +%s)"
+    local tmp="$INSTALLED_JSON.tmp.$$"
+
+    cp "$INSTALLED_JSON" "$BACKUP"
+
+    python3 - <<EOF
 import json, sys
 
 with open("$INSTALLED_JSON") as f:
@@ -213,16 +267,21 @@ for entry in entries:
     entry["gitCommitSha"] = "$SHA"
     entry["lastUpdated"] = "$TIMESTAMP"
 
-with open("$TMP", "w") as f:
+with open("$tmp", "w") as f:
     json.dump(data, f, indent=2)
     f.write("\n")
 EOF
 
-mv "$TMP" "$INSTALLED_JSON"
+    mv "$tmp" "$INSTALLED_JSON"
 
-echo "→ installed_plugins.json updated (backup: $BACKUP)"
-echo "  version=$SOURCE_VERSION sha=${SHA:0:8} ts=$TIMESTAMP"
+    echo "→ installed_plugins.json updated (backup: $BACKUP)"
+    echo "  version=$SOURCE_VERSION sha=${SHA:0:8} ts=$TIMESTAMP"
+}
 
-echo
-echo "OK: Plugin $PLUGIN_NAME v$SOURCE_VERSION live."
-echo "  Restart Claude Code session to load the new code."
+print_done() {
+    echo
+    echo "OK: Plugin $PLUGIN_NAME v$SOURCE_VERSION live."
+    echo "  Restart Claude Code session to load the new code."
+}
+
+main "$@"

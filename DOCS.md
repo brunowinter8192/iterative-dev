@@ -14,7 +14,7 @@ Plugin name and local repo path in → installed version resolved from the regis
 
 ## Modules
 
-### plugin-sync.sh (99 LOC)
+### plugin-sync.sh (144 LOC)
 
 **Purpose:** Sync a local plugin repo into the plugin cache under the installed version, warning on version drift.
 **Reads:** local repo, `.claude-plugin/plugin.json`, `installed_plugins.json`.

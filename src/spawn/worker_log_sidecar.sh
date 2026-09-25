@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# FUNCTIONS
+
 sweep_stale_logs() {
     local log_dir="${1:?need log dir}"
     local max_age_hours="${2:-72}"

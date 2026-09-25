@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 
+# INFRASTRUCTURE
+
 set -euo pipefail
 
-_WORKER_PERMISSION_FLAGS="--permission-mode bypassPermissions"
-_ORCHESTRATOR_SIGNALS_FILE="$HOME/Library/Application Support/com.brunowinter.monitor-cc-menubar/orchestrator_signals.json"
-
 _SPAWN_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_SPAWN_LIB_DIR/config.sh"
 source "$_SPAWN_LIB_DIR/../common/paths.sh"
 source "$_SPAWN_LIB_DIR/worker_io.sh"
 source "$_SPAWN_LIB_DIR/worker_status.sh"
 source "$_SPAWN_LIB_DIR/worker_log_sidecar.sh"
 source "$_SPAWN_LIB_DIR/worker_proxy.sh"
 source "$_SPAWN_LIB_DIR/worker_revive.sh"
+
+# FUNCTIONS
 
 _resolve_worker_model() {
     local file="${MODEL_SELECTION_FILE:-$HOME/.claude/shared-rules/model_selection.json}"

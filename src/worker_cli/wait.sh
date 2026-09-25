@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# INFRASTRUCTURE
+
 _WAIT_POLL_INTERVAL=5
 _WAIT_STABLE_SAMPLES=3
 
@@ -7,6 +9,8 @@ _WAIT_TRACE_ENABLED="${WORKER_CLI_WAIT_TRACE:-1}"
 _WAIT_TRACE_FILE="${WORKER_LOGGER_DIR:-$HOME/Documents/ai/Meta/iterative-dev/src/logs}/wait_trace.log"
 _WAIT_TRACE_MAX_LINES=20000
 _WAIT_TRACE_KEEP_LINES=10000
+
+# FUNCTIONS
 
 _wait_trace() {
     [ "$_WAIT_TRACE_ENABLED" = "1" ] || return 0
