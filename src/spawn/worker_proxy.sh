@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# FUNCTIONS
+
 _worker_proxy_setup() {
     local name="$1"
     local project_path="$2"

@@ -1,7 +1,24 @@
 #!/usr/bin/env bash
 
+# INFRASTRUCTURE
+
 PLUGIN="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/cache/brunowinter-plugins/iterative-dev/1.0.0}"
 
-export DOCS_DRIFT_ROOT="$PWD"
+# ORCHESTRATOR
 
-cd "$PLUGIN" && python3 -m src.docs_drift_check "$@"
+main() {
+  export_project_root
+  run_docs_drift_check "$@"
+}
+
+# FUNCTIONS
+
+export_project_root() {
+  export DOCS_DRIFT_ROOT="$PWD"
+}
+
+run_docs_drift_check() {
+  cd "$PLUGIN" && python3 -m src.docs_drift_check "$@"
+}
+
+main "$@"

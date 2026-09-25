@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+# INFRASTRUCTURE
+
+source "$(dirname "${BASH_SOURCE[0]}")/config.sh"
+
+# FUNCTIONS
+
 worker_revive() {
     local name="$1"
     local project_path="$2"
@@ -86,12 +92,8 @@ _revive_resolve_worktree() {
 
 _revive_find_jsonl() {
     local worktree="$1"
-    local encoded jsonl encoded_dir
-    encoded="$worktree"
-    encoded="${encoded//\//-}"
-    encoded="${encoded//\./-}"
-    encoded="${encoded//_/-}"
-    encoded_dir="$HOME/.claude/projects/$encoded"
+    local jsonl encoded_dir
+    encoded_dir="$HOME/.claude/projects/$(encode_worktree_path "$worktree")"
     jsonl=$(ls -t "$encoded_dir"/*.jsonl 2>/dev/null | head -1)
     if [ -z "$jsonl" ]; then
         echo "worker_revive: no session JSONL found at $encoded_dir — context lost; use 'spawn'" >&2

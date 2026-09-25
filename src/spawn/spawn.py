@@ -16,28 +16,54 @@ _MODEL_SELECTION_FILE = os.environ.get(
 
 # ORCHESTRATOR
 
-def spawn_workflow(name: str, prompt_file: str, project_path: str, model: str, worktree: bool) -> None:
+def spawn_workflow() -> None:
+    args = parse_args()
+    model = args.model or _resolve_worker_model()
+    require_prompt_file(args.prompt_file)
+    actual_path = prepare_workdir(args.name, args.project_path, not args.no_worktree)
+    session = tmux_spawn(args.name, actual_path, model, args.prompt_file)
+    exit_on_spawn_error(session)
+    report_session(session)
+
+
+# FUNCTIONS
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Spawn a Claude Code worker in a git worktree")
+    parser.add_argument("name", help="Worker name (branch + tmux session suffix)")
+    parser.add_argument("prompt_file", help="Absolute path to prompt file")
+    parser.add_argument("project_path", help="Absolute path to project directory")
+    parser.add_argument("model", nargs="?", default=None,
+                         help="Model ID; explicit argument wins over the config file")
+    parser.add_argument("--no-worktree", action="store_true", help="Skip worktree creation, spawn in project dir directly")
+    return parser.parse_args()
+
+
+def require_prompt_file(prompt_file: str) -> None:
     if not os.path.isfile(prompt_file):
         print(f"ERROR: Prompt file not found: {prompt_file}", file=sys.stderr)
         sys.exit(1)
 
-    actual_path = project_path
 
-    if worktree:
-        actual_path = setup_worktree(name, project_path)
-        if actual_path is None:
-            sys.exit(1)
+def prepare_workdir(name: str, project_path: str, worktree: bool) -> str:
+    if not worktree:
+        return project_path
+    wt_path = setup_worktree(name, project_path)
+    if wt_path is None:
+        sys.exit(1)
+    return wt_path
 
-    session = tmux_spawn(name, actual_path, model, prompt_file)
+
+def exit_on_spawn_error(session: str) -> None:
     if session.startswith("ERROR"):
         print(session, file=sys.stderr)
         sys.exit(1)
 
+
+def report_session(session: str) -> None:
     print(f"Session: {session}")
     print(f"Attach: tmux attach -t {session}")
 
-
-# FUNCTIONS
 
 def setup_worktree(name: str, project_path: str) -> str | None:
     wt_path = os.path.join(project_path, ".claude", "worktrees", name)
@@ -117,13 +143,4 @@ def _resolve_worker_model() -> str:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Spawn a Claude Code worker in a git worktree")
-    parser.add_argument("name", help="Worker name (branch + tmux session suffix)")
-    parser.add_argument("prompt_file", help="Absolute path to prompt file")
-    parser.add_argument("project_path", help="Absolute path to project directory")
-    parser.add_argument("model", nargs="?", default=None,
-                         help="Model ID; explicit argument wins over the config file")
-    parser.add_argument("--no-worktree", action="store_true", help="Skip worktree creation, spawn in project dir directly")
-    args = parser.parse_args()
-    resolved_model = args.model or _resolve_worker_model()
-    spawn_workflow(args.name, args.prompt_file, args.project_path, resolved_model, not args.no_worktree)
+    spawn_workflow()

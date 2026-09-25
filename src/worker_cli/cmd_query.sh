@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# FUNCTIONS
+
 cmd_list() {
     if [ $# -eq 0 ]; then
         _print_registry_workers "(no known workers in registry)" 1

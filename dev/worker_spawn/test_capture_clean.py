@@ -108,7 +108,7 @@ def case_kept_lines():
 
 def _check_basic_output(output, check):
     check('header present', '=== capture from testworker (since last prompt,' in output)
-    check('no fallback warning', '⚠' not in output)
+    check('no fallback warning', 'WARNING: prompt marker' not in output)
     body = '\n'.join(output.split('\n')[1:]).strip()
     check('body not empty', bool(body))
 

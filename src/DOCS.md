@@ -10,7 +10,7 @@ Implementation packages behind the iterative-dev commands in `bin/`: worker spaw
 
 ## Flow
 
-A `bin/` command delegates into exactly one subdirectory: `bin/worker-cli` into `worker_cli/` and `spawn/`, the git tools into `git/`, and the launchers into `poread_cli/` and `docs_drift_check/`. `pipeline/` has no launcher.
+A `bin/` command delegates into one subdirectory (plus `common/` for shared shell helpers): `bin/worker-cli` into `worker_cli/` and `spawn/`, the git tools into `git/`, and the launchers into `poread_cli/` and `docs_drift_check/`. `pipeline/` has no launcher.
 
 ## Modules
 
@@ -18,7 +18,8 @@ None. `src/` holds only subdirectories:
 
 - `spawn/` — worker spawning, status detection, pane I/O, proxy setup, revive (shell libs plus `spawn.py`); see `spawn/DOCS.md`.
 - `worker_cli/` — `worker-cli` subcommand implementations; see `worker_cli/DOCS.md`.
-- `git/` — pre-commit check, commit, staging and post-commit verification; see `git/DOCS.md`.
+- `git/` — pre-commit check and commit; see `git/DOCS.md`.
+- `common/` — shell helpers shared across commands (project root, path encoding, session naming); see `common/DOCS.md`.
 - `pipeline/` — session JSONL conversion, agent listing, tool-call extraction; see `pipeline/DOCS.md`.
 - `poread_cli/` — poread CLI, marker-minting half; see `poread_cli/DOCS.md`.
 - `docs_drift_check/` — DOCS.md rule checker; see `docs_drift_check/DOCS.md`.

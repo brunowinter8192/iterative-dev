@@ -1,7 +1,7 @@
 # INFRASTRUCTURE
 from pathlib import Path
 
-from .jsonl_parse import extract_text_content, strip_system_reminders
+from src.pipeline.jsonl_parse import extract_text_content, strip_system_reminders
 
 
 # FUNCTIONS

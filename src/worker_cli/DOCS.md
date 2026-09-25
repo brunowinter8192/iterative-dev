@@ -14,53 +14,53 @@ No `__init__.py`. The `.sh` files are sourced by `bin/worker-cli` (resolved thro
 
 ## Modules
 
-### registry.sh (123 LOC)
+### registry.sh (67 LOC)
 
 **Purpose:** Project/worker path resolution, registry and sidecar file helpers, status probe wrapper.
 **Reads:** worker registry dir, tmux session list.
 **Writes:** registry and sidecar files.
 **Called by:** all other worker_cli libs.
-**Calls out:** tmux, git, `src/spawn/tmux_spawn.sh` (via `bash -c source`).
+**Calls out:** tmux, `src/spawn/tmux_spawn.sh` (via `bash -c` source).
 
 ---
 
-### cmd_query.sh (144 LOC)
+### cmd_query.sh (146 LOC)
 
 **Purpose:** Read-only subcommands: list, status, capture, response.
 **Reads:** registry, session JSONL, tmux via spawn libs.
 **Writes:** stdout.
 **Called by:** bin/worker-cli.
-**Calls out:** tmux, git, `src/spawn/tmux_spawn.sh` (via `bash -c source`).
+**Calls out:** jq, `src/spawn/tmux_spawn.sh` (via `bash -c` source).
 
 ---
 
-### cmd_lifecycle.sh (188 LOC)
+### cmd_lifecycle.sh (191 LOC)
 
 **Purpose:** State-changing subcommands: merge, kill, send, spawn, revive, worktree, worktree-rm, sweep-logs.
 **Reads:** registry, sidecar files.
 **Writes:** git branches/worktrees, tmux sessions, registry, stdout.
 **Called by:** bin/worker-cli.
-**Calls out:** tmux, git, `src/spawn/tmux_spawn.sh` (via `bash -c source`).
+**Calls out:** git, tmux, python3, `src/spawn/tmux_spawn.sh` (via `bash -c` source).
 
 ---
 
-### wait.sh (171 LOC)
+### wait.sh (180 LOC)
 
 **Purpose:** wait subcommand: poll loop, transition gate, trace log, background-task probe.
 **Reads:** tmux via spawn libs, session tasks dir (lsof).
 **Writes:** wait_trace.log, stdout.
 **Called by:** bin/worker-cli.
-**Calls out:** tmux, git, `src/spawn/tmux_spawn.sh` (via `bash -c source`).
+**Calls out:** tmux, lsof, `src/spawn/tmux_spawn.sh` (via `bash -c` source).
 
 ---
 
-### janitor.sh (181 LOC)
+### janitor.sh (175 LOC)
 
 **Purpose:** janitor subcommand: age-gated session sweep and orphan registry sweep.
 **Reads:** tmux sessions, registry.
 **Writes:** janitor.log, kills via `worker-cli kill`, stdout.
 **Called by:** bin/worker-cli.
-**Calls out:** tmux, git, `src/spawn/tmux_spawn.sh` (via `bash -c source`).
+**Calls out:** tmux, git, `src/spawn/tmux_spawn.sh` (via `bash -c` source).
 
 ---
 

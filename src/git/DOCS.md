@@ -2,7 +2,7 @@
 
 ## Role
 
-Git workflow utilities: pre-commit classification and staging, staging verification, post-commit verification. Touch when changing how files are classified before staging or how hook health is detected. Do not touch for project-specific commit conventions; those live in the `tool-use` skill.
+Git workflow utilities: pre-commit classification and staging, and one-call commit. Touch when changing how files are classified before staging or how hook health is detected. Do not touch for project-specific commit conventions; those live in the `tool-use` skill.
 
 ## Public Interface
 
@@ -24,7 +24,7 @@ Git workflow utilities: pre-commit classification and staging, staging verificat
 
 ---
 
-### commit.py (64 LOC)
+### commit.py (77 LOC)
 
 **Purpose:** One-call stage-all plus commit, worktree-correct. Reuses the status parsing, classification and staging of `check.py`, keeping one source for the skip list.
 **Reads:** git status output (via `check.py`).
@@ -32,26 +32,6 @@ Git workflow utilities: pre-commit classification and staging, staging verificat
 **Called by:** `~/.local/bin/gcommit`.
 **Calls out:** subprocess (git commands); `src/git/check.py`.
 
----
-
-### staged.py (97 LOC)
-
-**Purpose:** Staging verification — confirms all relevant files are staged, provides diff summary for commit message.
-**Reads:** git status --porcelain, git diff --cached output.
-**Writes:** stdout (COMPLETE/INCOMPLETE status + staged file list + diff summary).
-**Called by:** Retained as fallback; no active caller after migration to `check.py --auto-stage`.
-**Calls out:** subprocess (git commands).
-
----
-
-### post.py (62 LOC)
-
-**Purpose:** Post-commit verification — confirms working tree is clean after commit.
-**Reads:** git log, git status output.
-**Writes:** stdout (last commit hash + CLEAN/DIRTY status with remaining changes).
-**Called by:** No active caller (git-committer.md agent removed).
-**Calls out:** subprocess (git commands).
-
 ## State
 
-The skip list and the git-invocation and status-parsing helpers are duplicated across `check.py`, `staged.py` and `post.py` rather than shared; `staged.py` and `post.py` keep older non-`-z` copies whose skip lists lack the venv entries. `commit.py` is the only module importing from `check.py`. No runtime-shared state otherwise.
+No shared mutable state. `commit.py` imports the status parsing, classification and staging from `check.py`; nothing else is shared.

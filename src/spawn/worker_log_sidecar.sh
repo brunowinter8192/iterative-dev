@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# FUNCTIONS
+
 sweep_stale_logs() {
     local log_dir="${1:?need log dir}"
     local max_age_hours="${2:-72}"
@@ -15,7 +17,6 @@ sweep_stale_logs() {
         local base
         base="$(basename "$f")"
         [ "$base" = "wait_trace.log" ] && continue
-        [ "$base" = ".gitkeep" ] && continue
         local mtime age
         mtime=$(stat -f %m "$f")
         age=$((now_ts - mtime))

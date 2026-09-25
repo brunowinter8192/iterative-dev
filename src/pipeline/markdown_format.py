@@ -3,7 +3,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-from .dispatch_context import format_dispatch_context
+from src.pipeline.dispatch_context import format_dispatch_context
 
 CONTENT_PARAM_KEYS = {'content', 'file_content', 'new_string'}
 
@@ -40,7 +40,7 @@ def format_summary_table(tool_calls: list[dict]) -> str:
             error_text = re.sub(r'</?tool_use_error>', '', output).strip()
             if len(error_text) > 60:
                 error_text = error_text[:60] + '...'
-            size_label = f"[✗ {error_text}]"
+            size_label = f"[error: {error_text}]"
         else:
             size = len(output)
             if size == 0:

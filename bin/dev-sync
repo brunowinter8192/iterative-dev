@@ -1,52 +1,74 @@
 #!/usr/bin/env bash
 
+# INFRASTRUCTURE
+
 set -e
 
-resolve_project_path() {
-    local dir="${1:-$(pwd)}"
-    case "$dir" in c|.|'') dir="$(pwd)" ;; esac
-    [[ "$dir" != /* ]] && dir="$(pwd)/$dir"
-    if [[ "$dir" == */.claude/worktrees/* ]]; then
-        dir="${dir%%/.claude/worktrees/*}"
-    fi
-    local d="$dir"
-    while [[ "$d" != "/" && -n "$d" ]]; do
-        [[ -e "$d/.git" ]] && { echo "$d"; return 0; }
-        d="$(dirname "$d")"
-    done
-    echo "$dir"
-}
-
-PROJECT=$(resolve_project_path "${1:-}")
-
-CURRENT=$(git -C "$PROJECT" rev-parse --abbrev-ref HEAD)
-if [ "$CURRENT" != "dev" ]; then
-    echo "ERROR: Not on dev branch (on '$CURRENT'). Switch to dev first." >&2
-    exit 1
-fi
+source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../src/common/paths.sh"
 
 MAIN_BRANCH="main"
-if ! git -C "$PROJECT" rev-parse --verify "$MAIN_BRANCH" >/dev/null 2>&1; then
+
+# ORCHESTRATOR
+
+main() {
+  resolve_project "${1:-}"
+  require_dev_branch
+  require_main_branch
+  require_ancestor
+  read_pending_commits
+  print_pending_commits
+  sync_main_branch
+}
+
+# FUNCTIONS
+
+resolve_project() {
+  PROJECT=$(resolve_project_path "${1:-}")
+}
+
+require_dev_branch() {
+  local current
+  current=$(git -C "$PROJECT" rev-parse --abbrev-ref HEAD)
+  if [ "$current" != "dev" ]; then
+    echo "ERROR: Not on dev branch (on '$current'). Switch to dev first." >&2
+    exit 1
+  fi
+}
+
+require_main_branch() {
+  if ! git -C "$PROJECT" rev-parse --verify "$MAIN_BRANCH" >/dev/null 2>&1; then
     echo "ERROR: '$MAIN_BRANCH' branch not found." >&2
     exit 1
-fi
+  fi
+}
 
-if ! git -C "$PROJECT" merge-base --is-ancestor "$MAIN_BRANCH" dev; then
+require_ancestor() {
+  if ! git -C "$PROJECT" merge-base --is-ancestor "$MAIN_BRANCH" dev; then
     echo "ERROR: $MAIN_BRANCH is not an ancestor of dev. Cannot fast-forward. Manual merge needed." >&2
     exit 1
-fi
+  fi
+}
 
-LOG=$(git -C "$PROJECT" log "$MAIN_BRANCH..dev" --oneline)
-if [ -z "$LOG" ]; then
+read_pending_commits() {
+  LOG=$(git -C "$PROJECT" log "$MAIN_BRANCH..dev" --oneline)
+  if [ -z "$LOG" ]; then
     echo "Nothing to sync — $MAIN_BRANCH is already up to date with dev."
     exit 0
-fi
+  fi
+}
 
-echo "Commits to sync:"
-echo "$LOG"
-echo
+print_pending_commits() {
+  echo "Commits to sync:"
+  echo "$LOG"
+  echo
+}
 
-DEV_HASH=$(git -C "$PROJECT" rev-parse dev)
-git -C "$PROJECT" update-ref "refs/heads/$MAIN_BRANCH" "$DEV_HASH"
-echo "Synced: $MAIN_BRANCH → ${DEV_HASH:0:8}"
-echo "Stay on dev. $MAIN_BRANCH updated via ref update (no checkout needed)."
+sync_main_branch() {
+  local dev_hash
+  dev_hash=$(git -C "$PROJECT" rev-parse dev)
+  git -C "$PROJECT" update-ref "refs/heads/$MAIN_BRANCH" "$dev_hash"
+  echo "Synced: $MAIN_BRANCH → ${dev_hash:0:8}"
+  echo "Stay on dev. $MAIN_BRANCH updated via ref update (no checkout needed)."
+}
+
+main "$@"

@@ -9,6 +9,5 @@ __pycache__/
 .dolt/
 *.db
 
-# worker_logger.sh sidecar diagnostic output — transient, not source
-src/logs/*.log
-src/logs/*_DEATH.txt
+debug/
+logs/

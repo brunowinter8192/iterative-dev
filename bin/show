@@ -1,46 +1,80 @@
 #!/usr/bin/env bash
 
+# INFRASTRUCTURE
+
 set -e
 
 SHOW_COPY_DIR="${TMPDIR:-/tmp}/show-copies"
 
-if [ $# -lt 1 ]; then
-  echo "Usage: show <file> [file...]" >&2
-  exit 1
-fi
+# ORCHESTRATOR
 
-for f in "$@"; do
+main() {
+  require_files "$@"
+  show_files "$@"
+}
+
+# FUNCTIONS
+
+require_files() {
+  if [ $# -lt 1 ]; then
+    echo "Usage: show <file> [file...]" >&2
+    exit 1
+  fi
+}
+
+show_files() {
+  local f
+  for f in "$@"; do
+    show_file "$f"
+  done
+}
+
+show_file() {
+  local f="$1"
   f="${f/#\~/$HOME}"
   [[ "$f" != /* ]] && f="$(pwd)/$f"
   if [ ! -e "$f" ]; then
     echo "show: not found: $f" >&2
     exit 1
   fi
-
-  ext_lower="$(echo "${f##*.}" | tr '[:upper:]' '[:lower:]')"
-  copy_note=""
-  case "$ext_lower" in
+  COPY_NOTE=""
+  case "$(extension_of "$f")" in
     md|markdown|txt)
       open -a "CotEditor" "$f"
       ;;
     pdf)
-      if command -v md5 >/dev/null 2>&1; then
-        src_hash=$(printf '%s' "$f" | md5 | head -c 12)
-      else
-        src_hash=$(printf '%s' "$f" | md5sum | head -c 12)
-      fi
-      copy_dir="$SHOW_COPY_DIR/$src_hash"
-      mkdir -p "$copy_dir"
-      copy_path="$copy_dir/$(basename "$f")"
-      cp -f "$f" "$copy_path"
-      chmod 444 "$copy_path"
-      open "$copy_path"
-      copy_note=" (copy: $copy_path)"
+      open_pdf_copy "$f"
       ;;
     *)
       open "$f"
       ;;
   esac
+  echo "opened: $f$COPY_NOTE"
+}
 
-  echo "opened: $f$copy_note"
-done
+extension_of() {
+  echo "${1##*.}" | tr '[:upper:]' '[:lower:]'
+}
+
+open_pdf_copy() {
+  local f="$1"
+  local src_hash copy_dir copy_path
+  src_hash=$(hash_of_path "$f")
+  copy_dir="$SHOW_COPY_DIR/$src_hash"
+  mkdir -p "$copy_dir"
+  copy_path="$copy_dir/$(basename "$f")"
+  cp -f "$f" "$copy_path"
+  chmod 444 "$copy_path"
+  open "$copy_path"
+  COPY_NOTE=" (copy: $copy_path)"
+}
+
+hash_of_path() {
+  if command -v md5 >/dev/null 2>&1; then
+    printf '%s' "$1" | md5 | head -c 12
+  else
+    printf '%s' "$1" | md5sum | head -c 12
+  fi
+}
+
+main "$@"

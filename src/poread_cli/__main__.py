@@ -16,8 +16,7 @@ POREAD_NOTICE = (
 def main(argv: list) -> int:
     path = _parse_args(argv)
     if path is None:
-        print("usage: poread <path>", file=sys.stderr)
-        return 2
+        return _usage_error()
     return _emit_marker(path)
 
 # FUNCTIONS
@@ -26,6 +25,10 @@ def _parse_args(argv: list):
     if len(argv) != 1:
         return None
     return argv[0]
+
+def _usage_error() -> int:
+    print("usage: poread <path>", file=sys.stderr)
+    return 2
 
 def _resolve_path(path: str) -> str:
     return os.path.realpath(os.path.expanduser(path))

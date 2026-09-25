@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# INFRASTRUCTURE
+
 _WAIT_POLL_INTERVAL=5
 _WAIT_STABLE_SAMPLES=3
 
@@ -7,6 +9,8 @@ _WAIT_TRACE_ENABLED="${WORKER_CLI_WAIT_TRACE:-1}"
 _WAIT_TRACE_FILE="${WORKER_LOGGER_DIR:-$HOME/Documents/ai/Meta/iterative-dev/src/logs}/wait_trace.log"
 _WAIT_TRACE_MAX_LINES=20000
 _WAIT_TRACE_KEEP_LINES=10000
+
+# FUNCTIONS
 
 _wait_trace() {
     [ "$_WAIT_TRACE_ENABLED" = "1" ] || return 0
@@ -34,7 +38,7 @@ _wait_has_live_bg_task() {
         session=$(_worker_session_name "$2" "$3")
         worktree=$(tmux display-message -t "${session}:^" -p "#{pane_current_path}" 2>/dev/null) || { echo error; exit 0; }
         [ -z "$worktree" ] && { echo error; exit 0; }
-        encoded=$(echo "$worktree" | tr "/_." "-")
+        encoded=$(encode_worktree_path "$worktree")
         jsonl=$(ls -t "$HOME/.claude/projects/${encoded}"/*.jsonl 2>/dev/null | head -1)
         [ -z "$jsonl" ] && { echo error; exit 0; }
         session_id=$(basename "$jsonl" .jsonl)
@@ -71,7 +75,11 @@ cmd_wait() {
             echo "timeout"
             exit 0
         fi
-        names=$(_wait_list_names "$project")
+        if ! names=$(_wait_list_names "$project"); then
+            _wait_trace "$_WAIT_TRACE_TAG event=exit reason=list_failed elapsed=$elapsed saw_working=$_WAIT_SAW_WORKING"
+            echo "worker-cli: worker_list failed for project $project" >&2
+            exit 1
+        fi
         if [ -z "$names" ]; then
             stable_count=0
             empty_count=$((empty_count + 1))
@@ -106,8 +114,9 @@ _wait_parse_args() {
 
 _wait_list_names() {
     local project="$1"
-    bash -c "source \"$SPAWN\" && worker_list \"\$1\"" _ "$project" 2>/dev/null \
-        | awk '{print $1}' || true
+    local listing
+    listing=$(bash -c "source \"$SPAWN\" && worker_list \"\$1\"" _ "$project") || return 1
+    echo "$listing" | awk '{print $1}'
 }
 
 _wait_poll_once() {
