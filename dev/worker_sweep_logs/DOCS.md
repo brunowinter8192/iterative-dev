@@ -14,7 +14,7 @@ Five cases run as parallel strands, each with its own log directory and faked fi
 
 ## Modules
 
-### test_sweep_logs.sh (148 LOC)
+### test_sweep_logs.sh (159 LOC)
 
 **Purpose:** Exercises the real sweep-logs command and the real logger start against private log directories with backdated files.
 **Reads:** Nothing persistent.

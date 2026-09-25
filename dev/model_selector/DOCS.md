@@ -14,7 +14,7 @@ Each script drives the real resolver (shell and Python side respectively) agains
 
 ## Modules
 
-### verify_worker_model_precedence.sh (208 LOC)
+### verify_worker_model_precedence.sh (226 LOC)
 
 **Purpose:** Verifies the shell resolver, its call-site pattern, static wiring, and real worker-cli spawns against a mock claude, including the abort on a malformed config.
 **Reads:** Only temporary config files; the real model-selection config is never touched.

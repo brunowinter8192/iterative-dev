@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+# INFRASTRUCTURE
+
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -8,6 +11,14 @@ export CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT"
 source "$SELF_DIR/../strand_runner.sh"
 
 STRANDS=(merge_then_rerun conflict)
+
+# ORCHESTRATOR
+
+test_merge_verify_workflow() {
+    strand_main "$@"
+}
+
+# FUNCTIONS
 
 init_project() {
     TMPPROJ="$STRAND_DIR/mergeproj"
@@ -20,7 +31,11 @@ init_project() {
 
 strand_merge_then_rerun() {
     init_project
+    _case_merge_with_commit
+    _case_merge_again
+}
 
+_case_merge_with_commit() {
     echo "=== Case 1: merge a branch that carries a commit ==="
 
     git -C "$TMPPROJ" checkout -q -b feat1
@@ -57,7 +72,9 @@ strand_merge_then_rerun() {
     else
         check "merge commit landed on main" "not found"
     fi
+}
 
+_case_merge_again() {
     echo ""
     echo "=== Case 2: merge again — branch already fully merged (Already up to date) ==="
 
@@ -123,4 +140,4 @@ strand_conflict() {
     fi
 }
 
-strand_main "$@"
+test_merge_verify_workflow "$@"

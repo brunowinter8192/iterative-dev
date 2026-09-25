@@ -14,7 +14,7 @@ No input: each boundary case runs in its own process against temporary fixtures,
 
 ## Modules
 
-### test_poread_cli.py (122 LOC)
+### test_poread_cli.py (121 LOC)
 
 **Purpose:** Regression guard for the five boundary cases, asserted against a pinned literal copy of the marker contract rather than the module under test.
 **Reads:** Nothing external; builds its own temporary files and directories.

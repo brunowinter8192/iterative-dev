@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+# INFRASTRUCTURE
+
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -9,6 +12,14 @@ export CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT"
 source "$SELF_DIR/../strand_runner.sh"
 
 STRANDS=(dry_run real_run trace_exempt default_72h logger_trigger)
+
+# ORCHESTRATOR
+
+test_sweep_logs_workflow() {
+    strand_main "$@"
+}
+
+# FUNCTIONS
 
 backdate() {
     local file="$1" hours="$2"
@@ -145,4 +156,4 @@ strand_logger_trigger() {
     fi
 }
 
-strand_main "$@"
+test_sweep_logs_workflow "$@"

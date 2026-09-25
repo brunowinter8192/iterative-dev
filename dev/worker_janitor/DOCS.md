@@ -14,7 +14,7 @@ Four cases run as parallel strands: dry run, real kill, fresh session spared, or
 
 ## Modules
 
-### test_janitor.sh (127 LOC)
+### test_janitor.sh (138 LOC)
 
 **Purpose:** Exercises the real janitor against real tmux sessions on isolated servers, one strand per case.
 **Reads:** Nothing persistent.

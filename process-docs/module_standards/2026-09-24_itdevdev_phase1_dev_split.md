@@ -919,3 +919,30 @@ Gotcha: sourcing tmux_spawn.sh turns on errexit in the sourcing shell, so a stra
 a failing command must use `x=$(cmd) || rc=$?`; a bare `x=$(cmd); rc=$?` kills the strand silently
 (observed: the strand exited rc=1 with no FAIL line). A new strand, e2e_malformed, covers the
 real-entry-point abort.
+
+# Phase 6 (dev/), 2026-09-25, base integration dc795b3
+
+- Functions of 50 LOC or more: the three flagged strands were split into case helpers
+  (resolver: config cases and call-site cases; merge: merge-with-commit and merge-again;
+  xproject: repo setup, worktree creation, kill cleanup). The strands keep the case order; every
+  suite kept its assertion count.
+- Section markers: every dev shell script now has INFRASTRUCTURE / ORCHESTRATOR / FUNCTIONS
+  (empty sections omitted). Executable scripts got one orchestrator named `<script>_workflow`
+  whose body only calls other functions (for strand suites: `strand_main "$@"`); the call of the
+  orchestrator sits after the FUNCTIONS section as the last line. The three sourced libraries of
+  the wait suite have only a FUNCTIONS marker. Three scripts had top-level logic and were
+  restructured: log_permission_request.sh, render_runner_flags.sh (mocks are defined inside one
+  install function because sourcing tmux_spawn.sh would otherwise overwrite them; output diffed
+  identical before/after) and probe_bracketed_paste.sh (multi-line python -c blocks must stay
+  unindented inside their shell function, an indented block is a Python IndentationError).
+  _verify_user_message.py got markers and an orchestrator; its output and exit code were compared
+  on two fixtures against the old script (identical).
+- test_poread_cli.py: ORCHESTRATOR moved before FUNCTIONS.
+- Report name: dev/desktop_targeting/md/space_move_probe_2026-05-29.md was written by the probe
+  that lived at dev/space_move_probe/probe.py (commit "probe(space-move)", renamed later to
+  dev/desktop_targeting/probe.py and split into modules). It is renamed to probe_2026-05-29.md so
+  the name starts with the generating script. Two older process-docs entries (areas
+  desktop_targeting and module_standards) still quote the old file name; per the rules they are
+  not edited.
+- Side effect to know: running log_permission_request.sh by hand appends a line to the real
+  /tmp/permission_request_log.jsonl.

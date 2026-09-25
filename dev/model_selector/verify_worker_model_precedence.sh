@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+# INFRASTRUCTURE
+
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -10,6 +13,14 @@ export CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT"
 source "$SCRIPT_DIR/../strand_runner.sh"
 
 STRANDS=(resolver e2e_no_model e2e_explicit e2e_malformed structural)
+
+# ORCHESTRATOR
+
+verify_worker_model_precedence_workflow() {
+    strand_main "$@"
+}
+
+# FUNCTIONS
 
 _assert_eq() {
     local desc="$1" expected="$2" got="$3"
@@ -94,6 +105,11 @@ _write_e2e_config() {
 
 strand_resolver() {
     source "$SPAWN_SH"
+    _resolver_config_cases
+    _resolver_call_site_cases
+}
+
+_resolver_config_cases() {
     echo "=== _resolve_worker_model() directly — this IS the shared logic both spawn call sites use ==="
 
     MODEL_SELECTION_FILE="$STRAND_DIR/does_not_exist.json"
@@ -129,7 +145,9 @@ strand_resolver() {
     MODEL_SELECTION_FILE="$EMPTY_KEY_CONFIG"
     _assert_eq "config present with empty 'worker' value -> hardcoded fallback" \
         "claude-sonnet-5" "$(_resolve_worker_model)"
+}
 
+_resolver_call_site_cases() {
     echo ""
     echo "=== spawn_claude_worker / spawn_claude_worker_from_file's real 'explicit wins, else _resolve_worker_model, else abort' pattern ==="
     echo "    (the identical two lines literally used at both call sites, not a reimplementation)"
@@ -205,4 +223,4 @@ strand_structural() {
     fi
 }
 
-strand_main "$@"
+verify_worker_model_precedence_workflow "$@"

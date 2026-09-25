@@ -1,3 +1,5 @@
+# FUNCTIONS
+
 strand_init() {
     HOOKS_FILE="$HOME/Library/Application Support/com.brunowinter.monitor-cc-menubar/hooks.json"
     mkdir -p "$(dirname "$HOOKS_FILE")"

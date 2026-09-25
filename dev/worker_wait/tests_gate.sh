@@ -1,3 +1,5 @@
+# FUNCTIONS
+
 test1_idle_from_start() {
     PROJ1="/tmp/${TEST_TAG}-1"
     SID1="${TEST_TAG}-sess-1"

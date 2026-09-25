@@ -24,7 +24,7 @@ Each suite drives src/spawn or bin/worker-cli against private throwaway tmux ser
 
 ---
 
-### test_direct_command.sh (28 LOC)
+### test_direct_command.sh (39 LOC)
 
 **Purpose:** Verifies a tmux session started with a direct command inherits environment variables and PATH.
 **Reads:** The environment of the run.
@@ -34,7 +34,7 @@ Each suite drives src/spawn or bin/worker-cli against private throwaway tmux ser
 
 ---
 
-### test_spawn_flow.sh (158 LOC)
+### test_spawn_flow.sh (169 LOC)
 
 **Purpose:** Tests the spawn flow without real Claude Code: viewer launch, proxy setup with a stub proxy binary, and a full spawn with a mock.
 **Reads:** `src/spawn` shell modules (sourced).
@@ -44,7 +44,7 @@ Each suite drives src/spawn or bin/worker-cli against private throwaway tmux ser
 
 ---
 
-### test_xproject_worktrees.sh (159 LOC)
+### test_xproject_worktrees.sh (180 LOC)
 
 **Purpose:** Smoke test for cross-project worktree tracking in worker-cli: create, kill cleanup, sidecar skipping in listings, orphan removal.
 **Reads:** Nothing persistent.
@@ -54,7 +54,7 @@ Each suite drives src/spawn or bin/worker-cli against private throwaway tmux ser
 
 ---
 
-### render_runner_flags.sh (50 LOC)
+### render_runner_flags.sh (93 LOC)
 
 **Purpose:** Renders the runner-script flags produced by spawn, file-based spawn and revive with mocked tmux, and asserts the permission mode.
 **Reads:** `src/spawn` shell modules (sourced).

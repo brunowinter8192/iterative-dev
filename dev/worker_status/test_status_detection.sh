@@ -1,10 +1,21 @@
 #!/usr/bin/env bash
+
+# INFRASTRUCTURE
+
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SELF_DIR/../strand_runner.sh"
 
 STRANDS=(h2)
+
+# ORCHESTRATOR
+
+test_status_detection_workflow() {
+    strand_main "$@"
+}
+
+# FUNCTIONS
 
 strand_h2() {
     local session="test-spawn-h2"
@@ -28,4 +39,4 @@ strand_h2() {
     [ "$dead_after" = "1" ] && pass "pane_dead=1 after exit" || fail "pane_dead=$dead_after (expected 1)"
 }
 
-strand_main "$@"
+test_status_detection_workflow "$@"

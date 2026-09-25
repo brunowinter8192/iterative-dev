@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+# INFRASTRUCTURE
+
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -13,6 +16,14 @@ source "$SELF_DIR/tests_gate.sh"
 source "$SELF_DIR/tests_transitions.sh"
 
 STRANDS=(t1 t1b t2 t2b t3 t3b t4 t5 t6 t7 t8 t8b t9 t10 t11)
+
+# ORCHESTRATOR
+
+test_worker_wait_workflow() {
+    strand_main "$@"
+}
+
+# FUNCTIONS
 
 strand_t1() { test1_idle_from_start; test1c_trace_observability; }
 strand_t1b() { test1b_tooling_child_incident; }
@@ -30,4 +41,4 @@ strand_t9() { test9_mixed_dead_and_working; }
 strand_t10() { test10_dead_with_open_bg_handle; }
 strand_t11() { test11_second_transition_exits; }
 
-strand_main "$@"
+test_worker_wait_workflow "$@"
