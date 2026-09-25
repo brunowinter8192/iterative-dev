@@ -12,7 +12,7 @@ WORKER_CLI="$PLUGIN_ROOT/bin/worker-cli"
 export CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT"
 source "$SCRIPT_DIR/../strand_runner.sh"
 
-STRANDS=(resolver e2e_no_model e2e_explicit e2e_malformed structural)
+STRANDS=(explicit_model missing_model e2e_no_model e2e_explicit e2e_malformed structural)
 
 # ORCHESTRATOR
 
@@ -103,73 +103,58 @@ _write_e2e_config() {
     echo '{"main": "claude-opus-5", "worker": "claude-e2e-verify-9999"}' > "$E2E_CONFIG"
 }
 
-strand_resolver() {
+strand_explicit_model() {
     source "$SPAWN_SH"
-    _resolver_config_cases
-    _resolver_call_site_cases
+    open_tmux_viewer() { :; }
+    local name="mstestdirect$$" project="$STRAND_DIR/direct_project" prompt="$STRAND_DIR/direct_prompt.txt"
+    mkdir -p "$project"
+    echo "# direct test prompt" > "$prompt"
+    _write_mock_claude "$STRAND_DIR/mock_claude.sh"
+    export CLAUDE_BIN="$STRAND_DIR/mock_claude.sh"
+    rm -f /tmp/.worker_"${name}".* 2>/dev/null
+
+    local rc=0
+    spawn_claude_worker_from_file "workers" "$name" "$project" "claude-direct-explicit" "$prompt" \
+        > "$STRAND_DIR/direct_output.log" 2>&1 || rc=$?
+    _assert_eq "spawn_claude_worker_from_file with an explicit model -> returns 0" "0" "$rc"
+    _assert_spawn_models "$name" "claude-direct-explicit" "claude-direct-explicit" "worker-$(basename "$project")-$name"
+    rm -f /tmp/.worker_"${name}".* "/tmp/worker-${name}.done" 2>/dev/null
 }
 
-_resolver_config_cases() {
-    echo "=== _resolve_worker_model() directly — this IS the shared logic both spawn call sites use ==="
+strand_missing_model() {
+    source "$SPAWN_SH"
+    local project="$STRAND_DIR/missing_project" prompt="$STRAND_DIR/missing_prompt.txt"
+    mkdir -p "$project"
+    echo "# missing model prompt" > "$prompt"
+    _write_mock_claude "$STRAND_DIR/mock_claude.sh"
+    export CLAUDE_BIN="$STRAND_DIR/mock_claude.sh"
+    local name="mstestmissing$$"
+    rm -f /tmp/.worker_"${name}".* 2>/dev/null
 
-    MODEL_SELECTION_FILE="$STRAND_DIR/does_not_exist.json"
-    _assert_eq "missing config file -> hardcoded fallback" \
-        "claude-sonnet-5" "$(_resolve_worker_model)"
+    _assert_missing_model "spawn_claude_worker" "empty model" \
+        spawn_claude_worker "workers" "$name" "$project" "" "task"
+    _assert_missing_model "spawn_claude_worker" "absent model" \
+        spawn_claude_worker "workers" "$name" "$project"
+    _assert_missing_model "spawn_claude_worker_from_file" "empty model" \
+        spawn_claude_worker_from_file "workers" "$name" "$project" "" "$prompt"
+    _assert_missing_model "spawn_claude_worker_from_file" "absent model" \
+        spawn_claude_worker_from_file "workers" "$name" "$project"
 
-    VALID_CONFIG="$STRAND_DIR/valid.json"
-    echo '{"main": "claude-opus-5", "worker": "claude-fable-5"}' > "$VALID_CONFIG"
-    MODEL_SELECTION_FILE="$VALID_CONFIG"
-    _assert_eq "valid config -> config's worker model" \
-        "claude-fable-5" "$(_resolve_worker_model)"
-
-    MALFORMED_CONFIG="$STRAND_DIR/malformed.json"
-    echo '{not valid json' > "$MALFORMED_CONFIG"
-    MODEL_SELECTION_FILE="$MALFORMED_CONFIG"
-    local malformed_out malformed_rc
-    malformed_rc=0
-    malformed_out=$(_resolve_worker_model 2>"$STRAND_DIR/malformed.err") || malformed_rc=$?
-    _assert_eq "malformed JSON config -> resolver aborts with a non-zero exit" \
-        "nonzero" "$([ "$malformed_rc" -ne 0 ] && echo nonzero || echo "rc=$malformed_rc")"
-    _assert_eq "malformed JSON config -> no model printed" "" "$malformed_out"
-    _assert_eq "malformed JSON config -> jq's parse error reaches stderr" \
-        "parse error" "$(grep -o 'parse error' "$STRAND_DIR/malformed.err" | head -1)"
-
-    MISSING_KEY_CONFIG="$STRAND_DIR/missing_key.json"
-    echo '{"main": "claude-opus-5"}' > "$MISSING_KEY_CONFIG"
-    MODEL_SELECTION_FILE="$MISSING_KEY_CONFIG"
-    _assert_eq "config present but missing 'worker' key -> hardcoded fallback" \
-        "claude-sonnet-5" "$(_resolve_worker_model)"
-
-    EMPTY_KEY_CONFIG="$STRAND_DIR/empty_key.json"
-    echo '{"main": "claude-opus-5", "worker": ""}' > "$EMPTY_KEY_CONFIG"
-    MODEL_SELECTION_FILE="$EMPTY_KEY_CONFIG"
-    _assert_eq "config present with empty 'worker' value -> hardcoded fallback" \
-        "claude-sonnet-5" "$(_resolve_worker_model)"
+    _assert_eq "missing model -> no worker session was created" \
+        "0" "$(tmux list-sessions 2>/dev/null | grep -c "$name")"
+    _assert_eq "missing model -> no runner script was written" \
+        "0" "$(ls /tmp/.worker_"${name}".* 2>/dev/null | wc -l | tr -d ' ')"
 }
 
-_resolver_call_site_cases() {
-    echo ""
-    echo "=== spawn_claude_worker / spawn_claude_worker_from_file's real 'explicit wins, else _resolve_worker_model, else abort' pattern ==="
-    echo "    (the identical two lines literally used at both call sites, not a reimplementation)"
-
-    MODEL_SELECTION_FILE="$VALID_CONFIG"
-    _site_expand() { local model="${4:-}"; [ -n "$model" ] || model=$(_resolve_worker_model) || return 1; echo "$model"; }
-
-    _assert_eq "explicit 4th arg present -> explicit wins, config never even consulted" \
-        "claude-explicit-arg" "$(_site_expand a b c claude-explicit-arg e)"
-
-    _assert_eq "4th arg empty string -> falls to config (via _resolve_worker_model)" \
-        "claude-fable-5" "$(_site_expand a b c "" e)"
-
-    _assert_eq "4th arg entirely absent -> falls to config (via _resolve_worker_model)" \
-        "claude-fable-5" "$(_site_expand a b c)"
-
-    MODEL_SELECTION_FILE="$MALFORMED_CONFIG"
-    local site_out site_rc
-    site_rc=0
-    site_out=$(_site_expand a b c 2>/dev/null) || site_rc=$?
-    _assert_eq "malformed config at the call site -> the site aborts (non-zero exit, no model)" \
-        "nonzero:" "$([ "$site_rc" -ne 0 ] && echo nonzero || echo "rc=$site_rc"):$site_out"
+_assert_missing_model() {
+    local fn="$1" desc="$2"
+    shift 2
+    local rc=0 err
+    err=$("$@" 2>&1 >/dev/null) || rc=$?
+    _assert_eq "$fn with $desc -> non-zero return" \
+        "nonzero" "$([ "$rc" -ne 0 ] && echo nonzero || echo "rc=$rc")"
+    _assert_eq "$fn with $desc -> clear stderr message" \
+        "ERROR: $fn: model argument is required" "$err"
 }
 
 strand_e2e_no_model() {
@@ -210,15 +195,15 @@ strand_e2e_explicit() {
 
 strand_structural() {
     echo ""
-    echo "=== structural check: _resolve_worker_model defined once, called by the two spawn entry points, not by revive ==="
-    DEFINITION_HITS=$(grep -c '^_resolve_worker_model()' "$SPAWN_SH")
-    SPAWN_CALL_HITS=$(grep -c 'model=\$(_resolve_worker_model)' "$SPAWN_SH")
-    REVIVE_CALL_HITS=$(grep -c '_resolve_worker_model' "$REVIVE_SH")
+    echo "=== structural check: no shell resolver, one require helper called by the two spawn entry points, revive reads the stored model ==="
+    RESOLVER_HITS=$(cat "$PLUGIN_ROOT"/src/spawn/*.sh | grep -c '_resolve_worker_model')
+    DEFINITION_HITS=$(grep -c '^_require_worker_model()' "$SPAWN_SH")
+    SPAWN_CALL_HITS=$(grep -c '_require_worker_model "\$model"' "$SPAWN_SH")
     REVIVE_STORED_HITS=$(grep -c '_tmux_env_value "\$session" WORKER_MODEL' "$REVIVE_SH")
-    if [ "$DEFINITION_HITS" -eq 1 ] && [ "$SPAWN_CALL_HITS" -eq 2 ] && [ "$REVIVE_CALL_HITS" -eq 0 ] && [ "$REVIVE_STORED_HITS" -eq 1 ]; then
-        echo "  PASS: definition=$DEFINITION_HITS, tmux_spawn.sh call sites=$SPAWN_CALL_HITS, worker_revive.sh resolver calls=$REVIVE_CALL_HITS (reads the stored WORKER_MODEL instead)"
+    if [ "$RESOLVER_HITS" -eq 0 ] && [ "$DEFINITION_HITS" -eq 1 ] && [ "$SPAWN_CALL_HITS" -eq 2 ] && [ "$REVIVE_STORED_HITS" -eq 1 ]; then
+        echo "  PASS: shell resolver references=$RESOLVER_HITS, require definition=$DEFINITION_HITS, call sites=$SPAWN_CALL_HITS, stored-model read in worker_revive.sh=$REVIVE_STORED_HITS"
     else
-        echo "  FAIL: definition=$DEFINITION_HITS (want 1), tmux_spawn.sh call sites=$SPAWN_CALL_HITS (want 2), worker_revive.sh resolver calls=$REVIVE_CALL_HITS (want 0), stored-model read=$REVIVE_STORED_HITS (want 1)"
+        echo "  FAIL: shell resolver references=$RESOLVER_HITS (want 0), require definition=$DEFINITION_HITS (want 1), call sites=$SPAWN_CALL_HITS (want 2), stored-model read=$REVIVE_STORED_HITS (want 1)"
         exit 1
     fi
 }
