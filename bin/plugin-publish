@@ -227,5 +227,5 @@ echo "→ installed_plugins.json updated (backup: $BACKUP)"
 echo "  version=$SOURCE_VERSION sha=${SHA:0:8} ts=$TIMESTAMP"
 
 echo
-echo "✓ Plugin $PLUGIN_NAME v$SOURCE_VERSION live."
+echo "OK: Plugin $PLUGIN_NAME v$SOURCE_VERSION live."
 echo "  Restart Claude Code session to load the new code."

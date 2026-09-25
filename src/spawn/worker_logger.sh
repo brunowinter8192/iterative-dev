@@ -24,8 +24,7 @@ _self_cleanup() {
 trap _self_cleanup TERM INT HUP
 
 _find_jsonl() {
-    local proj_pattern="*${NAME}*"
-    local p
+    local d
     for d in "$HOME/.claude/projects"/*; do
         [ -d "$d" ] || continue
         case "$d" in

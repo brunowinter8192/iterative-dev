@@ -44,7 +44,7 @@ def _scope_to_last_prompt(lines):
             last_idx = i
             break
     if last_idx is None:
-        return lines, '⚠ prompt marker not in scrollback — showing full buffer'
+        return lines, 'WARNING: prompt marker not in scrollback, showing full buffer'
     return lines[last_idx + 1:], ''
 
 

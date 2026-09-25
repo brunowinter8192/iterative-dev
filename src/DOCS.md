@@ -18,7 +18,7 @@ None. `src/` holds only subdirectories:
 
 - `spawn/` — worker spawning, status detection, pane I/O, proxy setup, revive (shell libs plus `spawn.py`); see `spawn/DOCS.md`.
 - `worker_cli/` — `worker-cli` subcommand implementations; see `worker_cli/DOCS.md`.
-- `git/` — pre-commit check, commit, staging and post-commit verification; see `git/DOCS.md`.
+- `git/` — pre-commit check and commit; see `git/DOCS.md`.
 - `pipeline/` — session JSONL conversion, agent listing, tool-call extraction; see `pipeline/DOCS.md`.
 - `poread_cli/` — poread CLI, marker-minting half; see `poread_cli/DOCS.md`.
 - `docs_drift_check/` — DOCS.md rule checker; see `docs_drift_check/DOCS.md`.

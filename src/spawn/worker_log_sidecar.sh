@@ -15,7 +15,6 @@ sweep_stale_logs() {
         local base
         base="$(basename "$f")"
         [ "$base" = "wait_trace.log" ] && continue
-        [ "$base" = ".gitkeep" ] && continue
         local mtime age
         mtime=$(stat -f %m "$f")
         age=$((now_ts - mtime))

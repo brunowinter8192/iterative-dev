@@ -43,7 +43,7 @@ fi
 SOURCE_VERSION=$(python3 -c "import json; print(json.load(open('$PLUGIN_JSON'))['version'])")
 
 if [ "$SOURCE_VERSION" != "$INSTALLED_VERSION" ]; then
-    echo "⚠️  VERSION DRIFT DETECTED"
+    echo "WARNING: VERSION DRIFT DETECTED"
     echo "   Source plugin.json says: $SOURCE_VERSION"
     echo "   Installed (cache):       $INSTALLED_VERSION"
     echo "   → Syncing to INSTALLED version $INSTALLED_VERSION"
