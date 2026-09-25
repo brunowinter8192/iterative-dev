@@ -16,3 +16,9 @@ After: title, `Project root:`, `## Path-Drift (N findings)`, `## LOC-Drift (N fi
 The suite asserted on the summary lines (`Total:          0`, `Path-Drift:     0 findings`, `Rule-Violation: 0 findings`). Replaced by the section headings: clean cases assert all three `(0 findings)` headings; finding cases assert the exact heading count (e.g. `## LOC-Drift (1 findings)`, `## Rule-Violation (2 findings)`). Every case lists `## Summary` in `absent`. 16/16 passed with `CLAUDE_PLUGIN_ROOT` at the worktree (the wrapper otherwise runs the cached copy).
 
 Pitfall hit while editing: a blanket string replace of the old `Path-Drift:     0 findings` line produced a duplicate heading entry in one case; harmless but remove it.
+
+## Incident: padded LOC in headings went unchecked (2026-09-25)
+
+Observed: after the change, the two DOCS.md headings were written as `### report.py (      27 LOC)` and `### test_docs_drift_check.py (     225 LOC)`. Cause: the LOC came from `wc -l < file` captured in a shell variable and substituted by `sed`; macOS `wc -l` pads its number with spaces. `docs-drift-check` reported 0 findings anyway, because its heading pattern requires a digit directly after the opening parenthesis; a heading that does not match is silently skipped, not reported. Caught in review, not by the tool.
+
+Fix: headings rewritten to `(27 LOC)` and `(225 LOC)`; tool unchanged by decision. Rule for a successor: strip the padding when writing a LOC into a heading (`$(wc -l < f | tr -d ' ')`), and do not read "0 findings" as proof that every module heading was compared. The same pitfall was already recorded in the earlier docs_drift_check entry (macOS padding) and was repeated here.
