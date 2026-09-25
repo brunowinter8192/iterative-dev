@@ -11,46 +11,42 @@ CALL_RE = re.compile(r"\b([A-Za-z_]\w*)\(")
 
 # FUNCTIONS
 
-def check_rule_violations(
-    doc_files: list[Path],
-    root: Path,
-    functions: set[str],
-    constants: set[str],
-    owners: set[str],
+def check_function_references(
+    doc_files: list[Path], root: Path, functions: set[str], owners: set[str]
 ) -> list[str]:
     findings: list[str] = []
     for doc in doc_files:
         rel_doc = doc.relative_to(root).as_posix()
         for lineno, spans in iter_backtick_lines(doc):
-            hits = _collect_line_hits(spans, functions, constants, owners)
-            findings.extend(f"`{rel_doc}:{lineno}` {kind} `{symbol}`" for kind, symbol in hits)
+            hits = _unique(hit for span in spans for hit in _function_hits(span, functions, owners))
+            findings.extend(f"`{rel_doc}:{lineno}` function-level reference `{symbol}`" for symbol in hits)
     return findings
 
-def _collect_line_hits(
-    spans: list[str], functions: set[str], constants: set[str], owners: set[str]
-) -> list[tuple[str, str]]:
-    hits: list[tuple[str, str]] = []
-    for span in spans:
-        for hit in _find_span_hits(span, functions, constants, owners):
-            if hit not in hits:
-                hits.append(hit)
-    return hits
+def check_constant_references(doc_files: list[Path], root: Path, constants: set[str]) -> list[str]:
+    findings: list[str] = []
+    for doc in doc_files:
+        rel_doc = doc.relative_to(root).as_posix()
+        for lineno, spans in iter_backtick_lines(doc):
+            hits = _unique(hit for span in spans for hit in _constant_hits(span, constants))
+            findings.extend(f"`{rel_doc}:{lineno}` constant reference `{symbol}`" for symbol in hits)
+    return findings
 
-def _find_span_hits(
-    span: str, functions: set[str], constants: set[str], owners: set[str]
-) -> list[tuple[str, str]]:
+def _function_hits(span: str, functions: set[str], owners: set[str]) -> list[str]:
     module_refs = find_module_function_tokens(span, owners)
     covered = {ref.rstrip(".").rsplit(".", 1)[-1] for ref in module_refs}
-    hits = [("function-level reference", ref) for ref in module_refs]
+    hits = list(module_refs)
     hits.extend(
-        ("function-level reference", f"{name}()")
-        for name in CALL_RE.findall(span)
-        if name in functions and name not in covered
-    )
-    metavars = set(FLAG_METAVAR_RE.findall(span))
-    hits.extend(
-        ("constant reference", c)
-        for c in ALL_CAPS_RE.findall(span)
-        if c in constants and c not in metavars
+        f"{name}()" for name in CALL_RE.findall(span) if name in functions and name not in covered
     )
     return hits
+
+def _constant_hits(span: str, constants: set[str]) -> list[str]:
+    metavars = set(FLAG_METAVAR_RE.findall(span))
+    return [c for c in ALL_CAPS_RE.findall(span) if c in constants and c not in metavars]
+
+def _unique(items) -> list[str]:
+    result: list[str] = []
+    for item in items:
+        if item not in result:
+            result.append(item)
+    return result
