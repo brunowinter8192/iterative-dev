@@ -21,3 +21,24 @@ Orchestrator entry for the follow-up session that closed the open items of the 2
 
 - `src/spawn/*.sh` is loaded from the plugin cache. The model-argument change is live only after `plugin-publish`; the production check (a real spawn with and without explicit model) is due after the publish.
 - `list_agents` could not be verified against real data: no directory under `~/.claude/projects` contains `*/subagents/agent-*.jsonl` on 2026-09-25. The hermetic test in dev/session_pipeline is the only evidence.
+
+## Afternoon of 2026-09-25: rules, docs-drift-check, worker-cli, gcommit
+
+Owner decisions taken in the chat (the code parts are documented by the workers in areas `docs_drift_check` and `worker_cli`):
+
+- **Principles with sources in skill and rules.** Every technical term in the refactor skill and in `~/.claude/shared-rules` carries author and year, e.g. "Single Responsibility Principle (Robert C. Martin, 2003)". Only principles that fit the rule exactly were added; loose fits were removed again (Stage-Gate, Retrospective, Tim Pope's 50/72, Newspaper Metaphor). Terms without a single source (Package by Feature, Documentation Drift, Error Swallowing, four-eyes principle, transitive closure) were replaced by plain German sentences. No sentence like "there is no literature term for this" goes into a skill.
+- **Output directories** sit on the level of the script that produces them (dev-convention rule); the refactor skill no longer says "output directories stay in the root".
+- **Environment variables and CLI flags are allowed in DOCS.md** (documentation rule, interface vs implementation, David Parnas, 1972). Describing such a name in prose instead was rejected by the owner: it bloats the docs.
+- **docs-drift-check maps 1:1 to the DOCS.md rules.** The generic path check was removed (no rule behind it). First run of the new version: 2 findings in iterative-dev, 21 in monitor-cc; it also caught `bin/DOCS.md` claiming 68 LOC for `worker-cli` (69), a heading the old version never checked because it has no file extension.
+- **DOCS.md pages without own modules are deleted**, not exempted (owner, option 1). Affected: iterative-dev `src/DOCS.md`, monitor-cc `dev/`, `dev/cc_internals`, `dev/pipeline`, `dev/rag_helpfulness`, `dev/tool_injection/ToolsSystemPrompts`.
+- **worker-cli without project_path and without model** (Poka-Yoke, Shigeo Shingo, 1986). Branch `wcli` (3112afc) is finished and reviewed, not merged.
+- **gcommit replaced** in the rules by `git -C <repo> add -A && git -C <repo> commit -m "<msg>"`. Test on 2026-09-25 in a scratch repo: new folder with umlaut, file with umlaut and ß, file with a space, rename plus edit, all committed by `git add -A`, nothing left over. In September there were about 2100 gcommit calls vs 112 raw `git commit`; gcommit had three incidents that month.
+- **Verification before session end is allowed**: publish first, verify, roll back if needed (testing rule).
+
+Deferred until a second Claude Code session active on the same machine (merging `mc*`, `idwin`, `mcsrcid`) is finished, because `~/.local/bin/worker-cli` is live from the integration checkout and that session still uses the old forms:
+1. Merge `wcli`, then plugin-publish (this order; the reverse breaks every spawn), then update `main/tool-use.md` and `main/workers.md` (project_path and model forms) and verify with a real spawn and a cross-project merge.
+2. monitor-cc hooks: `rewrite_worker_wait.py` must stop rewriting `cd X; worker-cli wait` into `worker-cli wait X`; `block_worker_spawn_placement.py` keeps only the `--no-worktree` block.
+3. Delete the DOCS.md pages without own modules listed above; fix the remaining monitor-cc findings of the new docs-drift-check.
+4. Remove `bin/gcommit` and `src/git/commit.py` from iterative-dev (`git-check` shares `src/git/check.py` and stays).
+
+Observed, not yet handled: `dev/worker_wait` and `dev/worker_spawn/test_spawn_flow.sh` fail partly when all suites run in parallel and pass alone (suspected fixed sleeps, unconfirmed).
