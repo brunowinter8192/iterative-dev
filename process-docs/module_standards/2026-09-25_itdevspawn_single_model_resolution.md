@@ -32,3 +32,10 @@ Strands: `explicit_model`, `missing_model`, `e2e_no_model`, `e2e_explicit`, `e2e
 ## Stale statements in older process-docs (not edited, per rule)
 
 The Phase 1/Phase 6 module_standards files describe two model resolvers and the plugin-sync.sh dead-code flag; both are superseded by this entry. The dev split file's model_selector salvage section describes the old shell resolver checks.
+
+## Recap (2026-09-25)
+
+- Files touched by this session: `src/spawn/tmux_spawn.sh`, `src/spawn/DOCS.md`, `dev/model_selector/verify_worker_model_precedence.sh`, `dev/model_selector/DOCS.md`, `dev/model_selector/md/verify_spawn_model_resolution.md` (regenerated report, timestamp only), deleted `plugin-sync.sh` and root `DOCS.md`.
+- `git diff integration --name-only` additionally lists `skills/iterative-dev-refactor/SKILL.md`. That is not from this session: `integration` advanced past the branch base (f1650b3) with skill commits. Merging resolves it.
+- Traps for a successor: the shell suite must run with `CLAUDE_PLUGIN_ROOT` at the checkout; sourcing `tmux_spawn.sh` enables errexit (capture rc with `|| rc=$?`); the live shell change only takes effect after `plugin-publish`, since `src/spawn/*.sh` loads from the plugin cache.
+- Open: real-worker verification (with and without explicit model) after merge and publish is the orchestrator's step.
