@@ -6,7 +6,7 @@ Scripts for auditing and evaluating the session pipeline in src/pipeline. All co
 
 ## Public Interface
 
-No `__init__.py`; run manually: `python3 dev/session_pipeline/audit_error_patterns.py [path/to/specific.jsonl]`.
+No `__init__.py`; run manually: `python3 dev/session_pipeline/audit_error_patterns.py [path/to/specific.jsonl]` and `python3 dev/session_pipeline/test_list_agents_encoding.py`.
 
 ## Flow
 
@@ -21,6 +21,14 @@ Session JSONL paths in (argument, or all of the Claude Code projects directory b
 **Writes:** A timestamped report under md/; stdout summary.
 **Called by:** Run manually.
 **Calls out:** Nothing (standard library only).
+
+### test_list_agents_encoding.py (62 LOC)
+
+**Purpose:** Hermetic test that list_agents finds the CC project directory for a project path containing `.` and `_`.
+**Reads:** Nothing outside a temporary fake HOME under /tmp.
+**Writes:** Temporary files under /tmp; stdout PASS.
+**Called by:** Run manually.
+**Calls out:** `src.pipeline.list_agents` via subprocess (`python3 -m`) with HOME overridden.
 
 ## State
 
