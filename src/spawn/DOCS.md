@@ -18,13 +18,13 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 
 ## Modules
 
-### tmux_spawn.sh (179 LOC)
+### tmux_spawn.sh (169 LOC)
 
-**Purpose:** Entry point sourced by callers — sources the sibling libs, owns session naming, model resolution and `spawn_claude_worker`.
-**Reads:** `~/.claude/shared-rules/model_selection.json`.
+**Purpose:** Entry point sourced by callers — sources the sibling libs, owns session naming and `spawn_claude_worker`, which require a concrete model argument.
+**Reads:** nothing beyond its arguments and tmux state.
 **Writes:** tmux sessions, runner scripts, `/tmp/worker-<name>.done` signal file.
 **Called by:** `~/.local/bin/worker-cli` (via `source`); `spawn.py` (via subprocess for `spawn_claude_worker_from_file`); `dev/` suites.
-**Calls out:** tmux, `~/.local/bin/claude-280`, jq.
+**Calls out:** tmux, `~/.local/bin/claude-280`.
 
 ---
 
@@ -118,4 +118,4 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 
 ## State
 
-Worker model resolution has two layers that must not both run: `spawn.py` resolves once in Python for the `worker-cli spawn` path and hands `tmux_spawn.sh` an already-concrete model string; `tmux_spawn.sh` keeps its own model resolution as the fallback for direct callers of its spawn functions and for the revive path. See `process-docs/worker_spawn/` for the full model-resolution and status-detection history.
+Worker model resolution exists only in `spawn.py`. `tmux_spawn.sh` spawn functions take a mandatory concrete model and abort without one; `worker_revive` reads the stored `WORKER_MODEL` from the tmux session. See `process-docs/worker_spawn/` for the full model-resolution and status-detection history.

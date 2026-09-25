@@ -15,24 +15,6 @@ source "$_SPAWN_LIB_DIR/worker_revive.sh"
 
 # FUNCTIONS
 
-_resolve_worker_model() {
-    local file="${MODEL_SELECTION_FILE:-$HOME/.claude/shared-rules/model_selection.json}"
-    local default_model="claude-sonnet-5"
-    if [ ! -f "$file" ]; then
-        echo "spawn: $file not found, using default worker model $default_model" >&2
-        echo "$default_model"
-        return 0
-    fi
-    local worker
-    worker=$(jq -r '.worker // empty' "$file") || return 1
-    if [ -z "$worker" ]; then
-        echo "spawn: no worker model in $file, using default worker model $default_model" >&2
-        echo "$default_model"
-        return 0
-    fi
-    echo "$worker"
-}
-
 _tmux_env_value() {
     local session="$1" var="$2"
     local line
@@ -47,12 +29,20 @@ _tmux_env_value() {
     echo "${line#*=}"
 }
 
+_require_worker_model() {
+    local model="$1" caller="$2"
+    if [ -z "$model" ]; then
+        echo "ERROR: $caller: model argument is required" >&2
+        return 1
+    fi
+}
+
 spawn_claude_worker() {
     local _session_ignored="${1:-}"
     local name="$2"
     local project_path="$3"
     local model="${4:-}"
-    [ -n "$model" ] || model=$(_resolve_worker_model) || return 1
+    _require_worker_model "$model" "spawn_claude_worker" || return 1
     local task_prompt="$5"
     local extra_flags="${6:-$_WORKER_PERMISSION_FLAGS}"
 
@@ -163,7 +153,7 @@ spawn_claude_worker_from_file() {
     local name="$2"
     local project_path="$3"
     local model="${4:-}"
-    [ -n "$model" ] || model=$(_resolve_worker_model) || return 1
+    _require_worker_model "$model" "spawn_claude_worker_from_file" || return 1
     local prompt_file="$5"
     local extra_flags="${6:-$_WORKER_PERMISSION_FLAGS}"
 
