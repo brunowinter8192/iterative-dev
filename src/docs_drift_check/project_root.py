@@ -13,3 +13,11 @@ def resolve_root() -> Path:
         print(f"docs-drift-check: {ROOT_ENV_VAR} is not set; run via bin/docs-drift-check", file=sys.stderr)
         sys.exit(2)
     return Path(value).resolve()
+
+def reject_arguments(args: list[str]) -> None:
+    if args:
+        print(
+            f"docs-drift-check: takes no arguments, the project root is the working directory; got: {' '.join(args)}",
+            file=sys.stderr,
+        )
+        sys.exit(2)

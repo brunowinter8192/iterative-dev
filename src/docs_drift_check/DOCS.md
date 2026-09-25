@@ -2,21 +2,21 @@
 
 ## Role
 
-Standalone CLI (`docs-drift-check`), run from a project root, checking every DOCS.md against the DOCS.md rules: referenced paths exist, module-heading LOC equals `wc -l`, no function-level or constant references. Touch when the rules change; there is no whitelist by design.
+Standalone CLI (`docs-drift-check`), run from a project root, checking every DOCS.md against the DOCS.md rules of the shared documentation rules. Each report section is named after the rule it checks. Touch when the rules change; there is no whitelist by design.
 
 ## Public Interface
 
-`__init__.py` is empty. Entry path: `python3 -m src.docs_drift_check`, run from the plugin root, with the project root passed through an environment variable. `bin/docs-drift-check` does both and is symlinked to `~/.local/bin/docs-drift-check`. Exit 0 = clean, 1 = findings.
+`__init__.py` is empty. Entry path: `python3 -m src.docs_drift_check`, run from the plugin root, with the project root passed through an environment variable. `bin/docs-drift-check` does both and is symlinked to `~/.local/bin/docs-drift-check`. It takes no arguments and aborts with exit 2 on any. Exit 0 = clean, 1 = findings.
 
 ## Flow
 
-Project root (environment variable, abort if missing) → collect DOCS.md files and `.py`/`.sh` sources → build symbol index from sources → three checks (paths, LOC, rule violations) → markdown report on stdout, exit code.
+Project root (environment variable, abort if missing) → collect DOCS.md files, `.py`/`.sh` sources and the project path index → build symbol index from sources → one check per rule → markdown report on stdout, one section per rule, exit code.
 
 ## Modules
 
-### __main__.py (26 LOC)
+### __main__.py (47 LOC)
 
-**Purpose:** Orchestrator wiring collection, symbol index, the three checks and the report.
+**Purpose:** Orchestrator wiring collection, symbol index, the rule checks and the report; owns the rule names used as section titles.
 **Reads:** nothing directly.
 **Writes:** exit code.
 **Called by:** `bin/docs-drift-check` (via `-m src.docs_drift_check`).
@@ -24,39 +24,39 @@ Project root (environment variable, abort if missing) → collect DOCS.md files 
 
 ---
 
-### collect.py (30 LOC)
+### collect.py (45 LOC)
 
-**Purpose:** Walk the project and return DOCS.md files and source files, skipping excluded directories.
+**Purpose:** Walk the project and return DOCS.md files, source files and the path index, skipping excluded directories.
 **Reads:** project file tree.
 **Writes:** nothing.
-**Called by:** `__main__.py`.
+**Called by:** `__main__.py`, `check_directories.py`, `check_template.py`.
 **Calls out:** none.
 
 ---
 
-### symbols.py (50 LOC)
+### symbols.py (55 LOC)
 
-**Purpose:** Build the index of project-defined functions, constants and module owners; recognize module-dot-function references.
+**Purpose:** Build the index of project-defined functions, constants and module owners; environment variable names are not constants.
 **Reads:** source files.
 **Writes:** nothing.
-**Called by:** `__main__.py`, `check_rules.py`, `check_paths.py`.
+**Called by:** `__main__.py`, `check_rules.py`.
 **Calls out:** none.
 
 ---
 
-### check_paths.py (75 LOC)
+### markdown_scan.py (61 LOC)
 
-**Purpose:** Report backticked paths in DOCS.md files that do not exist.
-**Reads:** DOCS.md files, project file tree.
+**Purpose:** Read a DOCS.md outside fenced code blocks: lines, backtick spans, sections, module headings and labelled fields.
+**Reads:** one DOCS.md file.
 **Writes:** nothing.
-**Called by:** `__main__.py`.
+**Called by:** `check_modules.py`, `check_directories.py`, `check_template.py`, `check_called_by.py`, `check_issues.py`, `check_rules.py`.
 **Calls out:** none.
 
 ---
 
-### check_loc.py (38 LOC)
+### check_modules.py (34 LOC)
 
-**Purpose:** Report module headings whose claimed LOC differs from the actual line count, or whose module file is missing.
+**Purpose:** Report module headings that are malformed, name a missing file, or claim a LOC that differs from the actual line count.
 **Reads:** DOCS.md files, the module files they name.
 **Writes:** nothing.
 **Called by:** `__main__.py`.
@@ -64,7 +64,37 @@ Project root (environment variable, abort if missing) → collect DOCS.md files 
 
 ---
 
-### check_rules.py (56 LOC)
+### check_directories.py (31 LOC)
+
+**Purpose:** Report DOCS.md files without a module of their own directory and module directories without a DOCS.md.
+**Reads:** DOCS.md files, source files.
+**Writes:** nothing.
+**Called by:** `__main__.py`.
+**Calls out:** none.
+
+---
+
+### check_template.py (55 LOC)
+
+**Purpose:** Report titles that differ from the directory and Role or Purpose texts above the word limits.
+**Reads:** DOCS.md files.
+**Writes:** nothing.
+**Called by:** `__main__.py`.
+**Calls out:** none.
+
+---
+
+### check_called_by.py (51 LOC)
+
+**Purpose:** Report empty Called by fields and Called by entries that name no existing file or package.
+**Reads:** DOCS.md files, the project path index.
+**Writes:** nothing.
+**Called by:** `__main__.py`.
+**Calls out:** none.
+
+---
+
+### check_rules.py (52 LOC)
 
 **Purpose:** Report function-level and constant references to project-defined symbols in DOCS.md files.
 **Reads:** DOCS.md files, symbol index.
@@ -74,19 +104,19 @@ Project root (environment variable, abort if missing) → collect DOCS.md files 
 
 ---
 
-### markdown_scan.py (25 LOC)
+### check_issues.py (19 LOC)
 
-**Purpose:** Yield backtick spans per line of a DOCS.md file, outside fenced code blocks.
-**Reads:** one DOCS.md file.
+**Purpose:** Report DOCS.md lines that point at issues.
+**Reads:** DOCS.md files.
 **Writes:** nothing.
-**Called by:** `check_paths.py`, `check_rules.py`.
+**Called by:** `__main__.py`.
 **Calls out:** none.
 
 ---
 
-### report.py (27 LOC)
+### report.py (21 LOC)
 
-**Purpose:** Print the markdown report and compute the exit code.
+**Purpose:** Print the markdown report, one section per rule, and compute the exit code.
 **Reads:** findings passed in.
 **Writes:** stdout.
 **Called by:** `__main__.py`.
@@ -94,11 +124,11 @@ Project root (environment variable, abort if missing) → collect DOCS.md files 
 
 ---
 
-### project_root.py (15 LOC)
+### project_root.py (23 LOC)
 
-**Purpose:** Resolve the project root from the environment variable; abort with an error when it is missing.
-**Reads:** environment.
-**Writes:** stderr and exit code 2 on a missing variable.
+**Purpose:** Resolve the project root from the environment variable and reject command-line arguments; abort with exit 2 on either problem.
+**Reads:** environment, command-line arguments.
+**Writes:** stderr and exit code 2.
 **Called by:** `__main__.py`.
 **Calls out:** none.
 

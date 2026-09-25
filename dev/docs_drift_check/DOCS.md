@@ -2,7 +2,7 @@
 
 ## Role
 
-Regression suite for the docs-drift-check command. Runs the real wrapper against fixture projects built in temporary directories. Touch when changing the checks or the DOCS.md rules they encode.
+Regression suite for the docs-drift-check command, one fixture case per rule check. Runs the real wrapper against fixture projects built in temporary directories. Touch when changing the checks or the DOCS.md rules they encode.
 
 ## Public Interface
 
@@ -14,9 +14,9 @@ Fixture definitions become one temporary project per case. All cases run in para
 
 ## Modules
 
-### test_docs_drift_check.py (225 LOC)
+### test_docs_drift_check.py (285 LOC)
 
-**Purpose:** Fixture-based regression cases for path, LOC and rule checks, scope exclusions and working-directory independence.
+**Purpose:** Fixture-based regression cases, at least one per rule check, plus scope exclusions, the argument rejection and working-directory independence.
 **Reads:** Nothing external; builds its own temporary projects.
 **Writes:** stdout (pass/fail per case).
 **Called by:** Run manually as a regression guard.
