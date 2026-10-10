@@ -2,7 +2,7 @@
 
 ## Role
 
-Command-line entry points of the iterative-dev plugin: worker lifecycle, git commit helpers, plugin publishing, docs drift check, file display. Touch when adding or changing a user-facing command. Do not touch for command internals: the Python and shell implementations live in `src/`.
+Command-line entry points of the iterative-dev plugin: worker lifecycle, git commit helpers, plugin publishing, docs drift check, file display, patch review pages. Touch when adding or changing a user-facing command. Do not touch for command internals: the Python and shell implementations live in `src/`.
 
 ## Public Interface
 
@@ -51,6 +51,16 @@ Command line in → thin wrapper resolves the project path or plugin root → de
 **Writes:** git index (auto-stage), stdout report.
 **Called by:** agents and users on PATH.
 **Calls out:** python3, `src/git/check.py`.
+
+---
+
+### patchview (24 LOC)
+
+**Purpose:** Show a `diff -u` patch against a user-owned rule or skill file as a red/green HTML page of the whole target file and open it.
+**Reads:** the patch file and, through `src/patchview`, the live file it names (read-only).
+**Writes:** an HTML page under the temp dir (via `src/patchview`); opens it via `show`; stdout.
+**Called by:** users and agents on PATH once symlinked into `~/.local/bin`.
+**Calls out:** python3, `src/patchview`, `show`.
 
 ---
 
