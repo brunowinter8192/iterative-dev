@@ -33,3 +33,8 @@ ln -s <iterative-dev>/bin/patchview ~/.local/bin/patchview     # once; not done 
 diff -u ~/.claude/shared-rules/main/workers.md /tmp/<new>.md > <project>/dev/<area>/patch/workers.patch
 patchview <project>/dev/<area>/patch/workers.patch
 ```
+
+## Recap (2026-10-10)
+
+- Files of this task: `bin/patchview`, `src/patchview/__main__.py`, `src/patchview/__init__.py`, `dev/patchview/test_patchview.py`, the three DOCS.md files (`bin/`, `src/patchview/`, `dev/patchview/`) and this entry. LOC values in the DOCS.md headings were checked against `wc -l` (24 / 193 / 170) and match.
+- Date question: the orchestrator asked for the file to carry 2026-10-04, stating that `date` would show it. `date +%F` on this machine printed 2026-10-10, and the mtimes of `/tmp/rules-review/*` are also 2026-10-10. The file name and the dates inside therefore stay at 2026-10-10 until the orchestrator confirms otherwise. The only 2026-10-04 in this entry is the day the user rejected the Old/New blocks, as told in the task brief.
