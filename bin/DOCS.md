@@ -60,7 +60,7 @@ Command line in → thin wrapper resolves the project path or plugin root → de
 **Reads:** the patch file and, through `src/patchview`, the live file it names (read-only).
 **Writes:** an HTML page under the temp dir (via `src/patchview`); opens it via `show`; stdout.
 **Called by:** users and agents on PATH once symlinked into `~/.local/bin`.
-**Calls out:** python3, `src/patchview`, `show`.
+**Calls out:** python3, `src/patchview` (run as a script file), `show`.
 
 ---
 

@@ -38,3 +38,13 @@ patchview <project>/dev/<area>/patch/workers.patch
 
 - Files of this task: `bin/patchview`, `src/patchview/__main__.py`, `src/patchview/__init__.py`, `dev/patchview/test_patchview.py`, the three DOCS.md files (`bin/`, `src/patchview/`, `dev/patchview/`) and this entry. LOC values in the DOCS.md headings were checked against `wc -l` (24 / 193 / 170) and match.
 - Date question: the orchestrator asked for the file to carry 2026-10-04, stating that `date` would show it. `date +%F` on this machine printed 2026-10-10, and the mtimes of `/tmp/rules-review/*` are also 2026-10-10. The file name and the dates inside therefore stay at 2026-10-10 until the orchestrator confirms otherwise. The only 2026-10-04 in this entry is the day the user rejected the Old/New blocks, as told in the task brief.
+
+## Bug after merge: `No module named src.patchview` (fixed, same task continued)
+
+Observed by the orchestrator in verification: `patchview dev/autonomy/patch/workers.md.patch`, run from the monitor-cc project root, died with `No module named src.patchview`, exit 1. Cause: `python3 -m src.patchview` puts the current directory FIRST on `sys.path`, ahead of `PYTHONPATH`. monitor-cc (like every project here) has its own top-level `src/` package, which shadowed iterative-dev's `src`. The unit test and my one-off checks ran from the iterative-dev worktree itself, where `src` is the right one, so they could not see it.
+
+Fix: `bin/patchview` runs the file directly, `python3 "$REPO_ROOT/src/patchview/__main__.py" "$@"`. No `-m`, no `PYTHONPATH`, no module lookup by package name. This works because `__main__.py` imports stdlib only. Do not add a `from src...` import to that module without revisiting this. The wrapper still does not `cd`, so a patch path relative to the caller's cwd keeps working (covered by the new strand).
+
+Test: strand `foreign_src` in `dev/patchview/test_patchview.py` copies the real `bin/patchview` into a temp "repo" with a stub `show` (records its argument, opens nothing) and a `src` symlink to the real source, then runs the copy from a temp cwd that contains its own `src/__init__.py`, with a cwd-relative patch path. Written first: it failed with the exact orchestrator message (`No module named src.patchview`), then passed after the fix. 6 strands pass.
+
+Lesson: a command that ends up on PATH runs with an arbitrary cwd; test it from a cwd that is not its own repo.
