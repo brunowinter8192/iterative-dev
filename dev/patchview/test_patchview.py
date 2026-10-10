@@ -21,7 +21,9 @@ sys.path.insert(0, str(_HERE.parents[1]))
 from dev.strand_runner import run_strands
 from src.patchview.__main__ import patchview_workflow
 
-ROW_PATTERN = re.compile(r'<div class="(eq|del|add)"><span class="s">.</span>(.*?)</div>')
+PRE_PATTERN = re.compile(r"<pre>(.*?)</pre>", re.DOTALL)
+ROW_PATTERN = re.compile(r'<span class="(eq|del|add)">(.*?)</span>\n')
+TAG_PATTERN = re.compile(r"<[^>]+>")
 LIVE_TEXT = "\n".join(
     ["# Rules", "", "alpha", "beta <b> & gamma", "delta", "", "## Part two", "one", "two", "three", "four", "five", "six", "seven"]
 ) + "\n"
@@ -83,8 +85,12 @@ def run(argv):
 
 
 def rows_of(page_path: str) -> list:
-    rows = ROW_PATTERN.findall(Path(page_path).read_text())
-    return [(kind, "" if text == "&nbsp;" else html.unescape(text)) for kind, text in rows]
+    rows = ROW_PATTERN.findall(pre_block_of(page_path))
+    return [(kind, html.unescape(text)) for kind, text in rows]
+
+
+def pre_block_of(page_path: str) -> str:
+    return PRE_PATTERN.search(Path(page_path).read_text()).group(1)
 
 
 def digest_of(path: Path) -> str:
@@ -110,6 +116,9 @@ def test_patch_renders_whole_file_with_red_green():
             ("add", "inserted"), ("eq", "six"), ("del", "seven"),
         ]
         check("rows are the whole file with exact red/green marking", rows_of(page_path) == expected, rows_of(page_path))
+        copied = html.unescape(TAG_PATTERN.sub("", pre_block_of(page_path)))
+        check("copying the block yields exactly the row texts, no sign or placeholder characters", copied == "".join(text + "\n" for _, text in expected), repr(copied))
+        check("no sign gutter and no nbsp placeholder in the page", 'class="s"' not in Path(page_path).read_text() and "&nbsp;" not in Path(page_path).read_text())
         check("escaped markup in the page source", "beta &lt;b&gt; &amp; gamma" in Path(page_path).read_text())
         check("live file untouched", digest_of(live) == before)
 

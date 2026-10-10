@@ -14,7 +14,7 @@ No input: each case runs in its own process with its own temporary directory and
 
 ## Modules
 
-### test_patchview.py (199 LOC)
+### test_patchview.py (208 LOC)
 
 **Purpose:** Regression guard for the six cases, asserted against hand-written expected red/green row lists.
 **Reads:** Nothing external; builds its own temporary files.

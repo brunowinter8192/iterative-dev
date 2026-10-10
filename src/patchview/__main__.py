@@ -13,10 +13,11 @@ PAGE_CSS = (
     "body{background:#1e1f22;color:#d4d4d4;font:14px/1.5 Menlo,monospace;margin:0;padding:16px}\n"
     "h1{font:600 16px -apple-system,sans-serif;margin:0 0 4px}"
     ".legend{font:13px -apple-system,sans-serif;margin-bottom:12px;color:#aaa}\n"
-    "div{white-space:pre-wrap;padding:0 8px}.s{display:inline-block;width:1.5em;color:#888}\n"
+    "pre{margin:0;font:inherit;white-space:pre-wrap}"
+    "pre span{display:inline-block;width:100%;box-sizing:border-box;padding:0 8px}"
+    'pre span:empty::before{content:"\\00a0"}\n'
     ".del{background:#4b1f24}.add{background:#1f4b2a}.legend .add,.legend .del{padding:0 6px}"
 )
-ROW_SIGNS = {"eq": " ", "del": "-", "add": "+"}
 
 
 class PatchviewError(Exception):
@@ -173,11 +174,11 @@ def build_page(rows: list, live_path: str, patch_path: str) -> str:
     )
     return (
         f'<!doctype html><meta charset="utf-8"><title>{html.escape(title)}</title><style>{PAGE_CSS}</style>\n'
-        f"<h1>{html.escape(title)}</h1>{legend}\n{body}"
+        f"<h1>{html.escape(title)}</h1>{legend}\n<pre>{body}</pre>"
     )
 
 def render_row(kind: str, text: str) -> str:
-    return f'<div class="{kind}"><span class="s">{ROW_SIGNS[kind]}</span>{html.escape(text) or "&nbsp;"}</div>'
+    return f'<span class="{kind}">{html.escape(text)}</span>\n'
 
 def write_page(page: str, patch_path: str) -> str:
     page_dir = os.path.join(os.environ.get("TMPDIR") or "/tmp", PAGE_DIR_NAME)

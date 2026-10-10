@@ -22,7 +22,7 @@ Patch file (plain `diff -u` output against ONE live file, absolute path in the `
 
 ## Modules
 
-### __main__.py (193 LOC)
+### __main__.py (194 LOC)
 
 **Purpose:** The whole renderer: patch parsing, strict hunk application against the live file, HTML page generation and writing.
 **Reads:** the patch file and the live file named by its `---` line; `TMPDIR` from the environment.
