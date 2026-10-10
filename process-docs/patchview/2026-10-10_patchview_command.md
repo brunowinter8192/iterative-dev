@@ -48,3 +48,15 @@ Fix: `bin/patchview` runs the file directly, `python3 "$REPO_ROOT/src/patchview/
 Test: strand `foreign_src` in `dev/patchview/test_patchview.py` copies the real `bin/patchview` into a temp "repo" with a stub `show` (records its argument, opens nothing) and a `src` symlink to the real source, then runs the copy from a temp cwd that contains its own `src/__init__.py`, with a cwd-relative patch path. Written first: it failed with the exact orchestrator message (`No module named src.patchview`), then passed after the fix. 6 strands pass.
 
 Lesson: a command that ends up on PATH runs with an arbitrary cwd; test it from a cwd that is not its own repo.
+
+## Rendering change: no sign characters (supersedes decision 6's `-`/`+` gutter)
+
+User feedback on the page: the leading `+` / `-` characters were copied along when he copied text from the page. He wants color alone to mark removed and added lines, and a copied block must be exactly the file text.
+
+Observed cause: each row was `<div class="del"><span class="s">-</span>text</div>`, so the sign was real text content; blank lines were additionally rendered as `&nbsp;`, which copies as U+00A0, not as an empty line. Both would have polluted a copy.
+
+New structure: one `<pre>`, each line `<span class="eq|del|add">escaped text</span>` followed by a literal `\n` text node. Spans are `display:inline-block;width:100%` so the background fills the row. Blank lines are an empty span; its height comes from `pre span:empty::before{content:"\00a0"}`, and generated content is never part of a copy. The sign gutter, its CSS and the `ROW_SIGNS` table are gone.
+
+Verified only on file content, no browser (the user ruled out opening any window): (1) strand `applies` strips all tags from the `<pre>` block, unescapes, and requires the result to equal the hand-written row texts joined with newlines, exactly, plus no `class="s"` and no `&nbsp;` in the page; (2) on the real accepted pair (`workers-ist.md` / `workers-soll.md`) the text of the non-red rows equals the soll file byte for byte and the text of the non-green rows equals the ist file byte for byte. NOT verified: the actual clipboard result in Safari/Chrome, and the visual height of blank rows. If a copy still shows stray line breaks, check the browser's handling of inline-block spans inside `pre` first.
+
+Working rule from the orchestrator (2026-10-10): never open a browser or any window, not even through the wrapper. The `foreign_src` strand is compatible with that: it runs the wrapper copy with a stub `show`.
