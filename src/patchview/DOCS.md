@@ -6,11 +6,13 @@ Renders a proposed change to a user-owned rule or skill file as a self-contained
 
 ## Public Interface
 
-`__init__.py` is a package marker only, no exports. Entry path from the repo root:
+`__init__.py` is a package marker only, no exports. Entry path:
 
 ```bash
-python3 -m src.patchview <patch-file>
+python3 <repo>/src/patchview/__main__.py <patch-file>
 ```
+
+Run as a script, never as `-m src.patchview`: the caller's cwd may hold its own `src` package, which would shadow this one.
 
 `bin/patchview` wraps this, opens the page via `bin/show` and is the command users and agents call. Prints exactly one line on success: the path of the written page.
 
@@ -25,7 +27,7 @@ Patch file (plain `diff -u` output against ONE live file, absolute path in the `
 **Purpose:** The whole renderer: patch parsing, strict hunk application against the live file, HTML page generation and writing.
 **Reads:** the patch file and the live file named by its `---` line; `TMPDIR` from the environment.
 **Writes:** one HTML page under `$TMPDIR/patchview/` (fallback `/tmp`); stdout (page path); stderr (failure reason).
-**Called by:** `bin/patchview` (via `-m src.patchview`), `dev/patchview/test_patchview.py`.
+**Called by:** `bin/patchview` (runs the file directly), `dev/patchview/test_patchview.py`.
 **Calls out:** nothing, stdlib only.
 
 ## State

@@ -8,6 +8,7 @@ import html
 import io
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -37,6 +38,7 @@ def test_patchview_workflow() -> int:
         "stale": test_stale_patch_fails_and_touches_nothing,
         "bad_argv": test_bad_argv_exits_2,
         "missing_live": test_missing_live_file_exits_1,
+        "foreign_src": test_wrapper_works_from_cwd_with_own_src_package,
     }
     code, _ = run_strands(cases, sys.argv[1:])
     return code
@@ -164,6 +166,33 @@ def test_missing_live_file_exits_1():
         check("exit code 1", code == 1, code)
         check("stdout empty", out == "", out)
         check("stderr names the live file", str(live) in err, err)
+
+
+def test_wrapper_works_from_cwd_with_own_src_package():
+    with sandbox() as root:
+        repo_bin = root / "repo" / "bin"
+        repo_bin.mkdir(parents=True)
+        shutil.copy2(_HERE.parents[1] / "bin" / "patchview", repo_bin / "patchview")
+        (repo_bin / "show").write_text('#!/usr/bin/env bash\necho "$1" > "$(dirname "$0")/shown.txt"\n')
+        (repo_bin / "show").chmod(0o755)
+        (root / "repo" / "src").symlink_to(_HERE.parents[1] / "src")
+        work = root / "work"
+        (work / "src").mkdir(parents=True)
+        (work / "src" / "__init__.py").write_text("")
+        (work / "dev" / "area" / "patch").mkdir(parents=True)
+        live = root / "live.md"
+        live.write_text(LIVE_TEXT)
+        make_patch(root, live, NEW_TEXT).rename(work / "dev" / "area" / "patch" / "p.patch")
+        before = digest_of(live)
+        result = subprocess.run(
+            [str(repo_bin / "patchview"), "dev/area/patch/p.patch"],
+            cwd=work, capture_output=True, text=True, env={**os.environ, "TMPDIR": os.environ["TMPDIR"]},
+        )
+        check("exit code 0 from a cwd with its own src package", result.returncode == 0, (result.returncode, result.stderr))
+        shown = (repo_bin / "shown.txt").read_text().strip()
+        check("show received the page path", shown.startswith(os.path.join(os.environ["TMPDIR"], "patchview")) and shown.endswith(".html"), shown)
+        check("page holds the patched file", ("add", "beta CHANGED") in rows_of(shown), rows_of(shown))
+        check("live file untouched", digest_of(live) == before)
 
 
 if __name__ == "__main__":

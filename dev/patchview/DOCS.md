@@ -2,7 +2,7 @@
 
 ## Role
 
-Regression suite for the patchview renderer: a patch that applies, shifted hunks, a stale patch, bad arguments, a missing live file. Touch when changing patch parsing, apply semantics or page output.
+Regression suite for the patchview renderer: a patch that applies, shifted hunks, a stale patch, bad arguments, a missing live file, the wrapper run from a cwd that has its own `src` package. Touch when changing patch parsing, apply semantics or page output.
 
 ## Public Interface
 
@@ -14,13 +14,13 @@ No input: each case runs in its own process with its own temporary directory and
 
 ## Modules
 
-### test_patchview.py (170 LOC)
+### test_patchview.py (199 LOC)
 
-**Purpose:** Regression guard for the five cases, asserted against hand-written expected red/green row lists.
+**Purpose:** Regression guard for the six cases, asserted against hand-written expected red/green row lists.
 **Reads:** Nothing external; builds its own temporary files.
 **Writes:** stdout; no writes outside its temporary fixtures.
 **Called by:** Run manually after changes to `src/patchview`.
-**Calls out:** `src/patchview/__main__.py`, `dev/strand_runner.py`, the `diff` binary.
+**Calls out:** `src/patchview/__main__.py`, `bin/patchview` (a copy with a stub `show`), `dev/strand_runner.py`, the `diff` binary.
 
 ## State
 
