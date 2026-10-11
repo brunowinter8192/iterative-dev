@@ -82,3 +82,7 @@ iterative-dev:
 4. Remove the copy: `rm -rf "$HOME/Library/Application Support/iterative-dev/GhosttyViewer.app" "$HOME/Library/Application Support/iterative-dev/viewer-shim.log"` and quit a running `GhosttyViewer` process.
 5. Update `src/spawn/DOCS.md` and `dev/worker_spawn/DOCS.md` (module entries and LOC).
 monitor-cc: the removal steps are in its process-docs, area `menubar`, entry of 2026-10-11 about the viewer app.
+
+## Recap addendum
+
+State left behind on the machine (2026-10-11): the viewer copy `~/Library/Application Support/iterative-dev/GhosttyViewer.app` (62 MB) and `viewer-shim.log` exist; no viewer process and no `vbgmeasure*` tmux sessions are running. The copy is rebuilt automatically when the installed Ghostty stamp changes; deleting it is safe, the next `open_tmux_viewer` recreates it in about 1.2 s. The monitor-cc side of this change (menubar lookup and row click) is documented in its process-docs, area `menubar`. Not verified: the published plugin cache path and the main-Ghostty-frontmost case.
