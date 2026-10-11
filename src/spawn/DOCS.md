@@ -48,13 +48,33 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 
 ---
 
-### worker_io.sh (163 LOC)
+### worker_io.sh (150 LOC)
 
 **Purpose:** Pane capture, message delivery, viewer window and orchestrator-signal file updates.
 **Reads:** tmux panes, `_capture_clean.py`, a viewer-suppression env var for test spawns (see `process-docs/worker_spawn/`).
-**Writes:** `/tmp/worker-<name>-pane.txt`, orchestrator signals file, Ghostty windows.
+**Writes:** `/tmp/worker-<name>-pane.txt`, orchestrator signals file, a window in the viewer app.
 **Called by:** `tmux_spawn.sh` (sourced); `bin/worker-cli` via `bash -c source`.
-**Calls out:** tmux, osascript/Ghostty, python3.
+**Calls out:** tmux, osascript, python3, `viewer_app.sh` (sourced).
+
+---
+
+### viewer_app.sh (136 LOC)
+
+**Purpose:** Builds, refreshes and launches the worker viewer app, a patched copy of Ghostty whose window creation does not take focus.
+**Reads:** the installed `Ghostty.app` (`Info.plist` version and commit stamp), `viewer_shim.m`, `VIEWER_SOURCE_APP` (test hook).
+**Writes:** `~/Library/Application Support/iterative-dev/` (the app copy, a build lock directory, the shim log); starts the viewer app with `open -g`.
+**Called by:** `worker_io.sh` (sourced; `open_tmux_viewer`).
+**Calls out:** ditto, PlistBuddy, clang, codesign, open, pgrep, osascript.
+
+---
+
+### viewer_shim.m (48 LOC)
+
+**Purpose:** Objective-C shim injected into the viewer app; turns the app's own activation calls into logged no-ops.
+**Reads:** `VIEWER_SHIM_LOG` from the process environment.
+**Writes:** appends one line per swallowed activation to the shim log.
+**Called by:** compiled by `viewer_app.sh`; loaded into the viewer app through `LSEnvironment`.
+**Calls out:** AppKit (method replacement on `NSApplication`).
 
 ---
 
@@ -117,5 +137,7 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 **Calls out:** git (via subprocess), bash + tmux_spawn.sh (via subprocess).
 
 ## State
+
+The viewer app copy under `~/Library/Application Support/iterative-dev/` is owned by `viewer_app.sh` and rebuilt when the installed Ghostty version or commit changes; the monitor-cc menubar looks its windows up by its bundle id. Why it exists and how to remove it: `process-docs/worker_spawn/`.
 
 Worker model resolution exists only in `spawn.py`. `tmux_spawn.sh` spawn functions take a mandatory concrete model and abort without one; `worker_revive` reads the stored `WORKER_MODEL` from the tmux session. See `process-docs/worker_spawn/` for the full model-resolution and status-detection history.

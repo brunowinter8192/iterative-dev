@@ -2,6 +2,8 @@
 
 # INFRASTRUCTURE
 
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/viewer_app.sh"
+
 _ORCHESTRATOR_SIGNALS_FILE="$HOME/Library/Application Support/com.brunowinter.monitor-cc-menubar/orchestrator_signals.json"
 
 # FUNCTIONS
@@ -135,29 +137,14 @@ open_tmux_viewer() {
         return 0
     fi
 
-    local ghostty_version
-    ghostty_version=$(ghostty +version | head -1 | grep -oE '[0-9]+\.[0-9]+') || {
-        echo "ERROR: cannot read the ghostty version" >&2
-        return 1
-    }
-    local major minor
-    major=$(echo "$ghostty_version" | cut -d. -f1)
-    minor=$(echo "$ghostty_version" | cut -d. -f2)
+    prepare_viewer_app || return 1
 
-    if [ "$major" -ge 2 ] || { [ "$major" -ge 1 ] && [ "$minor" -ge 3 ]; }; then
-        osascript -e "
-tell application \"Ghostty\"
-    activate
+    osascript -e "
+tell application id \"$_VIEWER_APP_ID\"
     set win to new window
     set t to terminal 1 of selected tab of win
     input text \"tmux attach -t $session; exit\" to t
     send key \"enter\" to t
 end tell
 "
-    else
-        open -na Ghostty.app --args \
-            --quit-after-last-window-closed=true \
-            --window-save-state=never \
-            -e tmux attach -t "$session"
-    fi
 }

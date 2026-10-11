@@ -9,6 +9,7 @@ PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 WORKER_CLI="$PLUGIN_ROOT/bin/worker-cli"
 export CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT"
 source "$SCRIPT_DIR/../strand_runner.sh"
+source "$SCRIPT_DIR/viewer_fixture.sh"
 
 STRANDS=(viewer_default viewer_suppressed viewer_function)
 
@@ -27,11 +28,9 @@ _install_stubs() {
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >> "$OSA_LOG"
 STUB
-    cat > "$STRAND_DIR/bin/ghostty" <<'STUB'
-#!/usr/bin/env bash
-echo "Ghostty 1.3.0"
-STUB
-    chmod +x "$STRAND_DIR/bin/osascript" "$STRAND_DIR/bin/ghostty"
+    printf '#!/usr/bin/env bash\nexit 0\n' > "$STRAND_DIR/bin/open"
+    chmod +x "$STRAND_DIR/bin/osascript" "$STRAND_DIR/bin/open"
+    install_fake_ghostty_app
 }
 
 _write_mock_claude() {
@@ -66,15 +65,23 @@ _osascript_calls() {
     grep -c "tmux attach" "$OSA_LOG"
 }
 
+_wait_for_osascript_calls() {
+    local deadline=$((SECONDS + 30))
+    while [ "$(_osascript_calls)" -lt "$1" ] && [ "$SECONDS" -lt "$deadline" ]; do
+        sleep 0.2
+    done
+}
+
 strand_viewer_default() {
     _install_stubs
     _write_mock_claude
     local name="vwdefault$$"
     unset WORKER_NO_VIEWER
     _spawn_via_cli "$name"
-    sleep 1
+    _wait_for_osascript_calls 1
     check "spawn without WORKER_NO_VIEWER -> session exists" \
         "$(tmux has-session -t "$SESSION" 2>/dev/null && echo ok || echo "missing, see $STRAND_DIR/spawn.log")"
+    sleep 1
     check "spawn without WORKER_NO_VIEWER -> exactly one osascript call" \
         "$([ "$(_osascript_calls)" = "1" ] && echo ok || echo "calls=$(_osascript_calls)")"
     check "spawn without WORKER_NO_VIEWER -> the call attaches to the worker session" \

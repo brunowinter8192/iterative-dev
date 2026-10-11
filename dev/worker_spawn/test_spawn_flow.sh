@@ -9,6 +9,7 @@ PLUGIN_ROOT="$(cd "$SELF_DIR/../.." && pwd)"
 SPAWN_SH="$PLUGIN_ROOT/src/spawn/tmux_spawn.sh"
 export CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT"
 source "$SELF_DIR/../strand_runner.sh"
+source "$SELF_DIR/viewer_fixture.sh"
 
 STRANDS=(viewer proxy spawn)
 POLL_BOUND=60
@@ -40,10 +41,10 @@ init_project() {
 
 install_viewer_stubs() {
     VIEWER_LOG="$STRAND_DIR/viewer_calls.log"
-    printf '#!/usr/bin/env bash\necho "Ghostty 1.3.1"\n' > "$STRAND_DIR/bin/ghostty"
     printf '#!/usr/bin/env bash\necho "osascript $*" >> "%s"\n' "$VIEWER_LOG" > "$STRAND_DIR/bin/osascript"
     printf '#!/usr/bin/env bash\necho "open $*" >> "%s"\n' "$VIEWER_LOG" > "$STRAND_DIR/bin/open"
-    chmod +x "$STRAND_DIR/bin/ghostty" "$STRAND_DIR/bin/osascript" "$STRAND_DIR/bin/open"
+    chmod +x "$STRAND_DIR/bin/osascript" "$STRAND_DIR/bin/open"
+    install_fake_ghostty_app
 }
 
 install_blocking_viewer_stubs() {
@@ -73,7 +74,11 @@ pane_shows_mock() {
 }
 
 viewer_stub_started() {
-    grep -q "tmux attach -t $1" "$VIEWER_LOG" 2>/dev/null && [ -s "$VIEWER_STUB_PID" ]
+    [ -s "$VIEWER_STUB_PID" ]
+}
+
+viewer_attach_logged() {
+    grep -q "tmux attach -t $1" "$VIEWER_LOG" 2>/dev/null
 }
 
 process_gone() {
@@ -189,7 +194,8 @@ strand_spawn() {
     kill -0 "$(cat "$VIEWER_STUB_PID")" 2>/dev/null && pass "spawn had returned while the viewer launcher was still running" \
         || fail "viewer launcher finished before spawn returned, so blocking cannot be told apart"
     touch "$VIEWER_RELEASE"
-    poll_until process_gone "$(cat "$VIEWER_STUB_PID")" || fail "viewer launcher stub did not stop after release"
+    poll_until viewer_attach_logged "$session" && pass "after release the viewer attached to the session" \
+        || fail "viewer never attached to '$session' after release (log: $(cat "$VIEWER_LOG"))"
     _stop_worker_logger "$SPAWN_NAME"
 }
 

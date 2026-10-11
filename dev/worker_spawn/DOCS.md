@@ -6,7 +6,7 @@ Smoke tests for the worker spawn flow in src/spawn: tmux session creation, envir
 
 ## Public Interface
 
-No `__init__.py`; each script is run manually: `python3 dev/worker_spawn/test_capture_clean.py`, `bash dev/worker_spawn/test_direct_command.sh`, `bash dev/worker_spawn/test_spawn_flow.sh`, `bash dev/worker_spawn/test_xproject_worktrees.sh`, `bash dev/worker_spawn/render_runner_flags.sh`, `bash dev/worker_spawn/verify_no_viewer.sh`.
+No `__init__.py`; each script is run manually: `python3 dev/worker_spawn/test_capture_clean.py`, `bash dev/worker_spawn/test_direct_command.sh`, `bash dev/worker_spawn/test_spawn_flow.sh`, `bash dev/worker_spawn/test_xproject_worktrees.sh`, `bash dev/worker_spawn/render_runner_flags.sh`, `bash dev/worker_spawn/verify_no_viewer.sh`, `bash dev/worker_spawn/verify_viewer_app.sh`, and the live measurement `bash dev/worker_spawn/measure_viewer_focus.sh <window count>`.
 
 ## Flow
 
@@ -34,7 +34,7 @@ Each suite drives src/spawn or bin/worker-cli against private throwaway tmux ser
 
 ---
 
-### test_spawn_flow.sh (196 LOC)
+### test_spawn_flow.sh (202 LOC)
 
 **Purpose:** Tests the spawn flow without real Claude Code: viewer launch, proxy setup with a stub proxy binary, and a full spawn with a mock.
 **Reads:** `src/spawn` shell modules (sourced).
@@ -64,13 +64,53 @@ Each suite drives src/spawn or bin/worker-cli against private throwaway tmux ser
 
 ---
 
-### verify_no_viewer.sh (110 LOC)
+### verify_no_viewer.sh (117 LOC)
 
 **Purpose:** Verifies that a real worker-cli spawn opens the viewer by default and opens none when the viewer is suppressed.
-**Reads:** Nothing persistent; osascript and ghostty are stubs on PATH.
+**Reads:** Nothing persistent; osascript and open are stubs on PATH, the Ghostty app is a fixture.
 **Writes:** stdout; per-strand stub call log and tmux server, removed.
 **Called by:** Run manually.
-**Calls out:** `bin/worker-cli` (subprocess), tmux, `dev/strand_runner.sh`.
+**Calls out:** `bin/worker-cli` (subprocess), tmux, `dev/strand_runner.sh`, `viewer_fixture.sh`.
+
+---
+
+### verify_viewer_app.sh (124 LOC)
+
+**Purpose:** Strands for the viewer app lifecycle: build, stale rebuild, single build under parallel callers, window script shape, suppression, missing Ghostty.
+**Reads:** Nothing persistent; a fixture Ghostty app, stubbed open, osascript, pgrep and codesign; the shim is compiled for real.
+**Writes:** stdout; per-strand scratch directory, removed.
+**Called by:** Run manually.
+**Calls out:** `src/spawn/worker_io.sh` (sourced), `dev/strand_runner.sh`, `viewer_fixture.sh`.
+
+---
+
+### viewer_fixture.sh (40 LOC)
+
+**Purpose:** Shared test fixture: a fake Ghostty app bundle with version and commit, plus a signing stub.
+**Reads:** `STRAND_DIR` of the sourcing strand.
+**Writes:** the fake app and `codesign` stub inside the strand directory; exports `VIEWER_SOURCE_APP`.
+**Called by:** `verify_viewer_app.sh`, `verify_no_viewer.sh`, `test_spawn_flow.sh` (sourced).
+**Calls out:** none.
+
+---
+
+### measure_viewer_focus.sh (217 LOC)
+
+**Purpose:** Live measurement: opens N viewer windows through the real path and checks frontmost app, main Ghostty front window and focus unchanged, windows attached and found by marker.
+**Reads:** frontmost app (`lsappinfo`), main Ghostty state (read-only AppleScript), the shim log, `measure_viewer_focus_windows.js` output.
+**Writes:** `md/measure_viewer_focus.md`, `md/measure_viewer_focus_samples.txt` (raw timestamped samples); opens windows on the live desktop and removes them.
+**Called by:** Run manually; disturbs the desktop, so run it deliberately.
+**Calls out:** `src/spawn/worker_io.sh` (sourced), tmux, osascript, lsappinfo.
+
+---
+
+### measure_viewer_focus_windows.js (7 LOC)
+
+**Purpose:** JXA helper that lists onscreen layer-0 windows front to back with owner pid and bounds.
+**Reads:** the CoreGraphics window list.
+**Writes:** stdout.
+**Called by:** `measure_viewer_focus.sh`.
+**Calls out:** none.
 
 ## State
 
