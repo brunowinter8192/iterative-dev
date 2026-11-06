@@ -6,7 +6,7 @@ Smoke tests for the worker spawn flow in src/spawn: tmux session creation, envir
 
 ## Public Interface
 
-No `__init__.py`; each script is run manually: `python3 dev/worker_spawn/test_capture_clean.py`, `bash dev/worker_spawn/test_direct_command.sh`, `bash dev/worker_spawn/test_spawn_flow.sh`, `bash dev/worker_spawn/test_xproject_worktrees.sh`, `bash dev/worker_spawn/render_runner_flags.sh`, `bash dev/worker_spawn/verify_no_viewer.sh`, `bash dev/worker_spawn/verify_viewer_app.sh`, and the live measurement `bash dev/worker_spawn/measure_viewer_focus.sh <window count>`.
+No `__init__.py`; each script is run manually: `python3 dev/worker_spawn/test_capture_clean.py`, `bash dev/worker_spawn/test_direct_command.sh`, `bash dev/worker_spawn/test_spawn_flow.sh`, `bash dev/worker_spawn/test_xproject_worktrees.sh`, `bash dev/worker_spawn/render_runner_flags.sh`, `bash dev/worker_spawn/test_worker_proxy_routing.sh`, `bash dev/worker_spawn/verify_no_viewer.sh`, `bash dev/worker_spawn/verify_viewer_app.sh`, and the live measurement `bash dev/worker_spawn/measure_viewer_focus.sh <window count>`.
 
 ## Flow
 
@@ -34,13 +34,33 @@ Each suite drives src/spawn or bin/worker-cli against private throwaway tmux ser
 
 ---
 
-### test_spawn_flow.sh (202 LOC)
+### test_spawn_flow.sh (181 LOC)
 
 **Purpose:** Tests the spawn flow without real Claude Code: viewer launch, proxy setup with a stub proxy binary, and a full spawn with a mock.
 **Reads:** `src/spawn` shell modules (sourced).
 **Writes:** stdout; throwaway tmux servers, repos, proxy marker file, all removed.
 **Called by:** Run manually.
 **Calls out:** tmux, python3, `dev/strand_runner.sh`.
+
+---
+
+### test_worker_proxy_routing.sh (118 LOC)
+
+**Purpose:** Strands for worker proxy marker choice, refusal without a marker in a proxied session, the no-proxy case and the fork block in runner lines.
+**Reads:** `src/spawn` shell modules (sourced); `proxy_fixture.sh`.
+**Writes:** stdout; fake proxy markers under `/tmp` and a stub proxy, all removed.
+**Called by:** Run manually.
+**Calls out:** `dev/strand_runner.sh`, `proxy_fixture.sh`.
+
+---
+
+### proxy_fixture.sh (37 LOC)
+
+**Purpose:** Shared fixture: stub `mitmdump` that listens and logs its environment, a fake monitor-cc root and a proxy-marker writer.
+**Reads:** the strand directory and `STUB_ENV_LOG` from the caller.
+**Writes:** the stub binary, the fake root, marker files under `/tmp`.
+**Called by:** `test_spawn_flow.sh`, `test_worker_proxy_routing.sh` (sourced).
+**Calls out:** python3 (stub listener).
 
 ---
 
@@ -54,9 +74,9 @@ Each suite drives src/spawn or bin/worker-cli against private throwaway tmux ser
 
 ---
 
-### render_runner_flags.sh (93 LOC)
+### render_runner_flags.sh (95 LOC)
 
-**Purpose:** Renders the runner-script flags produced by spawn, file-based spawn and revive with mocked tmux, and asserts the permission mode.
+**Purpose:** Renders the runner-script flags produced by spawn, file-based spawn and revive with mocked tmux, and asserts permission mode and fork block (`CLAUDE_CODE_FORK_SUBAGENT=0`, `--disallowedTools Agent`).
 **Reads:** `src/spawn` shell modules (sourced).
 **Writes:** stdout; `md/render_runner_flags.md`; a fake home directory removed on exit.
 **Called by:** Run manually.
