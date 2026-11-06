@@ -102,7 +102,7 @@ _cleanup() {
 }
 trap _cleanup EXIT INT TERM HUP
 cd '${project_path}'
-${proxy_env_prefix}${worker_claude_bin} --model '${model}' ${extra_flags}
+${_WORKER_ENV_PREFIX}${proxy_env_prefix}${worker_claude_bin} --model '${model}' ${extra_flags}
 RUNSCRIPT
     echo "$runner"
 }
