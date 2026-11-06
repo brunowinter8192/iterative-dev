@@ -14,8 +14,12 @@ _worker_proxy_setup() {
     local proxy_project_path proxy_session_id proxy_marker
     proxy_project_path=$(_proxy_project_root "$project_path")
     proxy_session_id=$(_proxy_session_id "$proxy_project_path")
-    proxy_marker="/tmp/.monitor_cc_proxy_${proxy_session_id}"
-    [ ! -f "$proxy_marker" ] && return 0
+    proxy_marker=$(_proxy_find_marker "$proxy_session_id")
+    if [ -z "$proxy_marker" ]; then
+        _proxy_marker_missing "$name" "$proxy_session_id" || return 1
+        return 0
+    fi
+    proxy_session_id="${proxy_marker##*/.monitor_cc_proxy_}"
 
     local main_port monitor_cc_root
     main_port=$(sed -n '1p' "$proxy_marker")
@@ -38,6 +42,21 @@ _worker_proxy_setup() {
     fi
     WORKER_PROXY_ENV_PREFIX="HTTPS_PROXY=http://localhost:${worker_port} NODE_EXTRA_CA_CERTS=~/.mitmproxy/mitmproxy-ca-cert.pem SSL_CERT_FILE=~/.mitmproxy/combined-ca.pem REQUESTS_CA_BUNDLE=~/.mitmproxy/combined-ca.pem "
     return 0
+}
+
+_proxy_find_marker() {
+    local project_session_id="$1" candidate
+    for candidate in "$project_session_id" "${PROXY_SESSION_ID:-}"; do
+        [ -n "$candidate" ] && [ -f "/tmp/.monitor_cc_proxy_${candidate}" ] && { echo "/tmp/.monitor_cc_proxy_${candidate}"; return 0; }
+    done
+    return 0
+}
+
+_proxy_marker_missing() {
+    local name="$1" project_session_id="$2"
+    [ -z "${PROXY_SESSION_ID:-}" ] && return 0
+    echo "ERROR: worker '$name': this session runs behind the proxy (PROXY_SESSION_ID=${PROXY_SESSION_ID}) but neither /tmp/.monitor_cc_proxy_${project_session_id} (worker project) nor /tmp/.monitor_cc_proxy_${PROXY_SESSION_ID} (this session) exists; refusing to start a worker without proxy." >&2
+    return 1
 }
 
 _proxy_project_root() {
