@@ -14,7 +14,7 @@ A suite lists its independent cases as strands and hands them to the shared runn
 
 ## Modules
 
-### strand_runner.sh (105 LOC)
+### strand_runner.sh (106 LOC)
 
 **Purpose:** Shared runner for shell suites: runs each case as a parallel, isolated, fail-fast strand and aggregates the results.
 **Reads:** The suite's strand list and strand functions.

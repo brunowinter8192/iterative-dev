@@ -131,7 +131,7 @@ _cleanup() {
 }
 trap _cleanup EXIT INT TERM HUP
 cd '${worktree}'
-${proxy_env_prefix}${worker_claude_bin} --model '${model}' ${_WORKER_PERMISSION_FLAGS} --resume '${session_id}'
+${_WORKER_ENV_PREFIX}${proxy_env_prefix}${worker_claude_bin} --model '${model}' ${_WORKER_PERMISSION_FLAGS} --resume '${session_id}'
 RUNSCRIPT
     chmod +x "$runner"
     echo "$runner"

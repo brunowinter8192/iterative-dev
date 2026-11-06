@@ -28,9 +28,9 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 
 ---
 
-### config.sh (5 LOC)
+### config.sh (6 LOC)
 
-**Purpose:** Constants shared by more than one spawn module: the permission flags every worker runs with.
+**Purpose:** Constants shared by more than one spawn module: the permission and fork-block flags every worker runs with, and the env prefix that disables fork subagents.
 **Reads:** nothing.
 **Writes:** nothing; defines the constant for the sourcing shell.
 **Called by:** `tmux_spawn.sh`, `worker_revive.sh` (sourced).
@@ -88,10 +88,10 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 
 ---
 
-### worker_proxy.sh (118 LOC)
+### worker_proxy.sh (137 LOC)
 
 **Purpose:** Per-worker mitmproxy setup shared by spawn and revive; publishes the `WORKER_PROXY_*` globals.
-**Reads:** proxy marker `/tmp/.monitor_cc_proxy_<session_id>`.
+**Reads:** proxy marker `/tmp/.monitor_cc_proxy_<id>` of the worker project, else that of `PROXY_SESSION_ID` from the orchestrator environment; refuses (return 1) when `PROXY_SESSION_ID` is set but neither marker exists, and starts without proxy only when no proxy context exists.
 **Writes:** live addon copies (made by monitor-cc's `copy_proxy_live.sh`, never copied here), mitmdump process, `WORKER_PROXY_*` globals.
 **Called by:** `tmux_spawn.sh`, `worker_revive.sh`.
 **Calls out:** mitmdump, lsof, monitor-cc `copy_proxy_live.sh` (path from marker line 3).
