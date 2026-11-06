@@ -63,6 +63,7 @@ _strand_child() {
 
 _strand_isolate() {
     local name="$1"
+    unset PROXY_SESSION_ID
     export HOME="$STRAND_DIR/home"
     export WORKER_LOGGER_DIR="$STRAND_DIR/logs"
     export WORKER_REGISTRY_DIR="$STRAND_DIR/registry"

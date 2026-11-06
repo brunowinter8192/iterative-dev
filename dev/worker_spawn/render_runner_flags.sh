@@ -15,7 +15,7 @@ render_runner_flags_workflow() {
     _install_mocks
     _render_runner_lines
     _write_report
-    _assert_permission_mode
+    _assert_flags
 }
 
 # FUNCTIONS
@@ -81,11 +81,13 @@ _write_report() {
     rm -rf "$FAKE_HOME"
 }
 
-_assert_permission_mode() {
+_assert_flags() {
     local line
     for line in "$SPAWN_LINE" "$FILE_LINE" "$REVIVE_LINE"; do
         [[ "$line" == *"--permission-mode bypassPermissions"* ]] || { echo "FAIL"; exit 1; }
         [[ "$line" != *acceptEdits* ]] || { echo "FAIL"; exit 1; }
+        [[ "$line" == CLAUDE_CODE_FORK_SUBAGENT=0\ * ]] || { echo "FAIL"; exit 1; }
+        [[ "$line" == *"--disallowedTools Agent"* ]] || { echo "FAIL"; exit 1; }
     done
     echo PASS
 }

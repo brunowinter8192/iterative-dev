@@ -10,6 +10,7 @@ SPAWN_SH="$PLUGIN_ROOT/src/spawn/tmux_spawn.sh"
 export CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT"
 source "$SELF_DIR/../strand_runner.sh"
 source "$SELF_DIR/viewer_fixture.sh"
+source "$SELF_DIR/proxy_fixture.sh"
 
 STRANDS=(viewer proxy spawn)
 POLL_BOUND=60
@@ -85,26 +86,6 @@ process_gone() {
     ! kill -0 "$1" 2>/dev/null
 }
 
-install_mitmdump_stub() {
-    cat > "$STRAND_DIR/bin/mitmdump" <<'STUB'
-#!/usr/bin/env bash
-port=""
-while [ $# -gt 0 ]; do
-    [ "$1" = "-p" ] && port="$2"
-    shift
-done
-exec python3 -c "
-import socket, sys, time
-s = socket.socket()
-s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-s.bind(('127.0.0.1', int(sys.argv[1])))
-s.listen(1)
-time.sleep(600)
-" "$port"
-STUB
-    chmod +x "$STRAND_DIR/bin/mitmdump"
-}
-
 write_mock_claude() {
     MOCK_CLAUDE="$STRAND_DIR/mock_claude.sh"
     cat > "$MOCK_CLAUDE" <<'MOCK'
@@ -140,13 +121,11 @@ strand_proxy() {
     install_mitmdump_stub
     source "$SPAWN_SH"
 
-    local monitor_root="$STRAND_DIR/monitor_root" main_port=$((47000 + RANDOM % 1000))
-    mkdir -p "$monitor_root/src/proxy"
-    echo "# addon stub" > "$monitor_root/src/proxy_addon.py"
-    printf '#!/bin/bash\ncp "$(dirname "$0")/proxy_addon.py" "$1"\nmkdir -p "$2"\n' > "$monitor_root/src/copy_proxy_live.sh"
-    chmod +x "$monitor_root/src/copy_proxy_live.sh"
+    local main_port=$((47000 + RANDOM % 1000))
+    install_monitor_root
+    local monitor_root="$MONITOR_ROOT"
     MARKER="/tmp/.monitor_cc_proxy_$(project_hash "$PROJ")"
-    printf '%s\n%s\n%s\n' "$main_port" "fixture" "$monitor_root" > "$MARKER"
+    write_proxy_marker "$(project_hash "$PROJ")" "$main_port"
 
     _worker_proxy_setup "proxyflow" "$PROJ" || fail "_worker_proxy_setup returned non-zero"
     PROXY_PID="$WORKER_PROXY_PID"
