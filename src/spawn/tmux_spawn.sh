@@ -88,7 +88,7 @@ _build_spawn_runner() {
     local worker_proxy_pid="$WORKER_PROXY_PID"
     local worker_live_addon="$WORKER_PROXY_LIVE_ADDON"
     local worker_live_dir="$WORKER_PROXY_LIVE_DIR"
-    local worker_claude_bin="${CLAUDE_BIN:-$HOME/.local/bin/claude-280}"
+    local worker_claude_bin="${CLAUDE_BIN:-$HOME/.local/bin/claude-290}"
     local runner
     runner=$(mktemp "/tmp/.worker_${name}.XXXXXX")
     cat > "$runner" <<RUNSCRIPT

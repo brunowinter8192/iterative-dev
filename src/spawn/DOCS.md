@@ -24,7 +24,7 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 **Reads:** nothing beyond its arguments and tmux state.
 **Writes:** tmux sessions, runner scripts, `/tmp/worker-<name>.done` signal file.
 **Called by:** `~/.local/bin/worker-cli` (via `source`); `spawn.py` (via subprocess for `spawn_claude_worker_from_file`); `dev/` suites.
-**Calls out:** tmux, `~/.local/bin/claude-280`.
+**Calls out:** tmux, `~/.local/bin/claude-290`.
 
 ---
 
@@ -104,7 +104,7 @@ Invoked via `python3 -m src.spawn.spawn` by `worker-cli spawn`:
 **Reads:** tmux session environment, session JSONL, worktree dir.
 **Writes:** tmux session, runner script, death log, `_REVIVE_*` globals.
 **Called by:** `bin/worker-cli revive` via `bash -c source`.
-**Calls out:** tmux, `~/.local/bin/claude-280`.
+**Calls out:** tmux, `~/.local/bin/claude-290`.
 
 ---
 
